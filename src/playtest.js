@@ -10,7 +10,7 @@ export function attachPlaytestRecorder(game) {
   const controls = () => ({
     scenario: game.world.scenario, mode: game.world.mode, setup: clone(game.world.setup), scenarioRun, time: game.world.time, paused: game.paused, speed: game.speed,
     selectedId: game.ui.selectedId, hoverId: game.ui.hoverId, pending: clone(game.ui.pending), order: clone(selected()?.order),
-    metal: clone(game.world.metal), units: game.world.units.filter(u => u.hp > 0).length,
+    metal: clone(game.world.metal), gravity: clone(game.world.gravity), units: game.world.units.filter(u => u.hp > 0).length,
     modal: game.modalOpen(), outcome: game.world.outcome,
   });
   const append = (type, data = {}) => {
@@ -84,7 +84,7 @@ export function attachPlaytestRecorder(game) {
   document.addEventListener('visibilitychange', () => append('visibility', { hidden: document.hidden }));
   window.addEventListener('error', e => append('error', { message: e.message, source: e.filename, line: e.lineno }));
   window.addEventListener('unhandledrejection', e => append('error', { message: String(e.reason) }));
-  for (const name of ['select', 'plan', 'confirm', 'cancel', 'build', 'setSpeed', 'togglePause', 'load', 'showOutcome', 'toast']) {
+  for (const name of ['select', 'plan', 'confirm', 'cancel', 'build', 'setSpeed', 'togglePause', 'load', 'showOutcome', 'toast', 'tuneGravity']) {
     const original = game[name];
     game[name] = function (...args) {
       const before = recording ? controls() : null;

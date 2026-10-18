@@ -1,6 +1,7 @@
 // All distances and masses are game units. Both forecasts and live flight use DT.
 export const DT = 1 / 20;
-export const STAR_MU = 5400;
+export const GRAVITY_DEFAULTS = Object.freeze({ g: 1, planetMass: 2800, sunMass: 5400 });
+export const GRAVITY_LIMITS = Object.freeze({ g: 3, planetMass: 8400, sunMass: 16200 });
 export const STAR_RADIUS = 25;
 export const MAX_IMPULSE = 26;
 export const BELT_INNER = 820;
@@ -20,17 +21,42 @@ export const TYPES = {
 };
 export const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 export const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+export function orbitalRate(radius, settings = GRAVITY_DEFAULTS) {
+  return Math.sqrt(settings.g * settings.sunMass / radius ** 3);
+}
 export function planetAt(p, time) {
   const a = p.phase + time * p.omega;
   return { x: Math.cos(a) * p.orbit, y: Math.sin(a) * p.orbit, vx: -Math.sin(a) * p.orbit * p.omega, vy: Math.cos(a) * p.orbit * p.omega };
 }
 export function entity(world, id) { return world.planets.find(p => p.id === id) || world.units.find(u => u.id === id && u.hp > 0) || (id && world.practiceDock?.id === id ? world.practiceDock : null); }
-export function gravity(x, y, planets) {
+export function normalizeGravity(settings = {}) {
+  return Object.fromEntries(Object.entries(GRAVITY_DEFAULTS).map(([key, fallback]) =>
+    [key, Number.isFinite(settings[key]) ? clamp(settings[key], 0, GRAVITY_LIMITS[key]) : fallback]));
+}
+export function setGravity(w, settings) {
+  w.gravity = normalizeGravity({ ...w.gravity, ...settings });
+  for (const p of w.planets) {
+    const omega = orbitalRate(p.orbit, w.gravity);
+    if (omega === p.omega) continue;
+    const oldVx = p.vx, oldVy = p.vy;
+    // Re-anchor the phase at the current position, even after a zero-G stop.
+    p.phase = Math.atan2(p.y, p.x) - w.time * omega;
+    p.omega = omega; p.vx = -p.y * omega; p.vy = p.x * omega;
+    // Prescribed platforms follow their host; free-flying units retain momentum.
+    for (const u of w.units) if (u.type === 'platform' && u.hostId === p.id) {
+      u.vx += p.vx - oldVx; u.vy += p.vy - oldVy;
+    }
+  }
+  w.setup.gravity = { ...w.gravity };
+  w.threatScanAt = 0; w.rockThreats = {}; w.threatWarnings = {};
+}
+export function gravity(x, y, planets, settings = GRAVITY_DEFAULTS) {
   const d = Math.max(38, Math.hypot(x, y));
-  let ax = -STAR_MU * x / d ** 3, ay = -STAR_MU * y / d ** 3;
+  const starMu = settings.g * settings.sunMass, planetMu = settings.g * settings.planetMass;
+  let ax = -starMu * x / d ** 3, ay = -starMu * y / d ** 3;
   for (const p of planets) {
     const dx = p.x - x, dy = p.y - y, r = Math.max(p.radius + 12, Math.hypot(dx, dy));
-    ax += p.mu * dx / r ** 3; ay += p.mu * dy / r ** 3;
+    ax += planetMu * dx / r ** 3; ay += planetMu * dy / r ** 3;
   }
   return { x: ax, y: ay };
 }
@@ -42,7 +68,7 @@ export function fleet(w, team) { return w.units.filter(u => u.team === team && u
 export function spawn(w, type, team, host, free = false) {
   free ||= !!w.unlimitedMetal && team === 'player';
   if (!host || host.team !== team || host.hp <= 0) return { error: 'Select a friendly colony to deploy.' };
-  if (fleet(w, team).length >= CAP) return { error: 'Fleet limit reached: 12 units.' };
+  if (fleet(w, team).length >= (w.fleetCap || CAP)) return { error: `Fleet limit reached: ${w.fleetCap || CAP} units.` };
   if (!free && w.metal[team] < COST[type]) return { error: `You need ${COST[type]} metal.` };
   if (!free) w.metal[team] -= COST[type];
   const serial = ++w.serial;
@@ -53,7 +79,7 @@ export function spawn(w, type, team, host, free = false) {
   const unit = { id: `u${serial}`, name: `${type.toUpperCase()} ${String(serial).padStart(2, '0')}`, type, team,
     ...TYPES[type], maxHp: TYPES[type].hp, x, y,
     vx: host.vx - Math.sin(phase) * orbit * omega, vy: host.vy + Math.cos(phase) * orbit * omega,
-    hostId: host.id, phase: phase - w.time * omega, orbit, omega,
+    hostId: host.id, color: host.color, phase: phase - w.time * omega, orbit, omega,
     order: { kind: 'defend', targetId: host.id }, fireTimer: 0.4 + (serial % 4) * 0.3, launched: true,
     loaded: type === 'booster', attachProgress: 0, rearmProgress: 0 };
   w.units.push(unit);
@@ -62,8 +88,9 @@ export function spawn(w, type, team, host, free = false) {
 export function addRock(w, angle, orbit = BELT_INNER + BELT_WIDTH / 2, name) {
   // Account for the planets' stronger radial pull when seeding belt velocities.
   const radial = { x: Math.cos(angle), y: Math.sin(angle) };
-  const g = gravity(radial.x * orbit, radial.y * orbit, w.planets);
-  const speed = Math.sqrt(Math.max(STAR_MU / orbit, -(g.x * radial.x + g.y * radial.y) * orbit));
+  const settings = w.gravity || GRAVITY_DEFAULTS;
+  const g = gravity(radial.x * orbit, radial.y * orbit, w.planets, settings);
+  const speed = Math.sqrt(Math.max(settings.g * settings.sunMass / orbit, -(g.x * radial.x + g.y * radial.y) * orbit));
   const serial = ++w.serial;
   const rock = { id: `r${serial}`, name: name || `ROCK ${String(serial).padStart(2, '0')}`, type: 'rock', team: 'neutral',
     ...TYPES.rock, maxHp: TYPES.rock.hp, x: Math.cos(angle) * orbit, y: Math.sin(angle) * orbit,
@@ -80,7 +107,7 @@ export function setOrder(w, id, order, team = 'player') {
     if (rock?.burn?.remaining > 0) return false;
     if (rock) {
       rock.boosterId = null; rock.boosterTeam = null;
-      if (!rock.launched) { rock.team = 'neutral'; rock.practice = false; }
+      if (!rock.launched) { rock.team = 'neutral'; rock.color = null; rock.practice = false; }
     }
     u.attachedRockId = null; u.attachOffset = null;
     order = { kind: 'stop', x: u.x, y: u.y };
@@ -120,6 +147,8 @@ export function launchRock(w, id, impulse, team = 'player', free = false) {
 }
 function hostile(a, b) { return a.team !== b.team && a.team !== 'neutral' && b.team !== 'neutral'; }
 function combatTarget(u, target, w) {
+  // Range equipment waits safely in the belt; the exercise starts at launch.
+  if (w.scenario === 'playground' && u.team === 'enemy' && target.team === 'player') return target.type === 'rock' && target.launched;
   if (hostile(u, target)) return true;
   const impact = w.rockThreats?.[target.id];
   return target.type === 'rock' && target.launched && impact && entity(w, impact.targetId)?.team === u.team;
@@ -246,7 +275,7 @@ export function advanceMotion(w, dt = DT, forecast = false) {
       const target = entity(w, u.order.targetId);
       if (!target || target.hp <= 0) u.order = { kind: 'stop', x: u.x, y: u.y };
     }
-    const g = gravity(u.x, u.y, w.planets);
+    const g = gravity(u.x, u.y, w.planets, w.gravity);
     let a;
     if (u.type === 'rock') {
       const booster = entity(w, u.boosterId);
@@ -309,7 +338,7 @@ function updateBoosters(w, dt, forecast) {
         if (rock) {
           rock.boosterId = null; rock.boosterTeam = null;
           if (rock.burn?.remaining > 0) { rock.burn.remaining = 0; rock.burn.interrupted = true; }
-          if (!rock.launched) { rock.team = 'neutral'; rock.practice = false; }
+          if (!rock.launched) { rock.team = 'neutral'; rock.color = null; rock.practice = false; }
         }
         if (!rock || rock.hp <= 0) u.hp = 0;
         u.attachedRockId = null; u.attachOffset = null;
@@ -334,7 +363,7 @@ function updateBoosters(w, dt, forecast) {
       const settled = distance(u, target) <= target.radius + u.radius + 12 && Math.hypot(u.vx - target.vx, u.vy - target.vy) < 2.5;
       u.attachProgress = settled ? u.attachProgress + dt : 0;
       if (u.attachProgress >= ATTACH_TIME) {
-        target.boosterTeam = u.team; target.team = u.team; target.practice = !!u.practice; target.boosterId = u.id;
+        target.boosterTeam = u.team; target.team = u.team; target.color = u.color; target.practice = !!u.practice; target.boosterId = u.id;
         u.attachedRockId = target.id; u.attachOffset = { x: u.x - target.x, y: u.y - target.y };
         u.vx = target.vx; u.vy = target.vy; u.attachProgress = 0;
         u.order = { kind: 'attached', targetId: target.id };
@@ -370,7 +399,7 @@ function combat(w, dt) {
     if (!target) continue;
     target.hp = Math.max(0, target.hp - u.damage);
     u.fireTimer = u.cooldown;
-    w.effects.push({ type: 'shot', x: u.x, y: u.y, tx: target.x, ty: target.y, team: u.team, born: w.time, life: .45 });
+    w.effects.push({ type: 'shot', x: u.x, y: u.y, tx: target.x, ty: target.y, team: u.team, color: u.color, born: w.time, life: .45 });
     if (target.hp <= 0) {
       burst(w, target.x, target.y, target.team);
       if (target.type === 'rock') {
@@ -391,7 +420,7 @@ export function aimRock(w, rock, target, flightTime = 55) {
     const planets = w.planets.map(p => ({ ...p }));
     for (let t = 0; t < flightTime - DT / 2; t += DT) {
       for (const p of planets) Object.assign(p, planetAt(p, w.time + t));
-      const g = gravity(x, y, planets), fraction = Math.max(0, Math.min(DT, BURN_TIME - t)) / DT;
+      const g = gravity(x, y, planets, w.gravity), fraction = Math.max(0, Math.min(DT, BURN_TIME - t)) / DT;
       ivx += (g.x + ax * fraction) * DT; ivy += (g.y + ay * fraction) * DT; x += ivx * DT; y += ivy * DT;
     }
     return { x, y };
@@ -469,6 +498,7 @@ export function sendPracticeRock(w) {
   return dispatchBooster(w, booster, true) ? booster : { error: 'No free practice asteroid remains.' };
 }
 function ai(w) {
+  if (w.ai.disabled) return;
   // Both factions separate only after the burn. The opponent then chooses to
   // return; player ships remain waiting for the player's next order.
   for (const booster of fleet(w, 'enemy').filter(u => u.type === 'booster' && !u.loaded && !u.attachedRockId && u.order.kind === 'stop')) {
@@ -513,7 +543,7 @@ export function step(w, dt = DT) {
   combat(w, dt); updateBoosters(w, 0, true); ai(w);
   w.effects = w.effects.filter(e => w.time - e.born < e.life);
   // Sandbox keeps simulating after colony loss; destruction and costs still apply.
-  if (w.mode === 'sandbox') return;
+  if (w.mode === 'sandbox' || w.scenario === 'playground') return;
   const home = w.planets.find(p => p.team === 'player');
   if (home.hp <= 0) w.outcome = 'defeat';
   else if (w.scenario === 'neighbors' && w.planets.find(p => p.team === 'enemy').hp <= 0) w.outcome = 'victory';

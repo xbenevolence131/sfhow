@@ -1,5 +1,6 @@
 import { entity, TYPES, ATTACH_TIME, REARM_TIME, BELT_INNER, BELT_WIDTH, SYSTEM_DIAMETER } from './simulation.js';
 const COLORS = { player: '#80d6cf', enemy: '#ee9184', neutral: '#a3acb1', star: '#f2ce87' };
+const objectColor = u => u.color || COLORS[u.team] || COLORS.neutral;
 export class Renderer {
   constructor(canvas) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d');
@@ -37,7 +38,7 @@ export class Renderer {
     forecast.points.forEach((p, i) => { const s = this.screen(p); if (i) c.lineTo(s.x, s.y); else c.moveTo(s.x, s.y); }); c.stroke(); c.setLineDash([]);
     if (forecast.powered) {
       const powered = forecast.points.filter(p => !forecast.burnEnd || p.t <= forecast.burnEnd.time);
-      c.strokeStyle = color === COLORS.enemy ? COLORS.enemy : COLORS.player; c.lineWidth = 2;
+      c.strokeStyle = color; c.lineWidth = 2;
       c.beginPath(); powered.forEach((p, i) => { const s = this.screen(p); if (i) c.lineTo(s.x, s.y); else c.moveTo(s.x, s.y); }); c.stroke();
       if (forecast.burnEnd && !faint) {
         const p = this.screen(forecast.burnEnd); this.circle(p.x, p.y, 5, c.strokeStyle);
@@ -83,12 +84,12 @@ export class Renderer {
     const selected = entity(w, ui.selectedId);
     if (ui.ranges) {
       for (const u of w.units) if (u.hp > 0 && u.range && (u.team === 'player' || u.id === ui.selectedId)) {
-        const s = this.screen(u); this.circle(s.x, s.y, u.range * z, u.team === 'player' ? '#80d6cf22' : '#ee918422', null, [3, 5]);
+        const s = this.screen(u); this.circle(s.x, s.y, u.range * z, objectColor(u) + '22', null, [3, 5]);
       }
     }
     for (const [id, forecast] of ui.predictions) {
       const u = entity(w, id); if (!u) continue;
-      const color = u.type === 'rock' ? u.team === 'enemy' ? COLORS.enemy : '#d6c398' : COLORS[u.team];
+      const color = u.type === 'rock' && u.team !== 'enemy' ? '#d6c398' : objectColor(u);
       this.path(forecast, color, id !== ui.selectedId && !(u.type === 'rock' && u.team === 'enemy'));
     }
     if (ui.baseline) this.path(ui.baseline, '#92a4ae', true);
@@ -98,15 +99,15 @@ export class Renderer {
       // A restrained flat crescent, not a texture.
       c.save(); c.beginPath(); c.arc(s.x, s.y, r, 0, Math.PI * 2); c.clip(); this.circle(s.x - r * .27, s.y - r * .25, r * .92, null, '#ffffff0c'); c.restore();
       if (p.team !== 'neutral') {
-        this.circle(s.x, s.y, r + 7, COLORS[p.team] + '44', null, [2, 4]);
-        c.fillStyle = '#2a3a43'; c.fillRect(s.x - 20, s.y + r + 24, 40, 2); c.fillStyle = COLORS[p.team]; c.fillRect(s.x - 20, s.y + r + 24, 40 * p.hp / p.maxHp, 2);
+        this.circle(s.x, s.y, r + 7, p.color + '66', null, p.team === 'enemy' ? [2, 4] : []);
+        c.fillStyle = '#2a3a43'; c.fillRect(s.x - 20, s.y + r + 24, 40, 2); c.fillStyle = p.color; c.fillRect(s.x - 20, s.y + r + 24, 40 * p.hp / p.maxHp, 2);
       }
-      this.text(p.name, s.x, s.y + r + 16, p.team === 'neutral' ? '#8196a6' : COLORS[p.team], 9, 'center');
+      this.text(p.name + (p.team === 'enemy' ? ' / ENEMY' : p.team === 'player' ? ' / HOME' : ''), s.x, s.y + r + 16, p.color, 9, 'center');
     }
     for (const u of w.units) {
       if (u.hp <= 0) continue;
       const s = this.screen(u); if (s.x < -30 || s.x > this.width + 30 || s.y < -30 || s.y > this.height + 30) continue;
-      const color = COLORS[u.team]; c.save(); c.translate(s.x, s.y); c.strokeStyle = color; c.fillStyle = color; c.lineWidth = 1.3;
+      const color = objectColor(u); c.save(); c.translate(s.x, s.y); c.strokeStyle = color; c.fillStyle = color; c.lineWidth = 1.3;
       const size = Math.max(u.type === 'drone' ? 3.2 : 5.5, u.radius * z);
       if (u.type === 'ship') {
         c.rotate(Math.atan2(u.vy, u.vx) + Math.PI / 2); c.beginPath(); c.moveTo(0, -size * 1.35); c.lineTo(size * .75, size); c.lineTo(0, size * .5); c.lineTo(-size * .75, size); c.closePath(); c.fill();
@@ -144,7 +145,7 @@ export class Renderer {
     }
     for (const e of w.effects) {
       const age = (w.time - e.born) / e.life, s = this.screen(e); c.save(); c.globalAlpha = 1 - age;
-      if (e.type === 'shot') { const t = this.screen({ x: e.tx, y: e.ty }); c.strokeStyle = COLORS[e.team]; c.lineWidth = 1; c.beginPath(); c.moveTo(s.x, s.y); c.lineTo(t.x, t.y); c.stroke(); }
+      if (e.type === 'shot') { const t = this.screen({ x: e.tx, y: e.ty }); c.strokeStyle = objectColor(e); c.lineWidth = 1; c.beginPath(); c.moveTo(s.x, s.y); c.lineTo(t.x, t.y); c.stroke(); }
       else {
         const color = COLORS[e.team] || '#f2ce87'; this.circle(s.x, s.y, (8 + 23 * age) * z, color);
         for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; this.circle(s.x + Math.cos(a) * age * 32 * z, s.y + Math.sin(a) * age * 32 * z, 1.5, null, color); }
@@ -152,8 +153,8 @@ export class Renderer {
     }
     for (const id of [ui.hoverId, ui.selectedId]) {
       const u = entity(w, id); if (!u) continue; const s = this.screen(u), r = Math.max(13, u.radius * z + 11);
-      this.circle(s.x, s.y, r, id === ui.selectedId ? (u.team === 'neutral' ? '#d9d2b9' : COLORS[u.team]) : '#768b9b66', null, id === ui.selectedId ? [6, 4] : []);
-      if (id === ui.selectedId && u.type !== 'planet') this.text(u.name, s.x + r + 8, s.y - 6, COLORS[u.team], 9);
+      this.circle(s.x, s.y, r, id === ui.selectedId ? (u.team === 'neutral' ? '#d9d2b9' : objectColor(u)) : '#768b9b66', null, id === ui.selectedId ? [6, 4] : []);
+      if (id === ui.selectedId && u.type !== 'planet') this.text(u.name, s.x + r + 8, s.y - 6, objectColor(u), 9);
     }
     if (ui.pending?.impulse && selected) {
       const a = this.screen(selected), b = this.screen({ x: selected.x + ui.pending.impulse.x * 10, y: selected.y + ui.pending.impulse.y * 10 });
@@ -164,6 +165,6 @@ export class Renderer {
     if (ui.pending?.order && !ui.pending.order.targetId) {
       const p = this.screen(ui.pending.order); this.circle(p.x, p.y, 6, COLORS.player); this.circle(p.x, p.y, 11, COLORS.player + '66');
     }
-    if (ui.pending) { this.text(ui.pending.impulse ? 'DOTTED GOLD / BALLISTIC' : 'DOTTED TEAL / ASSISTED FLIGHT', 28, this.height - 168, '#8babb6', 8); }
+    if (ui.pending) { this.text(ui.pending.impulse ? 'DOTTED GOLD / BALLISTIC' : 'DOTTED PATH / ASSISTED FLIGHT', 28, this.height - 168, '#8babb6', 8); }
   }
 }

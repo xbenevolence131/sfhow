@@ -33,6 +33,14 @@ header{top:18px;display:grid;grid-template-columns:270px minmax(200px,1fr) 270px
 
 .modal-card{max-height:calc(100dvh - 36px);overflow:auto}
 
+.gravity-controls{pointer-events:auto;width:194px;margin-top:23px;border-top:1px solid #30455488;padding-top:9px}.gravity-heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.gravity-heading button{font-size:9px;padding:3px 6px;color:var(--muted);border-color:var(--line)}.gravity-controls label{display:flex;justify-content:space-between;font-size:10px;color:#a7bbc7;margin-top:7px}.gravity-controls output{color:var(--teal);font-variant-numeric:tabular-nums}.gravity-controls input[type=range]{display:block;width:100%;height:16px;margin:3px 0 4px;cursor:pointer;accent-color:var(--teal)}.gravity-controls input:focus-visible{outline:1px solid var(--teal);outline-offset:2px}.gravity-controls small{display:block;font-size:8px;line-height:1.7;margin-top:6px}.gravity-controls #gravity-status{color:var(--teal);margin-top:2px}
+@media(max-width:720px){.gravity-controls{width:145px;margin-top:12px;padding-top:6px}.gravity-controls label{font-size:9px;margin-top:5px}.gravity-controls small{font-size:7px}.gravity-controls .eyebrow{display:inline;font-size:8px}.gravity-heading{margin-bottom:3px}.gravity-controls input[type=range]{margin:1px 0 3px}}
+
+.range-dock{width:280px}.range-dock .build-buttons button{justify-content:center;min-height:72px}#range-reset>span:first-child{font-size:28px;color:var(--teal);line-height:33px}@media(max-width:720px){.range-dock{width:52%}.range-dock .build-buttons button{min-height:72px}}
+
+.colony .bar i,.colony.enemy .bar i{background:var(--colony-color,var(--teal))}
+.colony div>span:first-child{color:var(--colony-color,var(--text))}
+
 </style>
 </head>
 <body>
@@ -42,7 +50,7 @@ header{top:18px;display:grid;grid-template-columns:270px minmax(200px,1fr) 270px
       <a class="wordmark" href="#" aria-label="ORBITAL, fit system"><span class="orbit-logo">&#10023;</span> ORBITAL</a>
       <span class="tagline">A LITTLE PLANETARY WARFARE</span>
       <div class="navigation-row"><button id="new-game">New game</button><span id="current-mode" class="eyebrow">SCENARIO</span><button id="restart" title="Restart current game" aria-label="Restart current game">&#8635;</button></div>
-      <div id="scenario-picker"><label class="eyebrow" for="scenario">SCENARIO</label><select id="scenario" aria-label="Scenario"><option value="garden">01 / Rock Garden</option><option value="hold">02 / Hold the Orbit</option><option value="neighbors">03 / Neighbors</option></select></div>
+      <div id="scenario-picker"><label class="eyebrow" for="scenario">SCENARIO</label><select id="scenario" aria-label="Scenario"><option value="garden">01 / Rock Garden</option><option value="hold">02 / Hold the Orbit</option><option value="neighbors">03 / Neighbors</option><option value="playground">04 / Slingshot Playground</option></select></div>
       <span id="open-game-name" class="hidden"></span>
     </div>
     <div class="mission-summary"><span id="objective-label" class="eyebrow">YOUR OBJECTIVE</span><p id="objective"></p><div id="top-threat" class="hidden" role="status"></div></div>
@@ -54,6 +62,16 @@ header{top:18px;display:grid;grid-template-columns:270px minmax(200px,1fr) 270px
   <aside class="mission">
     <div id="colonies"></div>
     <div id="lesson"><div id="garden-lesson"><div id="lesson-prepare"></div><div id="lesson-launch"></div><div id="lesson-intercept"></div><button id="practice">↗ Send practice rock</button></div><span id="income-hint" class="hidden">+0.4 metal / second from your colony</span></div>
+    <section class="gravity-controls" aria-label="Gravity settings">
+      <div class="gravity-heading"><span class="eyebrow">GRAVITY</span><button id="gravity-reset" title="Restore default gravity without restarting">Reset</button></div>
+      <label for="gravity-g"><span>G</span><output id="gravity-g-value" for="gravity-g">1.00</output></label>
+      <input id="gravity-g" data-gravity="g" type="range" min="0" max="3" step="0.05" value="1" aria-label="Gravitational constant G">
+      <label for="gravity-planet"><span>Planet mass</span><output id="gravity-planet-value" for="gravity-planet">2800</output></label>
+      <input id="gravity-planet" data-gravity="planetMass" type="range" min="0" max="8400" step="100" value="2800" aria-label="Shared planet mass">
+      <label for="gravity-sun"><span>Sun mass</span><output id="gravity-sun-value" for="gravity-sun">5400</output></label>
+      <input id="gravity-sun" data-gravity="sunMass" type="range" min="0" max="16200" step="200" value="5400" aria-label="Sun mass">
+      <small>Fixed radii. G and sun mass set orbital speed.</small><small id="gravity-status">Adjust to pause and preview.</small>
+    </section>
   </aside>
   <aside id="alerts" aria-live="polite"></aside>
   <div id="toast" role="status"></div>
@@ -74,6 +92,7 @@ header{top:18px;display:grid;grid-template-columns:270px minmax(200px,1fr) 270px
         <button data-build="drone"><svg viewBox="0 0 40 40"><path d="m20 9 11 20H9Z"/><circle cx="20" cy="9" r="3"/><circle cx="9" cy="29" r="3"/><circle cx="31" cy="29" r="3"/></svg><b>DRONE</b><span>25 ◇</span></button>
         <button data-build="booster"><svg viewBox="0 0 40 40"><path d="m16 8 4-4 4 4v24h-8ZM10 15h6v13h-6ZM24 15h6v13h-6ZM18 32v5M22 32v5"/></svg><b>BOOSTER</b><span>50 ◇</span></button>
         <button id="rock-tool"><svg class="rock-icon" viewBox="0 0 40 40"><path d="m13 5 15 3 8 14-7 12-16 1-9-11Z"/></svg><b>ROCK</b><span>35 ◇ / launch</span></button>
+        <button id="range-reset" class="hidden"><span aria-hidden="true">&#8635;</span><b>RESET RANGE</b><span>Fresh rocks &amp; defenses</span></button>
       </div>
     </section>
     <div class="bottom-hint" id="hint">Select a unit · Right-click to plan<br><span>Scroll to zoom · Drag empty space to pan</span></div>
@@ -93,7 +112,7 @@ header{top:18px;display:grid;grid-template-columns:270px minmax(200px,1fr) 270px
       <button type="button" data-mode="sandbox" aria-pressed="false"><b>Sandbox</b><small>A playground without objectives</small></button>
     </div>
     <p id="setup-description"></p>
-    <div id="setup-scenarios" class="setup-field"><label for="setup-scenario">Scenario</label><select id="setup-scenario"><option value="garden">Rock Garden</option><option value="hold">Hold the Orbit</option><option value="neighbors">Neighbors</option></select></div>
+    <div id="setup-scenarios" class="setup-field"><label for="setup-scenario">Scenario</label><select id="setup-scenario"><option value="garden">Rock Garden</option><option value="hold">Hold the Orbit</option><option value="neighbors">Neighbors</option><option value="playground">Slingshot Playground</option></select></div>
     <div id="setup-open" class="hidden">
       <div class="setup-field"><label for="setup-system">System</label><select id="setup-system"><option value="three">Three planets / a neutral inner world</option><option value="two">Two planets / across the gravity well</option></select></div>
       <div class="setup-field"><label for="setup-budget">Starting metal</label><select id="setup-budget"><option value="160">160 / modest</option><option value="240">240 / comfortable</option><option value="400">400 / generous</option></select></div>
@@ -108,7 +127,8 @@ header{top:18px;display:grid;grid-template-columns:270px minmax(200px,1fr) 270px
 // simulation.js
 // All distances and masses are game units. Both forecasts and live flight use DT.
 const DT = 1 / 20;
-const STAR_MU = 5400;
+const GRAVITY_DEFAULTS = Object.freeze({ g: 1, planetMass: 2800, sunMass: 5400 });
+const GRAVITY_LIMITS = Object.freeze({ g: 3, planetMass: 8400, sunMass: 16200 });
 const STAR_RADIUS = 25;
 const MAX_IMPULSE = 26;
 const BELT_INNER = 820;
@@ -128,17 +148,42 @@ const TYPES = {
 };
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+function orbitalRate(radius, settings = GRAVITY_DEFAULTS) {
+  return Math.sqrt(settings.g * settings.sunMass / radius ** 3);
+}
 function planetAt(p, time) {
   const a = p.phase + time * p.omega;
   return { x: Math.cos(a) * p.orbit, y: Math.sin(a) * p.orbit, vx: -Math.sin(a) * p.orbit * p.omega, vy: Math.cos(a) * p.orbit * p.omega };
 }
 function entity(world, id) { return world.planets.find(p => p.id === id) || world.units.find(u => u.id === id && u.hp > 0) || (id && world.practiceDock?.id === id ? world.practiceDock : null); }
-function gravity(x, y, planets) {
+function normalizeGravity(settings = {}) {
+  return Object.fromEntries(Object.entries(GRAVITY_DEFAULTS).map(([key, fallback]) =>
+    [key, Number.isFinite(settings[key]) ? clamp(settings[key], 0, GRAVITY_LIMITS[key]) : fallback]));
+}
+function setGravity(w, settings) {
+  w.gravity = normalizeGravity({ ...w.gravity, ...settings });
+  for (const p of w.planets) {
+    const omega = orbitalRate(p.orbit, w.gravity);
+    if (omega === p.omega) continue;
+    const oldVx = p.vx, oldVy = p.vy;
+    // Re-anchor the phase at the current position, even after a zero-G stop.
+    p.phase = Math.atan2(p.y, p.x) - w.time * omega;
+    p.omega = omega; p.vx = -p.y * omega; p.vy = p.x * omega;
+    // Prescribed platforms follow their host; free-flying units retain momentum.
+    for (const u of w.units) if (u.type === 'platform' && u.hostId === p.id) {
+      u.vx += p.vx - oldVx; u.vy += p.vy - oldVy;
+    }
+  }
+  w.setup.gravity = { ...w.gravity };
+  w.threatScanAt = 0; w.rockThreats = {}; w.threatWarnings = {};
+}
+function gravity(x, y, planets, settings = GRAVITY_DEFAULTS) {
   const d = Math.max(38, Math.hypot(x, y));
-  let ax = -STAR_MU * x / d ** 3, ay = -STAR_MU * y / d ** 3;
+  const starMu = settings.g * settings.sunMass, planetMu = settings.g * settings.planetMass;
+  let ax = -starMu * x / d ** 3, ay = -starMu * y / d ** 3;
   for (const p of planets) {
     const dx = p.x - x, dy = p.y - y, r = Math.max(p.radius + 12, Math.hypot(dx, dy));
-    ax += p.mu * dx / r ** 3; ay += p.mu * dy / r ** 3;
+    ax += planetMu * dx / r ** 3; ay += planetMu * dy / r ** 3;
   }
   return { x: ax, y: ay };
 }
@@ -150,7 +195,7 @@ function fleet(w, team) { return w.units.filter(u => u.team === team && u.type !
 function spawn(w, type, team, host, free = false) {
   free ||= !!w.unlimitedMetal && team === 'player';
   if (!host || host.team !== team || host.hp <= 0) return { error: 'Select a friendly colony to deploy.' };
-  if (fleet(w, team).length >= CAP) return { error: 'Fleet limit reached: 12 units.' };
+  if (fleet(w, team).length >= (w.fleetCap || CAP)) return { error: `Fleet limit reached: ${w.fleetCap || CAP} units.` };
   if (!free && w.metal[team] < COST[type]) return { error: `You need ${COST[type]} metal.` };
   if (!free) w.metal[team] -= COST[type];
   const serial = ++w.serial;
@@ -161,7 +206,7 @@ function spawn(w, type, team, host, free = false) {
   const unit = { id: `u${serial}`, name: `${type.toUpperCase()} ${String(serial).padStart(2, '0')}`, type, team,
     ...TYPES[type], maxHp: TYPES[type].hp, x, y,
     vx: host.vx - Math.sin(phase) * orbit * omega, vy: host.vy + Math.cos(phase) * orbit * omega,
-    hostId: host.id, phase: phase - w.time * omega, orbit, omega,
+    hostId: host.id, color: host.color, phase: phase - w.time * omega, orbit, omega,
     order: { kind: 'defend', targetId: host.id }, fireTimer: 0.4 + (serial % 4) * 0.3, launched: true,
     loaded: type === 'booster', attachProgress: 0, rearmProgress: 0 };
   w.units.push(unit);
@@ -170,8 +215,9 @@ function spawn(w, type, team, host, free = false) {
 function addRock(w, angle, orbit = BELT_INNER + BELT_WIDTH / 2, name) {
   // Account for the planets' stronger radial pull when seeding belt velocities.
   const radial = { x: Math.cos(angle), y: Math.sin(angle) };
-  const g = gravity(radial.x * orbit, radial.y * orbit, w.planets);
-  const speed = Math.sqrt(Math.max(STAR_MU / orbit, -(g.x * radial.x + g.y * radial.y) * orbit));
+  const settings = w.gravity || GRAVITY_DEFAULTS;
+  const g = gravity(radial.x * orbit, radial.y * orbit, w.planets, settings);
+  const speed = Math.sqrt(Math.max(settings.g * settings.sunMass / orbit, -(g.x * radial.x + g.y * radial.y) * orbit));
   const serial = ++w.serial;
   const rock = { id: `r${serial}`, name: name || `ROCK ${String(serial).padStart(2, '0')}`, type: 'rock', team: 'neutral',
     ...TYPES.rock, maxHp: TYPES.rock.hp, x: Math.cos(angle) * orbit, y: Math.sin(angle) * orbit,
@@ -188,7 +234,7 @@ function setOrder(w, id, order, team = 'player') {
     if (rock?.burn?.remaining > 0) return false;
     if (rock) {
       rock.boosterId = null; rock.boosterTeam = null;
-      if (!rock.launched) { rock.team = 'neutral'; rock.practice = false; }
+      if (!rock.launched) { rock.team = 'neutral'; rock.color = null; rock.practice = false; }
     }
     u.attachedRockId = null; u.attachOffset = null;
     order = { kind: 'stop', x: u.x, y: u.y };
@@ -228,6 +274,8 @@ function launchRock(w, id, impulse, team = 'player', free = false) {
 }
 function hostile(a, b) { return a.team !== b.team && a.team !== 'neutral' && b.team !== 'neutral'; }
 function combatTarget(u, target, w) {
+  // Range equipment waits safely in the belt; the exercise starts at launch.
+  if (w.scenario === 'playground' && u.team === 'enemy' && target.team === 'player') return target.type === 'rock' && target.launched;
   if (hostile(u, target)) return true;
   const impact = w.rockThreats?.[target.id];
   return target.type === 'rock' && target.launched && impact && entity(w, impact.targetId)?.team === u.team;
@@ -354,7 +402,7 @@ function advanceMotion(w, dt = DT, forecast = false) {
       const target = entity(w, u.order.targetId);
       if (!target || target.hp <= 0) u.order = { kind: 'stop', x: u.x, y: u.y };
     }
-    const g = gravity(u.x, u.y, w.planets);
+    const g = gravity(u.x, u.y, w.planets, w.gravity);
     let a;
     if (u.type === 'rock') {
       const booster = entity(w, u.boosterId);
@@ -417,7 +465,7 @@ function updateBoosters(w, dt, forecast) {
         if (rock) {
           rock.boosterId = null; rock.boosterTeam = null;
           if (rock.burn?.remaining > 0) { rock.burn.remaining = 0; rock.burn.interrupted = true; }
-          if (!rock.launched) { rock.team = 'neutral'; rock.practice = false; }
+          if (!rock.launched) { rock.team = 'neutral'; rock.color = null; rock.practice = false; }
         }
         if (!rock || rock.hp <= 0) u.hp = 0;
         u.attachedRockId = null; u.attachOffset = null;
@@ -442,7 +490,7 @@ function updateBoosters(w, dt, forecast) {
       const settled = distance(u, target) <= target.radius + u.radius + 12 && Math.hypot(u.vx - target.vx, u.vy - target.vy) < 2.5;
       u.attachProgress = settled ? u.attachProgress + dt : 0;
       if (u.attachProgress >= ATTACH_TIME) {
-        target.boosterTeam = u.team; target.team = u.team; target.practice = !!u.practice; target.boosterId = u.id;
+        target.boosterTeam = u.team; target.team = u.team; target.color = u.color; target.practice = !!u.practice; target.boosterId = u.id;
         u.attachedRockId = target.id; u.attachOffset = { x: u.x - target.x, y: u.y - target.y };
         u.vx = target.vx; u.vy = target.vy; u.attachProgress = 0;
         u.order = { kind: 'attached', targetId: target.id };
@@ -478,7 +526,7 @@ function combat(w, dt) {
     if (!target) continue;
     target.hp = Math.max(0, target.hp - u.damage);
     u.fireTimer = u.cooldown;
-    w.effects.push({ type: 'shot', x: u.x, y: u.y, tx: target.x, ty: target.y, team: u.team, born: w.time, life: .45 });
+    w.effects.push({ type: 'shot', x: u.x, y: u.y, tx: target.x, ty: target.y, team: u.team, color: u.color, born: w.time, life: .45 });
     if (target.hp <= 0) {
       burst(w, target.x, target.y, target.team);
       if (target.type === 'rock') {
@@ -499,7 +547,7 @@ function aimRock(w, rock, target, flightTime = 55) {
     const planets = w.planets.map(p => ({ ...p }));
     for (let t = 0; t < flightTime - DT / 2; t += DT) {
       for (const p of planets) Object.assign(p, planetAt(p, w.time + t));
-      const g = gravity(x, y, planets), fraction = Math.max(0, Math.min(DT, BURN_TIME - t)) / DT;
+      const g = gravity(x, y, planets, w.gravity), fraction = Math.max(0, Math.min(DT, BURN_TIME - t)) / DT;
       ivx += (g.x + ax * fraction) * DT; ivy += (g.y + ay * fraction) * DT; x += ivx * DT; y += ivy * DT;
     }
     return { x, y };
@@ -577,6 +625,7 @@ function sendPracticeRock(w) {
   return dispatchBooster(w, booster, true) ? booster : { error: 'No free practice asteroid remains.' };
 }
 function ai(w) {
+  if (w.ai.disabled) return;
   // Both factions separate only after the burn. The opponent then chooses to
   // return; player ships remain waiting for the player's next order.
   for (const booster of fleet(w, 'enemy').filter(u => u.type === 'booster' && !u.loaded && !u.attachedRockId && u.order.kind === 'stop')) {
@@ -621,7 +670,7 @@ function step(w, dt = DT) {
   combat(w, dt); updateBoosters(w, 0, true); ai(w);
   w.effects = w.effects.filter(e => w.time - e.born < e.life);
   // Sandbox keeps simulating after colony loss; destruction and costs still apply.
-  if (w.mode === 'sandbox') return;
+  if (w.mode === 'sandbox' || w.scenario === 'playground') return;
   const home = w.planets.find(p => p.team === 'player');
   if (home.hp <= 0) w.outcome = 'defeat';
   else if (w.scenario === 'neighbors' && w.planets.find(p => p.team === 'enemy').hp <= 0) w.outcome = 'victory';
@@ -684,6 +733,8 @@ function predict(world, ids, pending = null, horizon = 90) {
 
 // scenarios.js
 const SCENARIOS = {
+  playground: { name: 'Slingshot Playground', kicker: '04 / A LIVE-FIRE PLAYGROUND', objective: 'Test trajectories and planetary defenses. Every rock is ready to launch.',
+    body: '<p>Twelve belt rocks already have <b>friendly boosters attached</b>. Launches are free. <b>Verdant is your home</b>; Cinder and Ochre are enemy targets.</p><ul><li><b>Aim:</b> select a rock and right-click a planet, or empty space for manual aim. Review and confirm.</li><li><b>Observe:</b> every planet has a ship, a platform, and two drones. Verdant\'s defenders are yours; enemy defenders match their planet\'s color.</li><li><b>Experiment:</b> try different approaches, coordinate several launches, or adjust the gravity sliders.</li><li><b>Reset range:</b> instantly restore rocks and defenses while keeping your gravity settings.</li></ul><p>The defenders intercept nearby threats but never build units or launch attacks. No victory screen or time limit. Spent boosters detach after firing; reset when you want fresh ammunition.</p>' },
   garden: { name: 'Rock Garden', kicker: '01 / AN ORBITAL PLAYGROUND', objective: 'Fit a booster. Launch a rock. Intercept a practice attack.',
     body: '<p>Your colony, <b>Verdant</b>, has a booster ship ready to go. Earn your shot by reaching an asteroid.</p><ul><li><b>1.</b> Select a belt rock and choose <b>Send booster</b>. Confirm and unpause.</li><li><b>2.</b> The ship matches velocity and attaches a booster over <b>6 seconds</b>.</li><li><b>3.</b> Select the equipped rock, right-click a planet to target it or empty space to aim, then review and confirm your launch.</li><li><b>4.</b> Send a practice rock to watch an enemy booster prepare an attack.</li></ul><p>Booster ships wait attached. Launch starts a 4-second burn, followed by automatic detachment. Then choose Return home to reload. Ochre is an uninhabited target. Launched rocks can damage Verdant too; check the preview before firing.</p>' },
   hold: { name: 'Hold the Orbit', kicker: '02 / A SMALL SIEGE', objective: 'Keep Verdant alive for 4 minutes. Incoming launches are announced.',
@@ -692,18 +743,37 @@ const SCENARIOS = {
     body: '<p>Protect <b>Verdant</b> and destroy the rival colony on <b>Cinder</b>. The asteroid belt is contested territory.</p><ul><li><b>Booster ships</b> fly to rocks, attach, and wait for your launch or detach order.</li><li><b>Combat ships</b> escort your boosters, intercept enemy expeditions, or bombard Cinder.</li><li><b>Platforms & drones</b> defend against attacks that get through.</li><li><b>Equipped rocks</b> can be aimed and launched for 35 metal.</li></ul><p>Select a combat ship and right-click a friendly booster to escort it. Your neighbor uses the same preparation, flight, and resource rules.</p>' },
 };
 function planet(id, name, orbit, phase, radius, team, color, hp = 240) {
-  const p = { id, name, type: 'planet', orbit, phase, radius, team, color, omega: .006 * (285 / orbit) ** 1.5, mu: 2800 * radius / 18,
+  const p = { id, name, type: 'planet', orbit, phase, radius, team, color, omega: orbitalRate(orbit),
     hp, maxHp: hp };
   return Object.assign(p, planetAt(p, 0));
 }
-function createScenario(key = 'garden') {
-  const w = { scenario: key, mode: 'scenario', setup: { mode: 'scenario', scenario: key }, time: 0, serial: 0, eventId: 0, units: [], planets: [], effects: [], events: [],
+function createScenario(key = 'garden', gravitySettings) {
+  const settings = normalizeGravity(gravitySettings);
+  const w = { scenario: key, mode: 'scenario', gravity: settings, setup: { mode: 'scenario', scenario: key, gravity: { ...settings } }, time: 0, serial: 0, eventId: 0, units: [], planets: [], effects: [], events: [],
     metal: { player: key === 'garden' ? 240 : 160, enemy: key === 'hold' ? 180 : 160 },
     progress: { prepared: false, launched: false, intercepted: false, impact: false }, outcome: null, continueSandbox: false, duration: 240,
     ai: { buildAt: key === 'hold' ? 120 : 48, attackAt: key === 'hold' ? 100 : 65, rockAt: key === 'hold' ? 12 : 95 } };
+  if (key === 'playground') {
+    w.unlimitedMetal = true; w.ai.disabled = true; w.fleetCap = 16;
+    w.planets = [planet('verdant', 'VERDANT', 390, -.2, 18, 'player', '#65b6b3'),
+      planet('cinder', 'CINDER', 690, -1.05, 21, 'enemy', '#c6bfa4'),
+      planet('ochre', 'OCHRE', 170, .75, 13, 'enemy', '#bd7968')];
+    setGravity(w, settings);
+    for (const host of w.planets) for (const type of ['platform', 'ship', 'drone', 'drone']) spawn(w, type, host.team, host, true);
+    for (let i = 0; i < 12; i++) {
+      const rock = addRock(w, i / 12 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`);
+      // Twelve prepared boosters plus the four home defenders fit this range.
+      const booster = spawn(w, 'booster', 'player', w.planets[0], true);
+      Object.assign(booster, { x: rock.x + 16, y: rock.y, vx: rock.vx, vy: rock.vy,
+        attachedRockId: rock.id, attachOffset: { x: 16, y: 0 }, order: { kind: 'attached', targetId: rock.id } });
+      Object.assign(rock, { team: 'player', color: booster.color, boosterTeam: 'player', boosterId: booster.id });
+    }
+    return w;
+  }
   w.planets = key === 'garden' ? [planet('verdant', 'VERDANT', 390, -.25, 18, 'player', '#65b6b3'), planet('ochre', 'OCHRE', 170, .65, 13, 'neutral', '#bd7968', 500)] :
     [planet('verdant', 'VERDANT', 390, -.2, 18, 'player', '#65b6b3'), planet('cinder', 'CINDER', 690, -1.05, 21, 'enemy', '#c6bfa4'),
       ...(key === 'neighbors' ? [planet('ochre', 'OCHRE', 170, .75, 13, 'neutral', '#bd7968', 500)] : [])];
+  setGravity(w, settings);
   const home = w.planets[0];
   spawn(w, 'platform', 'player', home, true); spawn(w, 'ship', 'player', home, true);
   spawn(w, 'drone', 'player', home, true); spawn(w, 'drone', 'player', home, true);
@@ -722,12 +792,12 @@ function createScenario(key = 'garden') {
 // Open games reuse the proven system and flight rules, with their own objectives.
 function createGame(options = {}) {
   const mode = ['skirmish', 'sandbox'].includes(options.mode) ? options.mode : 'scenario';
-  if (mode === 'scenario') return createScenario(SCENARIOS[options.scenario] ? options.scenario : 'garden');
+  if (mode === 'scenario') return createScenario(SCENARIOS[options.scenario] ? options.scenario : 'garden', options.gravity);
   const setup = { mode, system: options.system === 'two' ? 'two' : 'three',
     budget: [160, 240, 400].includes(Number(options.budget)) ? Number(options.budget) : 160,
     enemies: mode === 'skirmish' || options.enemies === true,
-    unlimited: mode === 'sandbox' && options.unlimited === true };
-  const w = createScenario('neighbors');
+    unlimited: mode === 'sandbox' && options.unlimited === true, gravity: normalizeGravity(options.gravity) };
+  const w = createScenario('neighbors', setup.gravity);
   w.mode = mode; w.setup = setup; w.unlimitedMetal = setup.unlimited;
   w.metal = { player: setup.budget, enemy: setup.budget };
   if (setup.system === 'two') w.planets = w.planets.filter(p => p.id !== 'ochre');
@@ -744,6 +814,7 @@ function createGame(options = {}) {
 
 // render.js
 const COLORS = { player: '#80d6cf', enemy: '#ee9184', neutral: '#a3acb1', star: '#f2ce87' };
+const objectColor = u => u.color || COLORS[u.team] || COLORS.neutral;
 class Renderer {
   constructor(canvas) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d');
@@ -781,7 +852,7 @@ class Renderer {
     forecast.points.forEach((p, i) => { const s = this.screen(p); if (i) c.lineTo(s.x, s.y); else c.moveTo(s.x, s.y); }); c.stroke(); c.setLineDash([]);
     if (forecast.powered) {
       const powered = forecast.points.filter(p => !forecast.burnEnd || p.t <= forecast.burnEnd.time);
-      c.strokeStyle = color === COLORS.enemy ? COLORS.enemy : COLORS.player; c.lineWidth = 2;
+      c.strokeStyle = color; c.lineWidth = 2;
       c.beginPath(); powered.forEach((p, i) => { const s = this.screen(p); if (i) c.lineTo(s.x, s.y); else c.moveTo(s.x, s.y); }); c.stroke();
       if (forecast.burnEnd && !faint) {
         const p = this.screen(forecast.burnEnd); this.circle(p.x, p.y, 5, c.strokeStyle);
@@ -827,12 +898,12 @@ class Renderer {
     const selected = entity(w, ui.selectedId);
     if (ui.ranges) {
       for (const u of w.units) if (u.hp > 0 && u.range && (u.team === 'player' || u.id === ui.selectedId)) {
-        const s = this.screen(u); this.circle(s.x, s.y, u.range * z, u.team === 'player' ? '#80d6cf22' : '#ee918422', null, [3, 5]);
+        const s = this.screen(u); this.circle(s.x, s.y, u.range * z, objectColor(u) + '22', null, [3, 5]);
       }
     }
     for (const [id, forecast] of ui.predictions) {
       const u = entity(w, id); if (!u) continue;
-      const color = u.type === 'rock' ? u.team === 'enemy' ? COLORS.enemy : '#d6c398' : COLORS[u.team];
+      const color = u.type === 'rock' && u.team !== 'enemy' ? '#d6c398' : objectColor(u);
       this.path(forecast, color, id !== ui.selectedId && !(u.type === 'rock' && u.team === 'enemy'));
     }
     if (ui.baseline) this.path(ui.baseline, '#92a4ae', true);
@@ -842,15 +913,15 @@ class Renderer {
       // A restrained flat crescent, not a texture.
       c.save(); c.beginPath(); c.arc(s.x, s.y, r, 0, Math.PI * 2); c.clip(); this.circle(s.x - r * .27, s.y - r * .25, r * .92, null, '#ffffff0c'); c.restore();
       if (p.team !== 'neutral') {
-        this.circle(s.x, s.y, r + 7, COLORS[p.team] + '44', null, [2, 4]);
-        c.fillStyle = '#2a3a43'; c.fillRect(s.x - 20, s.y + r + 24, 40, 2); c.fillStyle = COLORS[p.team]; c.fillRect(s.x - 20, s.y + r + 24, 40 * p.hp / p.maxHp, 2);
+        this.circle(s.x, s.y, r + 7, p.color + '66', null, p.team === 'enemy' ? [2, 4] : []);
+        c.fillStyle = '#2a3a43'; c.fillRect(s.x - 20, s.y + r + 24, 40, 2); c.fillStyle = p.color; c.fillRect(s.x - 20, s.y + r + 24, 40 * p.hp / p.maxHp, 2);
       }
-      this.text(p.name, s.x, s.y + r + 16, p.team === 'neutral' ? '#8196a6' : COLORS[p.team], 9, 'center');
+      this.text(p.name + (p.team === 'enemy' ? ' / ENEMY' : p.team === 'player' ? ' / HOME' : ''), s.x, s.y + r + 16, p.color, 9, 'center');
     }
     for (const u of w.units) {
       if (u.hp <= 0) continue;
       const s = this.screen(u); if (s.x < -30 || s.x > this.width + 30 || s.y < -30 || s.y > this.height + 30) continue;
-      const color = COLORS[u.team]; c.save(); c.translate(s.x, s.y); c.strokeStyle = color; c.fillStyle = color; c.lineWidth = 1.3;
+      const color = objectColor(u); c.save(); c.translate(s.x, s.y); c.strokeStyle = color; c.fillStyle = color; c.lineWidth = 1.3;
       const size = Math.max(u.type === 'drone' ? 3.2 : 5.5, u.radius * z);
       if (u.type === 'ship') {
         c.rotate(Math.atan2(u.vy, u.vx) + Math.PI / 2); c.beginPath(); c.moveTo(0, -size * 1.35); c.lineTo(size * .75, size); c.lineTo(0, size * .5); c.lineTo(-size * .75, size); c.closePath(); c.fill();
@@ -888,7 +959,7 @@ class Renderer {
     }
     for (const e of w.effects) {
       const age = (w.time - e.born) / e.life, s = this.screen(e); c.save(); c.globalAlpha = 1 - age;
-      if (e.type === 'shot') { const t = this.screen({ x: e.tx, y: e.ty }); c.strokeStyle = COLORS[e.team]; c.lineWidth = 1; c.beginPath(); c.moveTo(s.x, s.y); c.lineTo(t.x, t.y); c.stroke(); }
+      if (e.type === 'shot') { const t = this.screen({ x: e.tx, y: e.ty }); c.strokeStyle = objectColor(e); c.lineWidth = 1; c.beginPath(); c.moveTo(s.x, s.y); c.lineTo(t.x, t.y); c.stroke(); }
       else {
         const color = COLORS[e.team] || '#f2ce87'; this.circle(s.x, s.y, (8 + 23 * age) * z, color);
         for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; this.circle(s.x + Math.cos(a) * age * 32 * z, s.y + Math.sin(a) * age * 32 * z, 1.5, null, color); }
@@ -896,8 +967,8 @@ class Renderer {
     }
     for (const id of [ui.hoverId, ui.selectedId]) {
       const u = entity(w, id); if (!u) continue; const s = this.screen(u), r = Math.max(13, u.radius * z + 11);
-      this.circle(s.x, s.y, r, id === ui.selectedId ? (u.team === 'neutral' ? '#d9d2b9' : COLORS[u.team]) : '#768b9b66', null, id === ui.selectedId ? [6, 4] : []);
-      if (id === ui.selectedId && u.type !== 'planet') this.text(u.name, s.x + r + 8, s.y - 6, COLORS[u.team], 9);
+      this.circle(s.x, s.y, r, id === ui.selectedId ? (u.team === 'neutral' ? '#d9d2b9' : objectColor(u)) : '#768b9b66', null, id === ui.selectedId ? [6, 4] : []);
+      if (id === ui.selectedId && u.type !== 'planet') this.text(u.name, s.x + r + 8, s.y - 6, objectColor(u), 9);
     }
     if (ui.pending?.impulse && selected) {
       const a = this.screen(selected), b = this.screen({ x: selected.x + ui.pending.impulse.x * 10, y: selected.y + ui.pending.impulse.y * 10 });
@@ -908,7 +979,7 @@ class Renderer {
     if (ui.pending?.order && !ui.pending.order.targetId) {
       const p = this.screen(ui.pending.order); this.circle(p.x, p.y, 6, COLORS.player); this.circle(p.x, p.y, 11, COLORS.player + '66');
     }
-    if (ui.pending) { this.text(ui.pending.impulse ? 'DOTTED GOLD / BALLISTIC' : 'DOTTED TEAL / ASSISTED FLIGHT', 28, this.height - 168, '#8babb6', 8); }
+    if (ui.pending) { this.text(ui.pending.impulse ? 'DOTTED GOLD / BALLISTIC' : 'DOTTED PATH / ASSISTED FLIGHT', 28, this.height - 168, '#8babb6', 8); }
   }
 }
 
@@ -961,7 +1032,7 @@ function contextualOrder(w, selectedId, target, point) {
 // input.js
 function attachInput(game) {
   const { renderer: r, canvas } = game;
-  let drag = null, pointer = null;
+  let drag = null, pointer = null, manualContext = false;
   const point = e => ({ x: e.clientX, y: e.clientY });
   const pick = p => {
     const w = game.world;
@@ -983,6 +1054,9 @@ function attachInput(game) {
   canvas.addEventListener('pointerleave', () => { pointer = null; game.ui.hoverId = null; game.updateContextHint(); });
   canvas.addEventListener('contextmenu', e => {
     e.preventDefault();
+    // Browsers dispatch contextmenu on either press or release. Do not let
+    // either timing replace a held manual aim with a new target order.
+    if (manualContext) return;
     if (game.modalOpen()) return;
     const p = point(e), target = pick(p);
     const action = contextualOrder(game.world, game.ui.selectedId, target, r.world(p));
@@ -994,8 +1068,21 @@ function attachInput(game) {
     } else game.plan(action.pending);
   });
   canvas.addEventListener('pointerdown', e => {
-    if (game.modalOpen() || e.button === 2) return;
+    manualContext = false;
+    if (game.modalOpen()) return;
     const p = point(e), target = pick(p);
+    if (e.button === 2) {
+      const action = contextualOrder(game.world, game.ui.selectedId, target, r.world(p));
+      if (!target && action.pending?.impulse) {
+        manualContext = true;
+        canvas.setPointerCapture(e.pointerId);
+        drag = { kind: 'rock', id: action.pending.id, start: p, moved: true };
+        canvas.style.cursor = 'crosshair';
+        game.plan(action.pending);
+        game.updateContextHint();
+      }
+      return;
+    }
     canvas.setPointerCapture(e.pointerId);
     if (e.button === 1 || !target) { drag = { kind: 'pan', start: p, last: p, moved: false, clear: e.button === 0 && !target }; canvas.style.cursor = 'grabbing'; return; }
     const wasSelected = game.ui.selectedId === target.id;
@@ -1031,11 +1118,12 @@ function attachInput(game) {
   canvas.addEventListener('pointercancel', endDrag);
   canvas.addEventListener('wheel', e => { e.preventDefault(); if (!game.modalOpen()) r.zoomAt(point(e), Math.exp(-e.deltaY * .001)); }, { passive: false });
   window.addEventListener('keydown', e => {
+    if (document.activeElement?.matches('input[type="range"]') && e.key === ' ') { e.preventDefault(); return; }
     if (['INPUT', 'SELECT', 'BUTTON'].includes(document.activeElement?.tagName) && !['Escape', ' '].includes(e.key)) return;
     if (game.modalOpen()) return;
     if (e.key === ' ') { e.preventDefault(); game.togglePause(); }
     if (e.key === 'Enter') game.confirm();
-    if (e.key === 'Escape') game.cancel();
+    if (e.key === 'Escape') { drag = null; canvas.style.cursor = 'default'; game.cancel(); }
     if (e.key.toLowerCase() === 'f') r.fit();
     if (['1', '2', '3'].includes(e.key)) game.setSpeed({ 1: 1, 2: 5, 3: 20 }[e.key]);
   });
@@ -1054,7 +1142,7 @@ function attachPlaytestRecorder(game) {
   const controls = () => ({
     scenario: game.world.scenario, mode: game.world.mode, setup: clone(game.world.setup), scenarioRun, time: game.world.time, paused: game.paused, speed: game.speed,
     selectedId: game.ui.selectedId, hoverId: game.ui.hoverId, pending: clone(game.ui.pending), order: clone(selected()?.order),
-    metal: clone(game.world.metal), units: game.world.units.filter(u => u.hp > 0).length,
+    metal: clone(game.world.metal), gravity: clone(game.world.gravity), units: game.world.units.filter(u => u.hp > 0).length,
     modal: game.modalOpen(), outcome: game.world.outcome,
   });
   const append = (type, data = {}) => {
@@ -1128,7 +1216,7 @@ function attachPlaytestRecorder(game) {
   document.addEventListener('visibilitychange', () => append('visibility', { hidden: document.hidden }));
   window.addEventListener('error', e => append('error', { message: e.message, source: e.filename, line: e.lineno }));
   window.addEventListener('unhandledrejection', e => append('error', { message: String(e.reason) }));
-  for (const name of ['select', 'plan', 'confirm', 'cancel', 'build', 'setSpeed', 'togglePause', 'load', 'showOutcome', 'toast']) {
+  for (const name of ['select', 'plan', 'confirm', 'cancel', 'build', 'setSpeed', 'togglePause', 'load', 'showOutcome', 'toast', 'tuneGravity']) {
     const original = game[name];
     game[name] = function (...args) {
       const before = recording ? controls() : null;
@@ -1188,7 +1276,8 @@ class Game {
     $('pause').onclick = () => this.togglePause();
     document.querySelectorAll('[data-speed]').forEach(button => button.onclick = () => this.setSpeed(Number(button.dataset.speed)));
     $('scenario').onchange = e => this.load(e.target.value);
-    $('restart').onclick = () => this.load(this.world.scenario, this.world.setup);
+    $('restart').onclick = () => { if (this.world.scenario === 'playground') this.resetRange(); else this.load(this.world.scenario, this.world.setup); };
+    $('range-reset').onclick = () => this.resetRange();
     $('new-game').onclick = () => this.openNewGame();
     $('cancel-new-game').onclick = () => this.cancelNewGame();
     document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { this.setupMode = b.dataset.mode; this.updateSetup(); });
@@ -1211,6 +1300,8 @@ class Game {
     document.querySelector('.wordmark').onclick = e => { e.preventDefault(); this.renderer.fit(); };
     $('trajectories').onchange = e => { this.ui.allPaths = e.target.checked; this.previewDirty = true; };
     $('ranges').onchange = e => { this.ui.ranges = e.target.checked; };
+    document.querySelectorAll('[data-gravity]').forEach(input => input.oninput = () => this.tuneGravity({ [input.dataset.gravity]: Number(input.value) }));
+    $('gravity-reset').onclick = () => this.tuneGravity(GRAVITY_DEFAULTS);
     $('confirm').onclick = () => this.confirm(); $('cancel').onclick = () => this.cancel();
     $('help').onclick = () => this.help();
     document.querySelectorAll('[data-build]').forEach(b => b.onclick = () => this.build(b.dataset.build));
@@ -1225,7 +1316,7 @@ class Game {
     };
     $('selection').onclick = e => {
       const action = e.target.closest('[data-order]')?.dataset.order;
-      if (action === 'home') { this.select(this.world.planets.find(p => p.team === 'player').id); return; }
+      if (action === 'home') { const home = this.world.planets.find(p => p.team === 'player'); if (home) this.select(home.id); return; }
       const selected = entity(this.world, this.ui.selectedId); if (!selected) return;
       if (action === 'detach') {
         const booster = selected.type === 'rock' ? entity(this.world, selected.boosterId) : selected;
@@ -1245,6 +1336,7 @@ class Game {
       if (action === 'stop') this.plan({ id: selected.id, order: { kind: 'stop', x: selected.x, y: selected.y } });
       if (action === 'defend') {
         const host = entity(this.world, selected.hostId) || this.world.planets.find(p => p.team === 'player');
+        if (!host) { this.toast('No friendly colony in this range. Reset for fresh boosters.'); return; }
         this.plan({ id: selected.id, order: { kind: selected.type === 'booster' ? 'rearm' : 'defend', targetId: host.id } });
       }
     };
@@ -1268,6 +1360,24 @@ class Game {
     this.updateSetup(); $('new-game-modal').classList.remove('hidden');
     document.querySelector(`[data-mode="${this.setupMode}"]`).focus(); this.updateUI();
   }
+  resetRange() {
+    this.load('playground', this.world.setup);
+    this.closeModal();
+    this.toast('Range reset. Fresh rocks and defenses; gravity settings kept.');
+  }
+  tuneGravity(settings) {
+    this.paused = true; this.accumulator = 0;
+    setGravity(this.world, settings);
+    scanRockThreats(this.world); this.processEvents(); this.refreshPredictions();
+    // Keep the planned impulse unchanged. A formerly verified automatic shot
+    // must be checked again against the new physics before it can be committed.
+    const pending = this.ui.pending;
+    if (pending?.aim) {
+      pending.aim.verified = this.ui.predictions.get(pending.id)?.impact?.targetId === pending.aim.targetId;
+      if (!pending.aim.verified) pending.aim.reason = 'Gravity changed the shot. Right-click the planet to recalculate.';
+    }
+    this.gravityAdjusted = true; this.updateUI();
+  }
   cancelNewGame() {
     $('new-game-modal').classList.add('hidden');
     this.paused = this.beforeSetupPaused; this.accumulator = 0; $('new-game').focus(); this.updateUI();
@@ -1284,8 +1394,8 @@ class Game {
   }
   load(key, options = { mode: 'scenario', scenario: key }) {
     $('new-game-modal').classList.add('hidden');
-    this.world = createGame(options); key = this.world.scenario; this.paused = true; this.speed = 1; this.accumulator = 0;
-    this.seenEvent = 0; this.outcomeShown = false; this.ui.selectedId = this.world.planets[0].id;
+    this.world = createGame(options); key = this.world.scenario; this.paused = true; this.speed = 1; this.accumulator = 0; this.gravityAdjusted = false;
+    this.seenEvent = 0; this.outcomeShown = false; this.ui.selectedId = key === 'playground' ? this.world.units.find(u => u.type === 'rock').id : this.world.planets[0].id;
     this.ui.hoverId = null; this.ui.pending = null; this.ui.predictions = new Map(); this.ui.baseline = null; this.previewDirty = true;
     this.toastUntil = 0; $('toast').classList.remove('visible'); this.renderer.fit(); $('scenario').value = key;
     const open = this.world.mode !== 'scenario', sandbox = this.world.mode === 'sandbox';
@@ -1305,7 +1415,7 @@ class Game {
   closeModal() { $('modal').classList.add('hidden'); this.canvas.focus(); this.updateUI(); }
   help() {
     this.showModal('FIELD GUIDE', 'Small orders. Wide orbits.',
-      '<ul><li><b>Left-click</b> to select. Click it again or empty space to clear selection. <b>Right-click</b> to plan an order; <b>Enter</b> confirms, <b>Esc</b> cancels.</li><li><b>Prepare a rock:</b> select it and choose Send booster, or select a booster ship and right-click the rock. Attachment takes 6 seconds after arrival.</li><li><b>Launch:</b> select an equipped rock and right-click a planet to calculate a shot toward its future position. Right-click empty space for manual aim; confirm for 35 metal (free with unlimited metal). Drag aiming also works. The booster fires for 4 seconds, then detaches automatically and awaits orders. Choose Return home to reload in 8 seconds at no extra cost. You can detach manually before launching.</li><li><b>Context orders:</b> a combat ship attacks enemies, escorts friendly mobile units, and defends friendly planets or platforms. A booster attaches to free rocks and returns to a friendly colony to reload. Hover for the action hint.</li><li><b>Right-click</b> a friendly planet or platform with a ship or drone to defend it. Drones protect their assigned local area.</li><li><b>Space</b> pauses. <b>1 / 2 / 3</b> select 1× / 5× / 20×. Scroll to zoom; drag empty space to pan; <b>F</b> fits the system.</li></ul><p>Booster ships cost 50 metal and are unarmed. Select your colony to deploy. Income is 0.4 metal / second; fleet limit 12. Launched rocks damage any planet, including your own. Defenses intercept your rocks when they threaten home. Ship weapons do not fire on friendly ships or colonies.</p><p class="note">Teal launch segments show powered flight; gold shows coasting. Ship paths end when attachment completes. Predictions cover 90 seconds. Weapons and future enemy decisions can change the outcome.</p>',
+      '<ul><li><b>Left-click</b> to select. Click it again or empty space to clear selection. <b>Right-click</b> to plan an order; <b>Enter</b> confirms, <b>Esc</b> cancels.</li><li><b>Prepare a rock:</b> select it and choose Send booster, or select a booster ship and right-click the rock. Attachment takes 6 seconds after arrival.</li><li><b>Launch:</b> select an equipped rock and right-click a planet to calculate a shot toward its future position. Right-click empty space for manual aim; confirm for 35 metal (free with unlimited metal). Drag aiming also works. The booster fires for 4 seconds, then detaches automatically and awaits orders. Choose Return home to reload in 8 seconds at no extra cost. You can detach manually before launching.</li><li><b>Context orders:</b> a combat ship attacks enemies, escorts friendly mobile units, and defends friendly planets or platforms. A booster attaches to free rocks and returns to a friendly colony to reload. Hover for the action hint.</li><li><b>Right-click</b> a friendly planet or platform with a ship or drone to defend it. Drones protect their assigned local area.</li><li><b>Space</b> pauses. <b>1 / 2 / 3</b> select 1× / 5× / 20×. Scroll to zoom; drag empty space to pan; <b>F</b> fits the system.</li></ul><p>Booster ships cost 50 metal and are unarmed. Select your colony to deploy. Income is 0.4 metal / second; fleet limit 12. Launched rocks damage any planet, including your own. Defenses intercept your rocks when they threaten home. Ship weapons do not fire on friendly ships or colonies.</p><p><b>Gravity:</b> adjust G, shared planet mass, or sun mass in the left-hand controls. Changes pause time and redraw paths. G and sun mass set planetary orbital speed; radii and current positions stay fixed. Planet mass changes its pull on units, not its own orbital speed. Free-flying units keep their velocities. Reset restores defaults; restarting retains tuning, while New game starts at defaults.</p><p class="note">Teal launch segments show powered flight; gold shows coasting. Ship paths end when attachment completes. Predictions cover 90 seconds. Weapons and future enemy decisions can change the outcome.</p>',
       'Back to the system', () => this.closeModal());
   }
   toast(message) { $('toast').textContent = message; $('toast').classList.add('visible'); this.toastUntil = performance.now() + 6000; }
@@ -1377,6 +1487,13 @@ class Game {
   }
   updateUI() {
     const w = this.world, u = entity(w, this.ui.selectedId);
+    const playground = w.scenario === 'playground', hasHome = w.planets.some(p => p.team === 'player');
+    document.querySelectorAll('[data-gravity]').forEach(input => {
+      const value = w.gravity[input.dataset.gravity];
+      if (Number(input.value) !== value) input.value = value;
+      setText(`${input.id}-value`, input.dataset.gravity === 'g' ? value.toFixed(2) : String(value));
+    });
+    setText('gravity-status', this.gravityAdjusted && this.paused ? 'Paused / paths updated.' : 'Adjust to pause and preview.');
     setText('pause', this.paused ? '▶' : 'Ⅱ'); $('pause').setAttribute('aria-label', this.paused ? 'Resume simulation' : 'Pause simulation');
     document.querySelectorAll('[data-speed]').forEach(b => { b.classList.toggle('active', Number(b.dataset.speed) === this.speed); b.setAttribute('aria-pressed', String(Number(b.dataset.speed) === this.speed)); });
     $('clock').textContent = time(w.time); setText('metal', w.unlimitedMetal ? '\u221e' : String(Math.floor(w.metal.player)));
@@ -1386,13 +1503,16 @@ class Game {
     setText('open-game-name', `${w.planets.length} planets / ${w.planets.some(p => p.team === 'enemy') ? 'AI opponent' : 'quiet system'}`);
     setText('objective-label', w.mode === 'sandbox' ? 'YOUR PLAYGROUND' : 'YOUR OBJECTIVE');
     setText('objective', w.mode === 'sandbox' ? 'Explore trajectories. Build a fleet. Make your own experiments.' : w.scenario === 'hold' ? `Keep Verdant alive / ${time(w.duration - w.time)} remaining` : SCENARIOS[w.scenario].objective);
-    setText('income-hint', w.unlimitedMetal ? 'Unlimited metal / fleet limit 12' : '+0.4 metal / second from your colony');
-    $('colonies').innerHTML = w.planets.filter(p => p.team !== 'neutral').map(p => `<div class="colony ${p.team === 'enemy' ? 'enemy' : ''}"><div><span>${p.name}${p.team === 'player' ? ' / HOME' : ' / RIVAL'}</span><span>${Math.ceil(p.hp / p.maxHp * 100)}%</span></div><span class="bar"><i style="width:${p.hp / p.maxHp * 100}%"></i></span></div>`).join('');
+    setText('income-hint', playground ? 'Free launches / defenders only engage fired rocks' : w.unlimitedMetal ? 'Unlimited metal / fleet limit 12' : '+0.4 metal / second from your colony');
+    $('colonies').innerHTML = w.planets.filter(p => p.team !== 'neutral').map(p => `<div style="--colony-color:${p.color}" class="colony ${p.team === 'enemy' ? 'enemy' : ''}"><div><span>${p.name}${p.team === 'player' ? ' / HOME' : playground ? ' / TARGET' : ' / RIVAL'}</span><span>${Math.ceil(p.hp / p.maxHp * 100)}%</span></div><span class="bar"><i style="width:${p.hp / p.maxHp * 100}%"></i></span></div>`).join('');
     const count = fleet(w, 'player').length;
-    $('fleet-count').textContent = `${count} / ${CAP}`;
+    $('fleet-count').textContent = playground ? `${w.units.filter(r => r.type === 'rock' && r.hp > 0 && r.boosterTeam === 'player').length} / 12 ready` : `${count} / ${CAP}`;
     const canDeploy = u?.type === 'planet' && u.team === 'player' && u.hp > 0;
-    $('deploy-location').textContent = canDeploy ? `DEPLOY AT ${u.name}` : 'SELECT YOUR COLONY TO DEPLOY';
-    document.querySelectorAll('[data-build]').forEach(b => { b.disabled = !canDeploy || (!w.unlimitedMetal && w.metal.player < COST[b.dataset.build]) || count >= CAP || (!!w.outcome && !w.continueSandbox); b.querySelector('span').textContent = w.unlimitedMetal ? 'Free' : `${COST[b.dataset.build]} \u25c7`; b.title = !canDeploy ? 'Select your colony first' : `${w.unlimitedMetal ? 'Free' : COST[b.dataset.build] + ' metal'} · deploy defending ${u.name}`; });
+    $('deploy-location').textContent = playground ? 'SLINGSHOT PLAYGROUND' : canDeploy ? `DEPLOY AT ${u.name}` : 'SELECT YOUR COLONY TO DEPLOY';
+    document.querySelectorAll('[data-build]').forEach(b => { b.classList.toggle('hidden', playground); b.disabled = !canDeploy || (!w.unlimitedMetal && w.metal.player < COST[b.dataset.build]) || count >= CAP || (!!w.outcome && !w.continueSandbox); b.querySelector('span').textContent = w.unlimitedMetal ? 'Free' : `${COST[b.dataset.build]} \u25c7`; b.title = !canDeploy ? 'Select your colony first' : `${w.unlimitedMetal ? 'Free' : COST[b.dataset.build] + ' metal'} · deploy defending ${u.name}`; });
+    $('range-reset').classList.toggle('hidden', !playground);
+    document.querySelector('#rock-tool b').textContent = playground ? 'NEXT ROCK' : 'ROCK';
+    document.querySelector('.dock').classList.toggle('range-dock', playground);
     document.querySelector('#rock-tool span').textContent = w.unlimitedMetal ? 'Free launch' : '35 \u25c7 / launch';
     $('rock-tool').disabled = !!w.outcome && !w.continueSandbox;
     $('paused-label').classList.toggle('hidden', !this.paused || !!this.ui.pending || this.modalOpen());
@@ -1413,14 +1533,14 @@ class Game {
     let status = 'Click a planet, ship, or belt rock.<br>Give time a moment to unfold.';
     if (u) {
       const forecast = this.ui.predictions.get(u.id);
-      if (u.type === 'planet') status = u.team === 'player' ? 'Your colony · +0.4 metal / s<br>Select a unit below to deploy in orbit.' : u.team === 'enemy' ? 'Rival colony · ships can bombard it.' : 'Uninhabited · a safe target for practice.';
+      if (u.type === 'planet') status = u.team === 'player' ? playground ? 'Your colony / friendly defenders<br>Ship, platform, and two drones guard home.' : 'Your colony · +0.4 metal / s<br>Select a unit below to deploy in orbit.' : u.team === 'enemy' ? playground ? 'Defended target / ship, platform, two drones<br>Launch a rock to test their interception.' : 'Rival colony · ships can bombard it.' : 'Uninhabited · a safe target for practice.';
       else if (u.type === 'rock') {
         const fitter = w.units.find(b => b.hp > 0 && b.order?.kind === 'fit' && b.order.targetId === u.id);
         status = u.burn?.remaining > 0 ? `Powered burn · ${Math.ceil(u.burn.remaining)}s left<br>Booster detaches automatically · then coasting` : u.launched ? `Ballistic flight · ${u.team === 'enemy' ? 'incoming threat' : 'launch committed'}<br>${forecast?.impact ? `Impact: ${forecast.impact.name} in ${Math.ceil(forecast.impact.time)}s` : forecast && Number.isFinite(forecast.closest) ? `Closest approach: ${Math.max(0, forecast.closest).toFixed(0)} u in ${Math.ceil(forecast.closestTime)}s` : 'Forecast horizon: 90 seconds'}` : u.boosterTeam ? `${u.boosterTeam === 'player' ? 'Your booster attached · ready to launch' : 'Enemy booster attached · destroy this rock'}<br>${u.boosterTeam === 'player' ? (w.unlimitedMetal ? 'Right-click to aim / free launch' : 'Right-click to aim / launch for 35 metal') : 'An enemy launch is being prepared'}` : fitter ? `${fitter.team === 'enemy' ? 'Enemy' : 'Your'} booster ${fitter.attachProgress > 0 ? `attaching · ${Math.ceil(ATTACH_TIME - fitter.attachProgress)}s left` : 'en route'}<br>${fitter.team === 'player' ? 'Escort it with a combat ship' : 'Intercept the booster before it finishes'}` : 'No booster attached · launch unavailable<br>Send a booster ship to prepare this rock.';
       }
       else if (u.type === 'booster') {
         const target = entity(w, u.order?.targetId);
-        status = target?.burn?.remaining > 0 && u.attachedRockId ? `Firing · ${Math.ceil(target.burn.remaining)}s left<br>Automatic detach after burn · then await orders` : u.attachedRockId ? `Attached to ${target?.name || 'rock'} · ${u.loaded ? 'ready to launch' : 'charge spent'}<br>${u.loaded ? 'Aim rock to launch · Detach to leave' : 'Detach manually · Return home to rearm'}` : u.order.kind === 'fit' ? `${u.attachProgress > 0 ? `Attaching · ${Math.ceil(ATTACH_TIME - u.attachProgress)}s left` : `En route → ${target?.name || 'rock'}`}<br>Unarmed · one booster loaded` : u.order.kind === 'rearm' ? `${u.rearmProgress > 0 ? `Rearming · ${Math.ceil(REARM_TIME - u.rearmProgress)}s left` : 'Returning home to rearm'}<br>Unarmed · automatic reload at colony` : `${u.loaded ? 'One booster loaded · ready' : 'Charge spent · awaiting orders'}<br>${u.loaded ? 'Right-click a free rock to attach' : 'Choose Return home to reload'}`;
+        status = target?.burn?.remaining > 0 && u.attachedRockId ? `Firing · ${Math.ceil(target.burn.remaining)}s left<br>Automatic detach after burn · then await orders` : u.attachedRockId ? `Attached to ${target?.name || 'rock'} · ${u.loaded ? 'ready to launch' : 'charge spent'}<br>${u.loaded ? 'Aim rock to launch · Detach to leave' : 'Detach manually · Return home to rearm'}` : u.order.kind === 'fit' ? `${u.attachProgress > 0 ? `Attaching · ${Math.ceil(ATTACH_TIME - u.attachProgress)}s left` : `En route → ${target?.name || 'rock'}`}<br>Unarmed · one booster loaded` : u.order.kind === 'rearm' ? `${u.rearmProgress > 0 ? `Rearming · ${Math.ceil(REARM_TIME - u.rearmProgress)}s left` : 'Returning home to rearm'}<br>Unarmed · automatic reload at colony` : `${u.loaded ? 'One booster loaded · ready' : (playground ? 'Charge spent / reset range for more' : 'Charge spent · awaiting orders')}<br>${u.loaded ? 'Right-click a free rock to attach' : (playground ? 'Reset restores rocks and attached boosters' : 'Choose Return home to reload')}`;
       }
       else {
         const target = entity(w, u.order?.targetId);
@@ -1442,6 +1562,8 @@ class Game {
     $('order-defend').classList.toggle('hidden', !mobileFriendly);
     setText('order-defend', u?.type === 'booster' ? 'Return home' : 'Defend home');
     $('order-stop').classList.toggle('hidden', !mobileFriendly);
+    if (!hasHome) $('order-defend').classList.add('hidden');
+    $('order-home').classList.toggle('hidden', !hasHome);
     $('selected-actions').classList.toggle('hidden', u?.team === 'player' && u.type === 'planet');
     setText('order-home', mobileFriendly ? 'Colony' : 'Select home colony');
     $('plan').classList.toggle('hidden', !this.ui.pending);
@@ -1486,7 +1608,7 @@ class Game {
     const body = win ? training ? '<p>A launch of your own, an incoming rock turned to harmless dust. You have the essentials.</p><p>Keep experimenting, or try a colony under siege.</p>' : this.world.scenario === 'hold' ? '<p>Four minutes in the gravity well. Your colony is still here.</p><p>Your defenses held the orbit.</p>' : '<p>Cinder has fallen silent. Verdant has a future among these little worlds.</p>' : '<p>Your colony has lost its integrity. Try holding your defenses closer to home, or intercept the incoming rocks earlier.</p>';
     this.showModal(win ? 'ENCOUNTER COMPLETE' : 'COLONY LOST', win ? training ? 'A little orbital intuition.' : 'The orbit is yours.' : 'Every orbit is another try.', body,
       'Restart game', () => this.load(this.world.scenario, this.world.setup), win ? 'Keep exploring' : 'Review system', () => {
-        if (win) { this.world.continueSandbox = true; this.world.mode = 'sandbox'; this.world.outcome = null; this.world.setup = { mode: 'sandbox', system: this.world.planets.length === 3 ? 'three' : 'two', enemies: this.world.planets.some(p => p.team === 'enemy'), budget: 160, unlimited: false }; this.closeModal(); }
+        if (win) { this.world.continueSandbox = true; this.world.mode = 'sandbox'; this.world.outcome = null; this.world.setup = { mode: 'sandbox', system: this.world.planets.length === 3 ? 'three' : 'two', enemies: this.world.planets.some(p => p.team === 'enemy'), budget: 160, unlimited: false, gravity: { ...this.world.gravity } }; this.closeModal(); }
         else this.closeModal();
       });
   }

@@ -2,7 +2,7 @@ import { entity, distance, MAX_IMPULSE, planRockTarget } from './simulation.js';
 import { contextualOrder } from './orders.js';
 export function attachInput(game) {
   const { renderer: r, canvas } = game;
-  let drag = null, pointer = null;
+  let drag = null, pointer = null, manualContext = false;
   const point = e => ({ x: e.clientX, y: e.clientY });
   const pick = p => {
     const w = game.world;
@@ -24,6 +24,9 @@ export function attachInput(game) {
   canvas.addEventListener('pointerleave', () => { pointer = null; game.ui.hoverId = null; game.updateContextHint(); });
   canvas.addEventListener('contextmenu', e => {
     e.preventDefault();
+    // Browsers dispatch contextmenu on either press or release. Do not let
+    // either timing replace a held manual aim with a new target order.
+    if (manualContext) return;
     if (game.modalOpen()) return;
     const p = point(e), target = pick(p);
     const action = contextualOrder(game.world, game.ui.selectedId, target, r.world(p));
@@ -35,8 +38,21 @@ export function attachInput(game) {
     } else game.plan(action.pending);
   });
   canvas.addEventListener('pointerdown', e => {
-    if (game.modalOpen() || e.button === 2) return;
+    manualContext = false;
+    if (game.modalOpen()) return;
     const p = point(e), target = pick(p);
+    if (e.button === 2) {
+      const action = contextualOrder(game.world, game.ui.selectedId, target, r.world(p));
+      if (!target && action.pending?.impulse) {
+        manualContext = true;
+        canvas.setPointerCapture(e.pointerId);
+        drag = { kind: 'rock', id: action.pending.id, start: p, moved: true };
+        canvas.style.cursor = 'crosshair';
+        game.plan(action.pending);
+        game.updateContextHint();
+      }
+      return;
+    }
     canvas.setPointerCapture(e.pointerId);
     if (e.button === 1 || !target) { drag = { kind: 'pan', start: p, last: p, moved: false, clear: e.button === 0 && !target }; canvas.style.cursor = 'grabbing'; return; }
     const wasSelected = game.ui.selectedId === target.id;
@@ -72,11 +88,12 @@ export function attachInput(game) {
   canvas.addEventListener('pointercancel', endDrag);
   canvas.addEventListener('wheel', e => { e.preventDefault(); if (!game.modalOpen()) r.zoomAt(point(e), Math.exp(-e.deltaY * .001)); }, { passive: false });
   window.addEventListener('keydown', e => {
+    if (document.activeElement?.matches('input[type="range"]') && e.key === ' ') { e.preventDefault(); return; }
     if (['INPUT', 'SELECT', 'BUTTON'].includes(document.activeElement?.tagName) && !['Escape', ' '].includes(e.key)) return;
     if (game.modalOpen()) return;
     if (e.key === ' ') { e.preventDefault(); game.togglePause(); }
     if (e.key === 'Enter') game.confirm();
-    if (e.key === 'Escape') game.cancel();
+    if (e.key === 'Escape') { drag = null; canvas.style.cursor = 'default'; game.cancel(); }
     if (e.key.toLowerCase() === 'f') r.fit();
     if (['1', '2', '3'].includes(e.key)) game.setSpeed({ 1: 1, 2: 5, 3: 20 }[e.key]);
   });

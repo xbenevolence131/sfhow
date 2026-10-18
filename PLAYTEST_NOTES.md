@@ -1,5 +1,35 @@
 # ORBITAL playtest notes
 
+## October 18: gravity-derived planetary orbital speed
+
+After discussion and misleading voice progress reports, the user explicitly requested implementation. Planet speed now obeys `v = sqrt(G * sunMass / radius)` with fixed orbital radius. G and sun mass immediately affect orbital velocity; planet mass does not, since the sun remains anchored. Runtime updates preserve exact current positions by re-anchoring each planet's phase. Zero G or sun mass freezes the planets; restoring it resumes from that position. Free-flight velocities are preserved. Platforms inherit their host's changed velocity while retaining their prescribed local orbit rate. Initial scenarios and restarts also derive speed from their gravity settings; previews, future-position ghosts, and numerical aiming use the same orbital parameters. Baseline planets orbit faster than under the old independently tuned angular rate.
+
+Validation: all 48 simulation tests passed, including centripetal balance, square-root scaling, planet-mass independence, initial/restart consistency, nonzero-time adjustment, zero-stop/resume, platform inheritance, and shared forecasts. Gravity browser checks passed actual slider speed changes without position jumps, launch revalidation, pause, stable dragging, reset/restart, and mobile layout. Slingshot browser checks passed actual own-colony interception with the new planetary motion. Help and standalone build updated; user's live run not reset.
+
+## October 18: home ownership and planet colors
+
+Corrected Slingshot Playground ownership: Verdant and its ship/platform/two drones are friendly; Cinder and Ochre retain enemy defenders. Prepared boosters now belong to Verdant and can return there. The range has a scoped fleet limit of 16 to retain all twelve prepared boosters alongside four home defenders; other modes remain capped at 12. No victory/defeat condition was added. Real friendly-rock threat detection/interception applies at home.
+
+Across all modes, spawned units inherit their home planet's color and keep it while traveling or escorting. Attached rocks inherit booster color; unused detached/disarmed rocks return to neutral. Ships, platforms, drones, boosters, shots, selected rings, unit labels, range circles, planet labels, and colony bars use world colors. HOME/ENEMY labels and solid/dashed planet rings retain an explicit ownership cue. Defaults remain muted teal Verdant, sand Cinder, and terracotta Ochre; no planet palette was changed. All 46 simulation tests, the playground browser test (including own-colony interception), and the full gameplay browser test passed. Reviewed desktop screenshot. Standalone updated; live run untouched.
+
+## October 18: live right-drag aiming
+
+Requested and implemented continuous rock aiming while holding right-click in empty space. The initial press starts a manual preview, pointer movement updates impulse and the shared trajectory forecast, and release retains the plan for explicit confirmation. Crossing a planet during the drag stays manual. Native context-menu timing on press/release cannot replace that plan. Escape during a held gesture cancels without subsequent movement recreating it. Existing left-drag and planet auto-aim remain available. Dedicated browser checks passed live path changes before release, impulse limit, release over a planet, unchanged world/camera, no premature launch, cancellation, subsequent auto-aim, and confirmed launch. Standalone build updated; live session not reset.
+
+## October 18: Slingshot Playground
+
+The player requested a separate range for experimenting with trajectories without first flying boosters to rocks, then added normal defenses to each target planet. Implemented as scenario 04: twelve rocks with friendly loaded boosters already attached, three enemy planets with a ship, platform, and two drones each, and free launches. No player colony, end condition, enemy production, or offensive AI. Normal movement, weapons, burn, interception, and impact rules apply. Defenders ignore waiting equipment and engage launched rocks. Next rock cycles selection; Reset range restores the setup paused while retaining gravity tuning.
+
+Validation: all 46 simulation tests passed. Dedicated browser checks exercised scenario selection, ready equipment, auto-aim/confirmation, actual defensive interception, free launches, reset with gravity retained, mobile layout, and returning to ordinary deployment UI. Full gameplay browser checks passed; all 44 controls survived 234 changing-state refreshes. Reviewed desktop/mobile screenshots and rebuilt the standalone game. User's live session was not reset. Changes remain uncommitted with the preceding gravity revision.
+
+## October 18: runtime gravity controls
+
+The player requested a compact triple slider for G, planet mass, and sun mass, with the same mass for every planet. Implemented in all modes below the colony panel. Defaults are G 1, shared planet mass 2800, and sun mass 5400; each slider spans zero to three times its default. The acceleration model explicitly multiplies G by the attracting body's mass. Visual planet radius still determines close-range softening, but no longer scales planetary mass. Units do not attract one another; prescribed planet/platform orbits remain unchanged.
+
+Changing a slider pauses, preserves motion/state, and immediately updates forecasts and threats. Current pending impulses are preserved and automatic planet shots revalidated; if tuning removes the predicted hit, confirmation is blocked until re-aimed. Reset restores baseline gravity without resetting the run. Restart retains tuning; New game starts at defaults. Both factions and all numerical launch/preview paths use the same settings. Shared recording includes tuning actions and gravity values. The user also suggested moving routine toast messages toward the top earlier; that remains a future UI refinement, not implemented in this change.
+
+Validation: all 42 simulation tests passed, including linear G/mass scaling, equal planetary masses, zero-gravity coasting, custom-gravity auto-aim/preview agreement, finite extrema, and fixed-step grouping. Full browser gameplay passed, all 43 controls remained mounted through 234 updates, and dedicated slider checks passed held dragging, keyboard focus, pause, immediate path changes without moving units, reset/restart, targeted-shot invalidation, mobile layout, and new-game defaults. Reviewed desktop/mobile screenshots. Standalone build updated; the open game was not reset.
+
 ## October 18: consistent contextual controls
 
 The player proposed left-click to select/unselect and right-click for the selected object's default action, then explicitly approved applying the pattern throughout gameplay. Implemented a shared action resolver for both cursor hints and input. Ships attack enemies, escort friendly mobile units, defend friendly planets/platforms, and move to empty space. Boosters attach to free rocks and return to friendly colonies to reload. Drones retain bounded planet/platform defense. Attached boosters still require the existing detach/launch workflow before travel.

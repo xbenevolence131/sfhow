@@ -15,7 +15,7 @@
       <a class="wordmark" href="#" aria-label="ORBITAL, fit system"><span class="orbit-logo">&#10023;</span> ORBITAL</a>
       <span class="tagline">A LITTLE PLANETARY WARFARE</span>
       <div class="navigation-row"><button id="new-game">New game</button><span id="current-mode" class="eyebrow">SCENARIO</span><button id="restart" title="Restart current game" aria-label="Restart current game">&#8635;</button></div>
-      <div id="scenario-picker"><label class="eyebrow" for="scenario">SCENARIO</label><select id="scenario" aria-label="Scenario"><option value="garden">01 / Rock Garden</option><option value="hold">02 / Hold the Orbit</option><option value="neighbors">03 / Neighbors</option></select></div>
+      <div id="scenario-picker"><label class="eyebrow" for="scenario">SCENARIO</label><select id="scenario" aria-label="Scenario"><option value="garden">01 / Rock Garden</option><option value="hold">02 / Hold the Orbit</option><option value="neighbors">03 / Neighbors</option><option value="playground">04 / Slingshot Playground</option></select></div>
       <span id="open-game-name" class="hidden"></span>
     </div>
     <div class="mission-summary"><span id="objective-label" class="eyebrow">YOUR OBJECTIVE</span><p id="objective"></p><div id="top-threat" class="hidden" role="status"></div></div>
@@ -27,6 +27,16 @@
   <aside class="mission">
     <div id="colonies"></div>
     <div id="lesson"><div id="garden-lesson"><div id="lesson-prepare"></div><div id="lesson-launch"></div><div id="lesson-intercept"></div><button id="practice">↗ Send practice rock</button></div><span id="income-hint" class="hidden">+0.4 metal / second from your colony</span></div>
+    <section class="gravity-controls" aria-label="Gravity settings">
+      <div class="gravity-heading"><span class="eyebrow">GRAVITY</span><button id="gravity-reset" title="Restore default gravity without restarting">Reset</button></div>
+      <label for="gravity-g"><span>G</span><output id="gravity-g-value" for="gravity-g">1.00</output></label>
+      <input id="gravity-g" data-gravity="g" type="range" min="0" max="3" step="0.05" value="1" aria-label="Gravitational constant G">
+      <label for="gravity-planet"><span>Planet mass</span><output id="gravity-planet-value" for="gravity-planet">2800</output></label>
+      <input id="gravity-planet" data-gravity="planetMass" type="range" min="0" max="8400" step="100" value="2800" aria-label="Shared planet mass">
+      <label for="gravity-sun"><span>Sun mass</span><output id="gravity-sun-value" for="gravity-sun">5400</output></label>
+      <input id="gravity-sun" data-gravity="sunMass" type="range" min="0" max="16200" step="200" value="5400" aria-label="Sun mass">
+      <small>Fixed radii. G and sun mass set orbital speed.</small><small id="gravity-status">Adjust to pause and preview.</small>
+    </section>
   </aside>
   <aside id="alerts" aria-live="polite"></aside>
   <div id="toast" role="status"></div>
@@ -47,6 +57,7 @@
         <button data-build="drone"><svg viewBox="0 0 40 40"><path d="m20 9 11 20H9Z"/><circle cx="20" cy="9" r="3"/><circle cx="9" cy="29" r="3"/><circle cx="31" cy="29" r="3"/></svg><b>DRONE</b><span>25 ◇</span></button>
         <button data-build="booster"><svg viewBox="0 0 40 40"><path d="m16 8 4-4 4 4v24h-8ZM10 15h6v13h-6ZM24 15h6v13h-6ZM18 32v5M22 32v5"/></svg><b>BOOSTER</b><span>50 ◇</span></button>
         <button id="rock-tool"><svg class="rock-icon" viewBox="0 0 40 40"><path d="m13 5 15 3 8 14-7 12-16 1-9-11Z"/></svg><b>ROCK</b><span>35 ◇ / launch</span></button>
+        <button id="range-reset" class="hidden"><span aria-hidden="true">&#8635;</span><b>RESET RANGE</b><span>Fresh rocks &amp; defenses</span></button>
       </div>
     </section>
     <div class="bottom-hint" id="hint">Select a unit · Right-click to plan<br><span>Scroll to zoom · Drag empty space to pan</span></div>
@@ -66,7 +77,7 @@
       <button type="button" data-mode="sandbox" aria-pressed="false"><b>Sandbox</b><small>A playground without objectives</small></button>
     </div>
     <p id="setup-description"></p>
-    <div id="setup-scenarios" class="setup-field"><label for="setup-scenario">Scenario</label><select id="setup-scenario"><option value="garden">Rock Garden</option><option value="hold">Hold the Orbit</option><option value="neighbors">Neighbors</option></select></div>
+    <div id="setup-scenarios" class="setup-field"><label for="setup-scenario">Scenario</label><select id="setup-scenario"><option value="garden">Rock Garden</option><option value="hold">Hold the Orbit</option><option value="neighbors">Neighbors</option><option value="playground">Slingshot Playground</option></select></div>
     <div id="setup-open" class="hidden">
       <div class="setup-field"><label for="setup-system">System</label><select id="setup-system"><option value="three">Three planets / a neutral inner world</option><option value="two">Two planets / across the gravity well</option></select></div>
       <div class="setup-field"><label for="setup-budget">Starting metal</label><select id="setup-budget"><option value="160">160 / modest</option><option value="240">240 / comfortable</option><option value="400">400 / generous</option></select></div>

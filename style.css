@@ -23,3 +23,11 @@ header{top:18px;display:grid;grid-template-columns:270px minmax(200px,1fr) 270px
 #cursor-action{position:fixed;z-index:6;pointer-events:none;padding:6px 9px;background:#102432ee;border:1px solid #38575e;border-radius:4px;font-size:10px;line-height:1.5;color:var(--teal);max-width:min(280px,80vw)}#cursor-action.unavailable{color:var(--muted);border-color:var(--line)}
 
 .modal-card{max-height:calc(100dvh - 36px);overflow:auto}
+
+.gravity-controls{pointer-events:auto;width:194px;margin-top:23px;border-top:1px solid #30455488;padding-top:9px}.gravity-heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.gravity-heading button{font-size:9px;padding:3px 6px;color:var(--muted);border-color:var(--line)}.gravity-controls label{display:flex;justify-content:space-between;font-size:10px;color:#a7bbc7;margin-top:7px}.gravity-controls output{color:var(--teal);font-variant-numeric:tabular-nums}.gravity-controls input[type=range]{display:block;width:100%;height:16px;margin:3px 0 4px;cursor:pointer;accent-color:var(--teal)}.gravity-controls input:focus-visible{outline:1px solid var(--teal);outline-offset:2px}.gravity-controls small{display:block;font-size:8px;line-height:1.7;margin-top:6px}.gravity-controls #gravity-status{color:var(--teal);margin-top:2px}
+@media(max-width:720px){.gravity-controls{width:145px;margin-top:12px;padding-top:6px}.gravity-controls label{font-size:9px;margin-top:5px}.gravity-controls small{font-size:7px}.gravity-controls .eyebrow{display:inline;font-size:8px}.gravity-heading{margin-bottom:3px}.gravity-controls input[type=range]{margin:1px 0 3px}}
+
+.range-dock{width:280px}.range-dock .build-buttons button{justify-content:center;min-height:72px}#range-reset>span:first-child{font-size:28px;color:var(--teal);line-height:33px}@media(max-width:720px){.range-dock{width:52%}.range-dock .build-buttons button{min-height:72px}}
+
+.colony .bar i,.colony.enemy .bar i{background:var(--colony-color,var(--teal))}
+.colony div>span:first-child{color:var(--colony-color,var(--text))}

@@ -16,7 +16,7 @@ const equip = (w, rock, team = 'player') => {
 test('a clear planetary flyby bends visibly, matches its preview and remains stable at finer steps', () => {
   const fly = (weak = false, dt = DT, verifyPreview = false) => {
     const w = createScenario('neighbors'), planet = w.planets[0], rock = w.units.find(u => u.type === 'rock');
-    if (weak) for (const p of w.planets) p.mu = 180;
+    if (weak) w.gravity.planetMass = 180;
     w.units = [rock];
     Object.assign(rock, { x: planet.x - 180, y: planet.y + 75, vx: planet.vx + 12, vy: planet.vy, launched: true });
     const forecast = verifyPreview ? predict(w, [rock.id], null, 40).get(rock.id) : null;
