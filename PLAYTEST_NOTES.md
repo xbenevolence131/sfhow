@@ -1,5 +1,13 @@
 # ORBITAL playtest notes
 
+## October 18: second gravity doubling
+
+User requested another twofold increase while keeping the normalized default slider at 1.0. GRAVITY_BASE changed from 2 to 4, consistently affecting star/planet attraction, planetary angular rates, and initial belt velocities. G=.5 restores the preceding version; G=.25 restores the original strength. Planet speeds increase by sqrt(2) compared with the previous tuning. Collision parameters remain unchanged.
+
+Regression checks exposed ships losing the ability to circle nearby platforms because the stronger gravity compensation consumed all of their clamped thrust. Kept the existing 90% compensation but applied it separately from the maneuver-thrust cap, for both factions and previews. The original low-speed flyby test is now captured; raised its relative speed from 12 to 18 to continue testing a clear, convergent slingshot with the same clearance/accuracy requirements. Practice interception tests now retry through the existing mechanism when defenders destroy a booster before launch, matching the browser test's established behavior.
+
+Validation: all 57 simulation tests and full browser gameplay passed. Gravity slider and Slingshot browser checks passed, including speed scaling, preserved positions, preview revalidation, and actual defensive interception. Standalone build and README updated; live game was not reset. Changes remain uncommitted after `5f6b02d`.
+
 ## October 18: rock sizes, bank shots, and collision tuning
 
 User chose trick shots over universal rock destruction, then requested three masses and rejected rubber-ball behavior for hard impacts. Approved two collision sliders. Implemented small/medium/large rocks with masses 1/2/4, radii 5.5/8/12, and planet damage 35/65/100. Health remains 50, boosts have the same price/impulse, and gravity does not depend on rock mass. All scenarios contain mixed sizes.

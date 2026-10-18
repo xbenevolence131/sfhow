@@ -9,8 +9,8 @@ test('G scales both attractors; masses scale their own pull with equal planetary
   const twice=gravity(600,100,planets,{...GRAVITY_DEFAULTS,g:2});
   assert.ok(Math.abs(twice.x-base.x*2)<1e-12);assert.ok(Math.abs(twice.y-base.y*2)<1e-12);
   const sun=gravity(100,0,[],{g:2,sunMass:5000,planetMass:0});
-  assert.equal(sun.x,-2);assert.equal(Math.abs(sun.y),0);
-  assert.equal(gravity(200,0,[],{g:2,sunMass:5000,planetMass:0}).x,-.5);
+  assert.equal(sun.x,-4);assert.equal(Math.abs(sun.y),0);
+  assert.equal(gravity(200,0,[],{g:2,sunMass:5000,planetMass:0}).x,-1);
   const a=gravity(100,0,[{x:0,y:0,radius:13}],{g:1,sunMass:0,planetMass:2800});
   const b=gravity(100,0,[{x:0,y:0,radius:21}],{g:1,sunMass:0,planetMass:2800});
   assert.deepEqual(a,b,'different visible radii must not imply different planet masses');
@@ -108,12 +108,12 @@ test('slider extrema stay finite and fixed-step grouping remains deterministic',
 });
 
 
-test('normalized G=1 doubles the old baseline pull and G=0.5 restores it', () => {
+test('normalized G=1 doubles the previous tuning and G=0.5 restores that tuning', () => {
   assert.equal(GRAVITY_DEFAULTS.g,1);
-  assert.equal(GRAVITY_BASE,2);
+  assert.equal(GRAVITY_BASE,4);
   const p={x:400,y:0,radius:18};
-  assert.equal(gravity(100,0,[],GRAVITY_DEFAULTS).x,-1.08);
-  assert.equal(gravity(100,0,[],{...GRAVITY_DEFAULTS,g:.5}).x,-.54);
-  assert.equal(gravity(300,0,[p],{...GRAVITY_DEFAULTS,sunMass:0}).x,.56);
-  assert.equal(gravity(300,0,[p],{...GRAVITY_DEFAULTS,sunMass:0,g:.5}).x,.28);
+  assert.equal(gravity(100,0,[],GRAVITY_DEFAULTS).x,-2.16);
+  assert.equal(gravity(100,0,[],{...GRAVITY_DEFAULTS,g:.5}).x,-1.08);
+  assert.equal(gravity(300,0,[p],{...GRAVITY_DEFAULTS,sunMass:0}).x,1.12);
+  assert.equal(gravity(300,0,[p],{...GRAVITY_DEFAULTS,sunMass:0,g:.5}).x,.56);
 });

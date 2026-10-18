@@ -1,7 +1,7 @@
 // All distances and masses are game units. Both forecasts and live flight use DT.
 export const DT = 1 / 20;
 // The displayed G is a normalized multiplier; 1.0 uses this tuned baseline.
-export const GRAVITY_BASE = 2;
+export const GRAVITY_BASE = 4;
 export const GRAVITY_DEFAULTS = Object.freeze({ g: 1, planetMass: 2800, sunMass: 5400 });
 export const GRAVITY_LIMITS = Object.freeze({ g: 3, planetMass: 8400, sunMass: 16200 });
 export const COLLISION_DEFAULTS = Object.freeze({ bounce: .35, strength: 18 });
@@ -266,10 +266,12 @@ function steering(u, w, g) {
     const clearance = circleTarget && rawDist < u.range ? u.radius + 10 : 27;
     if (pd < p.radius + clearance) { const push = (p.radius + clearance - pd) * 1.5; vx += px / pd * push; vy += py / pd * push; }
   }
-  let ax = (vx - u.vx) * 1.4 - g.x * .9, ay = (vy - u.vy) * 1.4 - g.y * .9;
+  let ax = (vx - u.vx) * 1.4, ay = (vy - u.vy) * 1.4;
   const force = Math.hypot(ax, ay);
   if (force > u.thrust) { ax *= u.thrust / force; ay *= u.thrust / force; }
-  return { x: ax, y: ay };
+  // Gravity assistance has its own budget so stronger tuning does not consume
+  // all maneuvering thrust near planets. Both teams and previews share it.
+  return { x: ax - g.x * .9, y: ay - g.y * .9 };
 }
 // Relative swept segment collision: moving planets cannot be tunneled through.
 export function sweptHit(a, b, c, d, radius) {
