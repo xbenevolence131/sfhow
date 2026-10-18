@@ -1,5 +1,7 @@
 # ORBITAL
 
+For the latest development checkpoint and pending work, see [HANDOFF.md](HANDOFF.md).
+
 A quiet, playable planetary warfare game. All visuals are procedural Canvas 2D; the game uses no runtime packages, external assets, accounts, or services.
 
 ## Play

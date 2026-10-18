@@ -1,5 +1,7 @@
 # ORBITAL playtest notes
 
+Current end-of-session summary: [HANDOFF.md](HANDOFF.md). It records the latest rules, prior verification, preserved playtest evidence, and next task. Reactive opponent improvements were approved but remain unimplemented; work stopped when the player ended the evening. Older descriptions below are chronological and may be superseded.
+
 These observations come from the first play session on October 17, 2026. Approved fixes are marked below; remaining proposals are a backlog for later discussion.
 
 ## Friendly rocks and colony collisions
