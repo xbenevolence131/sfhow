@@ -1,0 +1,36 @@
+import { planetAt, spawn, addRock, BELT_INNER, BELT_WIDTH } from './simulation.js';
+export const SCENARIOS = {
+  garden: { name: 'Rock Garden', kicker: '01 / AN ORBITAL PLAYGROUND', objective: 'Fit a booster. Launch a rock. Intercept a practice attack.',
+    body: '<p>Your colony, <b>Verdant</b>, has a booster ship ready to go. Earn your shot by reaching an asteroid.</p><ul><li><b>1.</b> Select a belt rock and choose <b>Send booster</b>. Confirm and unpause.</li><li><b>2.</b> The ship matches velocity and attaches a booster over <b>6 seconds</b>.</li><li><b>3.</b> Drag the equipped rock to aim, review the path, and confirm your launch.</li><li><b>4.</b> Send a practice rock to watch an enemy booster prepare an attack.</li></ul><p>Booster ships wait attached. Launch starts a 4-second burn, followed by automatic detachment. Then choose Return home to reload. Ochre is an uninhabited target. Launched rocks can damage Verdant too; check the preview before firing.</p>' },
+  hold: { name: 'Hold the Orbit', kicker: '02 / A SMALL SIEGE', objective: 'Keep Verdant alive for 4 minutes. Incoming launches are announced.',
+    body: '<p>Hold your colony for <b>four simulation minutes</b>. A platform, a ship, two drones, and a booster ship are ready.</p><ul><li><b>Watch.</b> Enemy booster expeditions prepare incoming rocks.</li><li><b>Disrupt.</b> Hunt the booster before it attaches, or destroy its equipped rock.</li><li><b>Defend.</b> Keep enough forces home to intercept launched rocks and enemy ships.</li></ul><p>New threats pause fast-forward. Both sides must fly a booster to an asteroid before launching it.</p>' },
+  neighbors: { name: 'Neighbors', kicker: '03 / ACROSS THE GRAVITY WELL', objective: 'Protect Verdant. Reduce the colony on Cinder to zero integrity.',
+    body: '<p>Protect <b>Verdant</b> and destroy the rival colony on <b>Cinder</b>. The asteroid belt is contested territory.</p><ul><li><b>Booster ships</b> fly to rocks, attach, and wait for your launch or detach order.</li><li><b>Combat ships</b> escort your boosters, intercept enemy expeditions, or bombard Cinder.</li><li><b>Platforms & drones</b> defend against attacks that get through.</li><li><b>Equipped rocks</b> can be aimed and launched for 35 metal.</li></ul><p>Select a combat ship and right-click a friendly booster to escort it. Your neighbor uses the same preparation, flight, and resource rules.</p>' },
+};
+function planet(id, name, orbit, phase, radius, team, color, hp = 240) {
+  const p = { id, name, type: 'planet', orbit, phase, radius, team, color, omega: .006 * (285 / orbit) ** 1.5, mu: 2800 * radius / 18,
+    hp, maxHp: hp };
+  return Object.assign(p, planetAt(p, 0));
+}
+export function createScenario(key = 'garden') {
+  const w = { scenario: key, time: 0, serial: 0, eventId: 0, units: [], planets: [], effects: [], events: [],
+    metal: { player: key === 'garden' ? 240 : 160, enemy: key === 'hold' ? 180 : 160 },
+    progress: { prepared: false, launched: false, intercepted: false, impact: false }, outcome: null, continueSandbox: false, duration: 240,
+    ai: { buildAt: key === 'hold' ? 120 : 48, attackAt: key === 'hold' ? 100 : 65, rockAt: key === 'hold' ? 12 : 95 } };
+  w.planets = key === 'garden' ? [planet('verdant', 'VERDANT', 390, -.25, 18, 'player', '#65b6b3'), planet('ochre', 'OCHRE', 170, .65, 13, 'neutral', '#bd7968', 500)] :
+    [planet('verdant', 'VERDANT', 390, -.2, 18, 'player', '#65b6b3'), planet('cinder', 'CINDER', 690, -1.05, 21, 'enemy', '#c6bfa4'),
+      ...(key === 'neighbors' ? [planet('ochre', 'OCHRE', 170, .75, 13, 'neutral', '#bd7968', 500)] : [])];
+  const home = w.planets[0];
+  spawn(w, 'platform', 'player', home, true); spawn(w, 'ship', 'player', home, true);
+  spawn(w, 'drone', 'player', home, true); spawn(w, 'drone', 'player', home, true);
+  spawn(w, 'booster', 'player', home, true);
+  if (key === 'garden') w.practiceDock = { id: 'practice-dock', name: 'PRACTICE DOCK', type: 'dock', team: 'enemy', hp: 1, radius: 10, x: 700, y: -520, vx: 0, vy: 0 };
+  if (key !== 'garden') {
+    const enemy = w.planets[1];
+    spawn(w, 'platform', 'enemy', enemy, true); spawn(w, 'ship', 'enemy', enemy, true);
+    spawn(w, 'booster', 'enemy', enemy, true);
+    if (key === 'neighbors') { spawn(w, 'ship', 'enemy', enemy, true); spawn(w, 'drone', 'enemy', enemy, true); }
+  }
+  for (let i = 0; i < 15; i++) addRock(w, i / 15 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`);
+  return w;
+}

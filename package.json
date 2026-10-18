@@ -1,0 +1,17 @@
+{
+  "name": "orbital",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "build": "node build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "node tests/browser.mjs",
+    "test:controls": "node tests/controls.mjs",
+    "test:playtest": "node tests/playtest.mjs",
+    "playtest": "node scripts/playtest.mjs",
+    "playtest:inspect": "node scripts/inspect-playtest.mjs"
+  },
+  "devDependencies": { "@playwright/test": "^1.58.0" }
+}

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#091622">
+  <title>ORBITAL — a little planetary warfare</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='%23091622'/%3E%3Ccircle cx='20' cy='20' r='13' fill='none' stroke='%2380d6cf'/%3E%3Ccircle cx='20' cy='20' r='4' fill='%23f2ce87'/%3E%3Ccircle cx='30' cy='12' r='3' fill='%2380d6cf'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="space" aria-label="Orbital system. Select units with a click. Right-click to plan an order. Drag an asteroid to plan a launch." tabindex="0"></canvas>
+  <header>
+    <a class="wordmark" href="#" aria-label="ORBITAL, fit system"><span class="orbit-logo">✧</span> ORBITAL</a>
+    <div class="time-controls" aria-label="Simulation speed">
+      <button id="pause" title="Pause or resume (Space)" aria-label="Resume simulation">▶</button>
+      <button data-speed="1" class="active">1×</button><button data-speed="5">5×</button><button data-speed="20">20×</button>
+      <span id="clock">00:00</span>
+    </div>
+    <div class="top-right"><span class="metal-icon">◇</span><strong id="metal">160</strong><span class="muted">metal</span><button id="help" title="Controls and field guide" aria-label="Field guide">?</button></div>
+  </header>
+  <aside class="mission">
+    <span class="eyebrow">A LITTLE PLANETARY WARFARE</span>
+    <div class="scenario-row"><select id="scenario" aria-label="Scenario"><option value="garden">01 / Rock Garden</option><option value="hold">02 / Hold the Orbit</option><option value="neighbors">03 / Neighbors</option></select><button id="restart" title="Restart scenario" aria-label="Restart scenario">↻</button></div>
+    <p id="objective"></p>
+    <div id="colonies"></div>
+    <div id="lesson"><div id="garden-lesson"><div id="lesson-prepare"></div><div id="lesson-launch"></div><div id="lesson-intercept"></div><button id="practice">↗ Send practice rock</button></div><span id="income-hint" class="hidden">+0.4 metal / second from your colony</span></div>
+  </aside>
+  <aside id="alerts" aria-live="polite"></aside>
+  <div id="toast" role="status"></div>
+  <div id="paused-label"><i></i> TIME TO THINK <span>Orders work while paused</span></div>
+  <div class="map-tools">
+    <label><input type="checkbox" id="trajectories"> All paths</label>
+    <label><input type="checkbox" id="ranges"> Ranges</label>
+    <label title="Pause when a new enemy launch or attack is announced at 5× or 20×"><input type="checkbox" id="autopause" checked> Threat pause</label>
+    <button id="fit" title="Fit the system (F)">⌖ <span>Fit system</span></button>
+  </div>
+  <footer>
+    <section class="dock" aria-label="Deploy units">
+      <div class="dock-heading"><span id="deploy-location">DEPLOY AT VERDANT</span><span id="fleet-count">4 / 12</span></div>
+      <div class="build-buttons">
+        <button data-build="ship"><svg viewBox="0 0 40 40"><path d="M20 5 31 34 20 28 9 34Z"/></svg><b>SHIP</b><span>60 ◇</span></button>
+        <button data-build="platform"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="11"/><circle cx="20" cy="20" r="3"/><path d="M20 3V13M20 27V37M3 20H13M27 20H37"/></svg><b>PLATFORM</b><span>80 ◇</span></button>
+        <button data-build="drone"><svg viewBox="0 0 40 40"><path d="m20 9 11 20H9Z"/><circle cx="20" cy="9" r="3"/><circle cx="9" cy="29" r="3"/><circle cx="31" cy="29" r="3"/></svg><b>DRONE</b><span>25 ◇</span></button>
+        <button data-build="booster"><svg viewBox="0 0 40 40"><path d="m16 8 4-4 4 4v24h-8ZM10 15h6v13h-6ZM24 15h6v13h-6ZM18 32v5M22 32v5"/></svg><b>BOOSTER</b><span>50 ◇</span></button>
+        <button id="rock-tool"><svg class="rock-icon" viewBox="0 0 40 40"><path d="m13 5 15 3 8 14-7 12-16 1-9-11Z"/></svg><b>ROCK</b><span>35 ◇ / launch</span></button>
+      </div>
+    </section>
+    <div class="bottom-hint" id="hint">Select a unit · Right-click to plan<br><span>Scroll to zoom · Drag empty space to pan</span></div>
+    <section id="selection" class="selection" aria-label="Selected object">
+      <div class="selected-title"><strong id="selected-name"></strong><span id="selected-health"></span></div>
+      <div id="selected-meta" class="selected-meta"></div>
+      <div id="selected-actions" class="selected-actions"><button id="order-fit" data-order="fit-rock" class="hidden">Send booster</button><button id="order-detach" data-order="detach" class="hidden">Detach</button><button id="order-aim" data-order="aim" class="hidden">Aim rock</button><button id="order-defend" data-order="defend">Defend home</button><button id="order-stop" data-order="stop">Stop</button><button id="order-home" data-order="home">Colony</button></div>
+    </section>
+  </footer>
+  <div id="plan" class="plan hidden" aria-live="polite"><div><span class="eyebrow" id="plan-kind">PLANNED MANEUVER</span><p id="plan-summary"></p><small id="plan-note">Flight prediction · weapons may change the outcome</small></div><div class="plan-actions"><button id="confirm" class="primary">Confirm <kbd>↵</kbd></button><button id="cancel">Cancel <kbd>Esc</kbd></button></div></div>
+  <div id="modal" class="modal"><section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title"><span class="eyebrow" id="modal-kicker"></span><h1 id="modal-title"></h1><div id="modal-body"></div><button id="modal-action" class="primary"></button><button id="modal-secondary" class="hidden"></button></section></div>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
