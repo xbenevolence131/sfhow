@@ -61,9 +61,17 @@ export class Renderer {
       const g = this.screen(forecast.ghost); c.globalAlpha = .5; this.circle(g.x, g.y, forecast.ghost.radius * this.camera.zoom, color, null, [3, 4]);
       this.text('FUTURE POSITION', g.x, g.y - forecast.ghost.radius * this.camera.zoom - 9, color, 8, 'center');
     }
+    if(!faint)for(const hit of forecast.collisions||[]){
+      const key=`${hit.time}:${hit.x}:${hit.y}`;
+      if(this.contactMarkers?.has(key))continue;
+      this.contactMarkers?.add(key);
+      const p=this.screen(hit);this.circle(p.x,p.y,8,hit.kind==='smash'?'#ee9184':'#f2ce87');
+      this.text(`${hit.kind==='smash'?'SMASH':'DEFLECT'} ${hit.time.toFixed(1)}s`,p.x+12,p.y+14,color,8);
+    }
     c.restore();
   }
   draw(w, ui) {
+    this.contactMarkers=new Set();
     const c = this.ctx, z = this.camera.zoom; c.clearRect(0, 0, this.width, this.height); c.fillStyle = '#091622'; c.fillRect(0, 0, this.width, this.height);
     for (const s of this.stars) { c.globalAlpha = s.alpha; c.fillStyle = '#b9ccd8'; c.fillRect(s.x * this.width, s.y * this.height, s.r, s.r); } c.globalAlpha = 1;
     const center = this.screen({ x: 0, y: 0 });
@@ -89,8 +97,9 @@ export class Renderer {
     }
     for (const [id, forecast] of ui.predictions) {
       const u = entity(w, id); if (!u) continue;
-      const color = u.type === 'rock' && u.team !== 'enemy' ? '#d6c398' : objectColor(u);
-      this.path(forecast, color, id !== ui.selectedId && !(u.type === 'rock' && u.team === 'enemy'));
+      const color = forecast.secondary ? '#a7b9df' : u.type === 'rock' && u.team !== 'enemy' ? '#d6c398' : objectColor(u);
+      this.path(forecast, color, !forecast.secondary && id !== ui.selectedId && !(u.type === 'rock' && u.team === 'enemy'));
+      if(forecast.secondary&&forecast.points.length){const p=this.screen(forecast.points.at(-1));this.text(u.name+' / AFTER CONTACT',p.x+8,p.y-8,color,8);}
     }
     if (ui.baseline) this.path(ui.baseline, '#92a4ae', true);
     for (const p of w.planets) {
@@ -108,7 +117,7 @@ export class Renderer {
       if (u.hp <= 0) continue;
       const s = this.screen(u); if (s.x < -30 || s.x > this.width + 30 || s.y < -30 || s.y > this.height + 30) continue;
       const color = objectColor(u); c.save(); c.translate(s.x, s.y); c.strokeStyle = color; c.fillStyle = color; c.lineWidth = 1.3;
-      const size = Math.max(u.type === 'drone' ? 3.2 : 5.5, u.radius * z);
+      const size = Math.max(u.type === 'rock' ? u.size==='small'?4:u.size==='large'?8:5.5 : u.type === 'drone' ? 3.2 : 5.5, u.radius * z);
       if (u.type === 'ship') {
         c.rotate(Math.atan2(u.vy, u.vx) + Math.PI / 2); c.beginPath(); c.moveTo(0, -size * 1.35); c.lineTo(size * .75, size); c.lineTo(0, size * .5); c.lineTo(-size * .75, size); c.closePath(); c.fill();
       } else if (u.type === 'booster') {

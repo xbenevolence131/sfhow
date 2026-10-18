@@ -4,6 +4,17 @@ export const DT = 1 / 20;
 export const GRAVITY_BASE = 2;
 export const GRAVITY_DEFAULTS = Object.freeze({ g: 1, planetMass: 2800, sunMass: 5400 });
 export const GRAVITY_LIMITS = Object.freeze({ g: 3, planetMass: 8400, sunMass: 16200 });
+export const COLLISION_DEFAULTS = Object.freeze({ bounce: .35, strength: 18 });
+export const ROCK_SIZES = Object.freeze({ small: { radius: 5.5, mass: 1, damage: 35 }, medium: { radius: 8, mass: 2, damage: 65 }, large: { radius: 12, mass: 4, damage: 100 } });
+export function normalizeCollisions(settings = {}) {
+  return { bounce: Number.isFinite(settings.bounce) ? clamp(settings.bounce, 0, 1) : COLLISION_DEFAULTS.bounce,
+    strength: Number.isFinite(settings.strength) ? clamp(settings.strength, 1, 100) : COLLISION_DEFAULTS.strength };
+}
+export function setCollisions(w, settings) {
+  w.collisions = normalizeCollisions({ ...w.collisions, ...settings });
+  w.setup.collisions = { ...w.collisions };
+  w.threatScanAt = 0; w.rockThreats = {}; w.threatWarnings = {};
+}
 export const STAR_RADIUS = 25;
 export const MAX_IMPULSE = 26;
 export const BELT_INNER = 820;
@@ -87,7 +98,7 @@ export function spawn(w, type, team, host, free = false) {
   w.units.push(unit);
   return unit;
 }
-export function addRock(w, angle, orbit = BELT_INNER + BELT_WIDTH / 2, name) {
+export function addRock(w, angle, orbit = BELT_INNER + BELT_WIDTH / 2, name, size = 'medium') {
   // Account for the planets' stronger radial pull when seeding belt velocities.
   const radial = { x: Math.cos(angle), y: Math.sin(angle) };
   const settings = w.gravity || GRAVITY_DEFAULTS;
@@ -95,7 +106,7 @@ export function addRock(w, angle, orbit = BELT_INNER + BELT_WIDTH / 2, name) {
   const speed = Math.sqrt(Math.max(GRAVITY_BASE * settings.g * settings.sunMass / orbit, -(g.x * radial.x + g.y * radial.y) * orbit));
   const serial = ++w.serial;
   const rock = { id: `r${serial}`, name: name || `ROCK ${String(serial).padStart(2, '0')}`, type: 'rock', team: 'neutral',
-    ...TYPES.rock, maxHp: TYPES.rock.hp, x: Math.cos(angle) * orbit, y: Math.sin(angle) * orbit,
+    ...TYPES.rock, ...ROCK_SIZES[size], size, maxHp: TYPES.rock.hp, x: Math.cos(angle) * orbit, y: Math.sin(angle) * orbit,
     vx: -Math.sin(angle) * speed, vy: Math.cos(angle) * speed, launched: false, order: { kind: 'ballistic' } };
   w.units.push(rock); return rock;
 }
@@ -163,12 +174,13 @@ export function scanRockThreats(w) {
   const rocks = w.units.filter(u => u.hp > 0 && u.type === 'rock' && u.launched);
   w.rockThreats = {};
   if (!rocks.length) return;
-  const ids = new Set(rocks.map(r => r.id));
-  const isolated = { ...w, units: w.units.filter(u => ids.has(u.id) || ids.has(u.attachedRockId)) };
-  const forecasts = predict(isolated, [...ids]);
+  // Include the whole belt: a bank shot can activate a previously idle rock.
+  const isolated = { ...w, units: w.units.filter(u => u.type === 'rock' || u.attachedRockId) };
+  const forecasts = predict(isolated, rocks.map(r=>r.id));
   w.threatWarnings ||= {};
-  for (const rock of rocks) {
-    const impact = forecasts.get(rock.id)?.impact;
+  for (const [id, flight] of forecasts) {
+    const rock = entity(w, id); if (!rock || rock.type !== 'rock') continue;
+    const impact = flight.impact;
     if (!impact || impact.targetId === 'star') continue;
     w.rockThreats[rock.id] = { ...impact, time: w.time + impact.time };
     const planet = entity(w, impact.targetId);
@@ -308,28 +320,101 @@ export function advanceMotion(w, dt = DT, forecast = false) {
         if (u.burn.remaining < 1e-9) u.burn.remaining = 0;
       }
     }
+    if (u.type === 'rock') continue; // Rocks resolve swept contacts in time order below.
     const old = previous.get(u.id);
     if (sweptHit(old, u, { x: 0, y: 0 }, { x: 0, y: 0 }, STAR_RADIUS + u.radius)) {
       u.hp = 0; u.impact = { x: u.x, y: u.y, targetId: 'star', name: 'SOL', time: w.time };
       if (!forecast) burst(w, u.x, u.y, 'star');
       continue;
     }
-    for (let i = 0; i < w.planets.length; i++) {
-      const p = w.planets[i];
-      if (u.type !== 'rock' || !u.launched) continue;
-      if (sweptHit(old, u, oldPlanets[i], p, p.radius + u.radius)) {
-        u.hp = 0; u.impact = { x: u.x, y: u.y, targetId: p.id, name: p.name, time: w.time };
-        if (!forecast) {
-          p.hp = Math.max(0, p.hp - u.damage); burst(w, u.x, u.y, u.team);
-          announce(w, `${p.name} impact`, `${u.damage} colony damage.`, p.team === 'player');
-          if (u.team === 'player' && p.team !== 'player') w.progress.impact = true;
-        }
-        break;
-      }
-    }
     if (Math.hypot(u.x, u.y) > 2800) u.hp = 0;
   }
+  resolveRockContacts(w, previous, oldPlanets, dt, forecast);
   updateBoosters(w, dt, forecast);
+}
+// Exact time of first contact for circles moving at constant step velocities.
+function contactTime(a, b, radius, limit) {
+  const x=b.x-a.x, y=b.y-a.y, vx=b.vx-a.vx, vy=b.vy-a.vy;
+  if(Math.abs(x)>radius+Math.abs(vx)*limit || Math.abs(y)>radius+Math.abs(vy)*limit)return Infinity;
+  const c=x*x+y*y-radius*radius, dot=x*vx+y*vy, speed=vx*vx+vy*vy;
+  if(c < -1e-7 || (c <= 1e-7 && dot < -1e-9)) return 0;
+  if(dot >= 0 || speed < 1e-12) return Infinity;
+  const disc=dot*dot-speed*c; if(disc<0) return Infinity;
+  const t=(-dot-Math.sqrt(disc))/speed;
+  return t>=0 && t<=limit ? t : Infinity;
+}
+function resolveRockContacts(w, previous, oldPlanets, dt, forecast) {
+  w.rockContacts=[];
+  const rocks=w.units.filter(u=>u.type==='rock'&&u.hp>0).sort((a,b)=>a.id.localeCompare(b.id));
+  for(const r of rocks) Object.assign(r,previous.get(r.id));
+  const bodies=[{id:'star',name:'SOL',radius:STAR_RADIUS,x:0,y:0,vx:0,vy:0},
+    ...w.planets.map((p,i)=>({id:p.id,name:p.name,radius:p.radius,x:oldPlanets[i].x,y:oldPlanets[i].y,vx:(p.x-oldPlanets[i].x)/dt,vy:(p.y-oldPlanets[i].y)/dt,planet:p}))];
+  const settings=w.collisions||COLLISION_DEFAULTS;
+  let elapsed=0;
+  // The cap bounds pathological piles. Unresolved remainder is held in place,
+  // never advanced through an unchecked obstacle.
+  for(let iteration=0;iteration<128 && elapsed<dt;iteration++) {
+    let hit=null, earliest=Infinity;
+    const remain=dt-elapsed;
+    for(let i=0;i<rocks.length;i++) {
+      const a=rocks[i];if(a.hp<=0)continue;
+      for(const body of bodies) {
+        if(body.planet&&!a.launched)continue;
+        const t=contactTime(a,{...body,x:body.x+body.vx*elapsed,y:body.y+body.vy*elapsed},a.radius+body.radius,remain);
+        if(t<earliest){earliest=t;hit={a,body};}
+      }
+      for(let j=i+1;j<rocks.length;j++) {
+        const b=rocks[j];if(b.hp<=0)continue;
+        const t=contactTime(a,b,a.radius+b.radius,remain);
+        if(t<earliest){earliest=t;hit={a,b};}
+      }
+    }
+    const travel=hit?earliest:remain;
+    for(const r of rocks)if(r.hp>0){r.x+=r.vx*travel;r.y+=r.vy*travel;}
+    elapsed+=travel;
+    if(!hit)break;
+    const {a,b,body}=hit, when=w.time-dt+elapsed;
+    if(body) {
+      a.hp=0;a.impact={x:a.x,y:a.y,targetId:body.id,name:body.name,time:when};
+      if(!forecast){
+        burst(w,a.x,a.y,body.planet?a.team:'star');
+        if(body.planet){
+          const p=body.planet;p.hp=Math.max(0,p.hp-a.damage);
+          announce(w,`${p.name} impact`,`${a.damage} colony damage.`,p.team==='player');
+          if(a.team==='player'&&p.team!=='player')w.progress.impact=true;
+        }
+      }
+      continue;
+    }
+    let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
+    if(d<1e-9){dx=1;dy=0;d=1;}
+    const nx=dx/d,ny=dy/d,ma=a.mass||2,mb=b.mass||2,invA=1/ma,invB=1/mb;
+    const penetration=Math.max(0,a.radius+b.radius-Math.hypot(b.x-a.x,b.y-a.y))+.00001;
+    a.x-=nx*penetration*invA/(invA+invB);a.y-=ny*penetration*invA/(invA+invB);
+    b.x+=nx*penetration*invB/(invA+invB);b.y+=ny*penetration*invB/(invA+invB);
+    const closing=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;
+    if(closing<=1e-9)continue;
+    // Normal collision energy per combined mass: tangential motion glances off.
+    const energy=.5*(ma*mb/(ma+mb))*closing*closing/(ma+mb);
+    const smashed=energy>=settings.strength;
+    const contact={a:a.id,b:b.id,time:when,kind:smashed?'smash':'deflect',
+      x:(a.x*mb+b.x*ma)/(ma+mb),y:(a.y*mb+b.y*ma)/(ma+mb),
+      positions:{[a.id]:{x:a.x,y:a.y},[b.id]:{x:b.x,y:b.y}}};
+    w.rockContacts.push(contact);
+    if(smashed){a.hp=0;b.hp=0;}
+    else {
+      const impulse=(1+settings.bounce)*closing/(invA+invB);
+      a.vx-=impulse*invA*nx;a.vy-=impulse*invA*ny;
+      b.vx+=impulse*invB*nx;b.vy+=impulse*invB*ny;
+      a.launched=true;b.launched=true;a.deflected=true;b.deflected=true;
+      a.boosterTeam=null;b.boosterTeam=null;
+    }
+    if(!forecast){
+      if(smashed)burst(w,contact.x,contact.y,'neutral');
+      announce(w,smashed?'Rocks shattered':'Rock deflection',`${a.name} / ${b.name}${smashed?' / harmless debris':''}`);
+    }
+  }
+  for(const r of rocks)if(Math.hypot(r.x,r.y)>2800)r.hp=0;
 }
 function updateBoosters(w, dt, forecast) {
   for (const u of w.units) {
@@ -572,6 +657,17 @@ export function predict(world, ids, pending = null, horizon = 90) {
   const iterations = Math.round(horizon / DT);
   for (let n = 1; n <= iterations; n++) {
     advanceMotion(w, DT, true);
+    for(const contact of w.rockContacts||[]) {
+      if(!results.has(contact.a)&&!results.has(contact.b))continue;
+      for(const id of [contact.a,contact.b]) {
+        if(!results.has(id))results.set(id,{points:[],eta:null,closest:Infinity,impact:null,ghost:null,ballistic:true,secondary:true});
+        const result=results.get(id),pos=contact.positions[id];
+        result.points.push({...pos,t:contact.time-start});
+        result.collisions||=[];
+        result.collisions.push({x:contact.x,y:contact.y,time:contact.time-start,kind:contact.kind,otherId:id===contact.a?contact.b:contact.a});
+        if(contact.kind==='smash')result.ended=true;
+      }
+    }
     for (const [id, result] of results) {
       const u = w.units.find(e => e.id === id);
       if (!u || result.impact || result.ended) continue;

@@ -1,5 +1,15 @@
 # ORBITAL playtest notes
 
+## October 18: rock sizes, bank shots, and collision tuning
+
+User chose trick shots over universal rock destruction, then requested three masses and rejected rubber-ball behavior for hard impacts. Approved two collision sliders. Implemented small/medium/large rocks with masses 1/2/4, radii 5.5/8/12, and planet damage 35/65/100. Health remains 50, boosts have the same price/impulse, and gravity does not depend on rock mass. All scenarios contain mixed sizes.
+
+Rock contacts are swept and resolved chronologically alongside star/planet impacts, so fast objects cannot tunnel or hit something behind an earlier obstacle. Momentum transfer uses mass and restitution; normal impact energy per total mass above strength shatters both rocks. Glancing hits survive more easily; no simulated debris is spawned. Attached boosters die with shattered rocks. Deflected idle rocks become active ballistic threats; surviving loaded boosters may be detached manually. The solver bounds pathological dense-contact iterations by holding unresolved movement rather than allowing unchecked tunneling.
+
+Collapsible Collision tuning offers Bounce 0-1 (default .35) and Rock strength 1-100 (default 18). Inputs stay mounted, pause, preserve current motion, refresh forecasts, and revalidate targeted launches. Reset range/restart retains settings; New game restores defaults. Recorder captures settings/actions. Predictions simulate all belt rocks and include partners/chains after contact with violet paths and timed DEFLECT/SMASH markers; threats also include banked impacts. Updated size, mass, and damage are shown on selection. Sidebar scrolls on small screens.
+
+Validation: full 56-test simulation suite passed, then the additional first-obstacle/array-order test passed (57 individually validated tests total). Tests cover mass-independent gravity, momentum/elastic energy conservation, energy loss, glancing versus head-on impacts, shattering passengers, high-speed contacts, overlap stability, chained preview/actual agreement, banked colony damage, persistence, and collision ordering. Full gameplay browser checks, 47-control stability audit, dedicated collision UI/live deflection tests, and continuous right-drag checks passed. Desktop/mobile screenshots reviewed. No live reset or commit performed.
+
 ## October 18: double the normalized gravity baseline
 
 Final browser gameplay regression also passed, including the existing practice retry control. With changed orbital timing, the first practice booster can fly through defenders and be destroyed before launching; the browser test now retries through the real UI before checking rock interception and victory. No tutorial or AI gameplay rules were changed for that case.

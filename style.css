@@ -31,3 +31,5 @@ header{top:18px;display:grid;grid-template-columns:270px minmax(200px,1fr) 270px
 
 .colony .bar i,.colony.enemy .bar i{background:var(--colony-color,var(--teal))}
 .colony div>span:first-child{color:var(--colony-color,var(--text))}
+
+.collision-controls{pointer-events:auto}.collision-controls summary{cursor:pointer;font-size:10px;color:var(--text);padding:4px 0}.collision-controls .gravity-heading{margin-top:8px}.mission{max-height:calc(100vh - 365px);overflow-y:auto;scrollbar-width:thin;pointer-events:auto}@media(max-width:720px){.mission{max-height:calc(100vh - 420px)}}

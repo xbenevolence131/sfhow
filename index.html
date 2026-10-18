@@ -37,6 +37,15 @@
       <input id="gravity-sun" data-gravity="sunMass" type="range" min="0" max="16200" step="200" value="5400" aria-label="Sun mass">
       <small>Fixed radii. G and sun mass set orbital speed.</small><small id="gravity-status">Adjust to pause and preview.</small>
     </section>
+    <details id="collision-controls" class="gravity-controls collision-controls">
+      <summary>Collision tuning</summary>
+      <div class="gravity-heading"><small>Glancing hits deflect. Hard hits smash.</small><button id="collision-reset" title="Reset collision tuning">Reset</button></div>
+      <label for="collision-bounce"><span>Bounce</span><output id="collision-bounce-value">0.35</output></label>
+      <input id="collision-bounce" data-collision="bounce" type="range" min="0" max="1" step="0.05" value="0.35" aria-label="Collision bounce">
+      <label for="collision-strength"><span>Rock strength</span><output id="collision-strength-value">18</output></label>
+      <input id="collision-strength" data-collision="strength" type="range" min="1" max="100" step="1" value="18" aria-label="Rock strength">
+      <small>Higher strength survives harder hits.</small><small>Changes pause and update both paths.</small>
+    </details>
   </aside>
   <aside id="alerts" aria-live="polite"></aside>
   <div id="toast" role="status"></div>

@@ -41,6 +41,8 @@ header{top:18px;display:grid;grid-template-columns:270px minmax(200px,1fr) 270px
 .colony .bar i,.colony.enemy .bar i{background:var(--colony-color,var(--teal))}
 .colony div>span:first-child{color:var(--colony-color,var(--text))}
 
+.collision-controls{pointer-events:auto}.collision-controls summary{cursor:pointer;font-size:10px;color:var(--text);padding:4px 0}.collision-controls .gravity-heading{margin-top:8px}.mission{max-height:calc(100vh - 365px);overflow-y:auto;scrollbar-width:thin;pointer-events:auto}@media(max-width:720px){.mission{max-height:calc(100vh - 420px)}}
+
 </style>
 </head>
 <body>
@@ -72,6 +74,15 @@ header{top:18px;display:grid;grid-template-columns:270px minmax(200px,1fr) 270px
       <input id="gravity-sun" data-gravity="sunMass" type="range" min="0" max="16200" step="200" value="5400" aria-label="Sun mass">
       <small>Fixed radii. G and sun mass set orbital speed.</small><small id="gravity-status">Adjust to pause and preview.</small>
     </section>
+    <details id="collision-controls" class="gravity-controls collision-controls">
+      <summary>Collision tuning</summary>
+      <div class="gravity-heading"><small>Glancing hits deflect. Hard hits smash.</small><button id="collision-reset" title="Reset collision tuning">Reset</button></div>
+      <label for="collision-bounce"><span>Bounce</span><output id="collision-bounce-value">0.35</output></label>
+      <input id="collision-bounce" data-collision="bounce" type="range" min="0" max="1" step="0.05" value="0.35" aria-label="Collision bounce">
+      <label for="collision-strength"><span>Rock strength</span><output id="collision-strength-value">18</output></label>
+      <input id="collision-strength" data-collision="strength" type="range" min="1" max="100" step="1" value="18" aria-label="Rock strength">
+      <small>Higher strength survives harder hits.</small><small>Changes pause and update both paths.</small>
+    </details>
   </aside>
   <aside id="alerts" aria-live="polite"></aside>
   <div id="toast" role="status"></div>
@@ -131,6 +142,17 @@ const DT = 1 / 20;
 const GRAVITY_BASE = 2;
 const GRAVITY_DEFAULTS = Object.freeze({ g: 1, planetMass: 2800, sunMass: 5400 });
 const GRAVITY_LIMITS = Object.freeze({ g: 3, planetMass: 8400, sunMass: 16200 });
+const COLLISION_DEFAULTS = Object.freeze({ bounce: .35, strength: 18 });
+const ROCK_SIZES = Object.freeze({ small: { radius: 5.5, mass: 1, damage: 35 }, medium: { radius: 8, mass: 2, damage: 65 }, large: { radius: 12, mass: 4, damage: 100 } });
+function normalizeCollisions(settings = {}) {
+  return { bounce: Number.isFinite(settings.bounce) ? clamp(settings.bounce, 0, 1) : COLLISION_DEFAULTS.bounce,
+    strength: Number.isFinite(settings.strength) ? clamp(settings.strength, 1, 100) : COLLISION_DEFAULTS.strength };
+}
+function setCollisions(w, settings) {
+  w.collisions = normalizeCollisions({ ...w.collisions, ...settings });
+  w.setup.collisions = { ...w.collisions };
+  w.threatScanAt = 0; w.rockThreats = {}; w.threatWarnings = {};
+}
 const STAR_RADIUS = 25;
 const MAX_IMPULSE = 26;
 const BELT_INNER = 820;
@@ -214,7 +236,7 @@ function spawn(w, type, team, host, free = false) {
   w.units.push(unit);
   return unit;
 }
-function addRock(w, angle, orbit = BELT_INNER + BELT_WIDTH / 2, name) {
+function addRock(w, angle, orbit = BELT_INNER + BELT_WIDTH / 2, name, size = 'medium') {
   // Account for the planets' stronger radial pull when seeding belt velocities.
   const radial = { x: Math.cos(angle), y: Math.sin(angle) };
   const settings = w.gravity || GRAVITY_DEFAULTS;
@@ -222,7 +244,7 @@ function addRock(w, angle, orbit = BELT_INNER + BELT_WIDTH / 2, name) {
   const speed = Math.sqrt(Math.max(GRAVITY_BASE * settings.g * settings.sunMass / orbit, -(g.x * radial.x + g.y * radial.y) * orbit));
   const serial = ++w.serial;
   const rock = { id: `r${serial}`, name: name || `ROCK ${String(serial).padStart(2, '0')}`, type: 'rock', team: 'neutral',
-    ...TYPES.rock, maxHp: TYPES.rock.hp, x: Math.cos(angle) * orbit, y: Math.sin(angle) * orbit,
+    ...TYPES.rock, ...ROCK_SIZES[size], size, maxHp: TYPES.rock.hp, x: Math.cos(angle) * orbit, y: Math.sin(angle) * orbit,
     vx: -Math.sin(angle) * speed, vy: Math.cos(angle) * speed, launched: false, order: { kind: 'ballistic' } };
   w.units.push(rock); return rock;
 }
@@ -290,12 +312,13 @@ function scanRockThreats(w) {
   const rocks = w.units.filter(u => u.hp > 0 && u.type === 'rock' && u.launched);
   w.rockThreats = {};
   if (!rocks.length) return;
-  const ids = new Set(rocks.map(r => r.id));
-  const isolated = { ...w, units: w.units.filter(u => ids.has(u.id) || ids.has(u.attachedRockId)) };
-  const forecasts = predict(isolated, [...ids]);
+  // Include the whole belt: a bank shot can activate a previously idle rock.
+  const isolated = { ...w, units: w.units.filter(u => u.type === 'rock' || u.attachedRockId) };
+  const forecasts = predict(isolated, rocks.map(r=>r.id));
   w.threatWarnings ||= {};
-  for (const rock of rocks) {
-    const impact = forecasts.get(rock.id)?.impact;
+  for (const [id, flight] of forecasts) {
+    const rock = entity(w, id); if (!rock || rock.type !== 'rock') continue;
+    const impact = flight.impact;
     if (!impact || impact.targetId === 'star') continue;
     w.rockThreats[rock.id] = { ...impact, time: w.time + impact.time };
     const planet = entity(w, impact.targetId);
@@ -435,28 +458,101 @@ function advanceMotion(w, dt = DT, forecast = false) {
         if (u.burn.remaining < 1e-9) u.burn.remaining = 0;
       }
     }
+    if (u.type === 'rock') continue; // Rocks resolve swept contacts in time order below.
     const old = previous.get(u.id);
     if (sweptHit(old, u, { x: 0, y: 0 }, { x: 0, y: 0 }, STAR_RADIUS + u.radius)) {
       u.hp = 0; u.impact = { x: u.x, y: u.y, targetId: 'star', name: 'SOL', time: w.time };
       if (!forecast) burst(w, u.x, u.y, 'star');
       continue;
     }
-    for (let i = 0; i < w.planets.length; i++) {
-      const p = w.planets[i];
-      if (u.type !== 'rock' || !u.launched) continue;
-      if (sweptHit(old, u, oldPlanets[i], p, p.radius + u.radius)) {
-        u.hp = 0; u.impact = { x: u.x, y: u.y, targetId: p.id, name: p.name, time: w.time };
-        if (!forecast) {
-          p.hp = Math.max(0, p.hp - u.damage); burst(w, u.x, u.y, u.team);
-          announce(w, `${p.name} impact`, `${u.damage} colony damage.`, p.team === 'player');
-          if (u.team === 'player' && p.team !== 'player') w.progress.impact = true;
-        }
-        break;
-      }
-    }
     if (Math.hypot(u.x, u.y) > 2800) u.hp = 0;
   }
+  resolveRockContacts(w, previous, oldPlanets, dt, forecast);
   updateBoosters(w, dt, forecast);
+}
+// Exact time of first contact for circles moving at constant step velocities.
+function contactTime(a, b, radius, limit) {
+  const x=b.x-a.x, y=b.y-a.y, vx=b.vx-a.vx, vy=b.vy-a.vy;
+  if(Math.abs(x)>radius+Math.abs(vx)*limit || Math.abs(y)>radius+Math.abs(vy)*limit)return Infinity;
+  const c=x*x+y*y-radius*radius, dot=x*vx+y*vy, speed=vx*vx+vy*vy;
+  if(c < -1e-7 || (c <= 1e-7 && dot < -1e-9)) return 0;
+  if(dot >= 0 || speed < 1e-12) return Infinity;
+  const disc=dot*dot-speed*c; if(disc<0) return Infinity;
+  const t=(-dot-Math.sqrt(disc))/speed;
+  return t>=0 && t<=limit ? t : Infinity;
+}
+function resolveRockContacts(w, previous, oldPlanets, dt, forecast) {
+  w.rockContacts=[];
+  const rocks=w.units.filter(u=>u.type==='rock'&&u.hp>0).sort((a,b)=>a.id.localeCompare(b.id));
+  for(const r of rocks) Object.assign(r,previous.get(r.id));
+  const bodies=[{id:'star',name:'SOL',radius:STAR_RADIUS,x:0,y:0,vx:0,vy:0},
+    ...w.planets.map((p,i)=>({id:p.id,name:p.name,radius:p.radius,x:oldPlanets[i].x,y:oldPlanets[i].y,vx:(p.x-oldPlanets[i].x)/dt,vy:(p.y-oldPlanets[i].y)/dt,planet:p}))];
+  const settings=w.collisions||COLLISION_DEFAULTS;
+  let elapsed=0;
+  // The cap bounds pathological piles. Unresolved remainder is held in place,
+  // never advanced through an unchecked obstacle.
+  for(let iteration=0;iteration<128 && elapsed<dt;iteration++) {
+    let hit=null, earliest=Infinity;
+    const remain=dt-elapsed;
+    for(let i=0;i<rocks.length;i++) {
+      const a=rocks[i];if(a.hp<=0)continue;
+      for(const body of bodies) {
+        if(body.planet&&!a.launched)continue;
+        const t=contactTime(a,{...body,x:body.x+body.vx*elapsed,y:body.y+body.vy*elapsed},a.radius+body.radius,remain);
+        if(t<earliest){earliest=t;hit={a,body};}
+      }
+      for(let j=i+1;j<rocks.length;j++) {
+        const b=rocks[j];if(b.hp<=0)continue;
+        const t=contactTime(a,b,a.radius+b.radius,remain);
+        if(t<earliest){earliest=t;hit={a,b};}
+      }
+    }
+    const travel=hit?earliest:remain;
+    for(const r of rocks)if(r.hp>0){r.x+=r.vx*travel;r.y+=r.vy*travel;}
+    elapsed+=travel;
+    if(!hit)break;
+    const {a,b,body}=hit, when=w.time-dt+elapsed;
+    if(body) {
+      a.hp=0;a.impact={x:a.x,y:a.y,targetId:body.id,name:body.name,time:when};
+      if(!forecast){
+        burst(w,a.x,a.y,body.planet?a.team:'star');
+        if(body.planet){
+          const p=body.planet;p.hp=Math.max(0,p.hp-a.damage);
+          announce(w,`${p.name} impact`,`${a.damage} colony damage.`,p.team==='player');
+          if(a.team==='player'&&p.team!=='player')w.progress.impact=true;
+        }
+      }
+      continue;
+    }
+    let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
+    if(d<1e-9){dx=1;dy=0;d=1;}
+    const nx=dx/d,ny=dy/d,ma=a.mass||2,mb=b.mass||2,invA=1/ma,invB=1/mb;
+    const penetration=Math.max(0,a.radius+b.radius-Math.hypot(b.x-a.x,b.y-a.y))+.00001;
+    a.x-=nx*penetration*invA/(invA+invB);a.y-=ny*penetration*invA/(invA+invB);
+    b.x+=nx*penetration*invB/(invA+invB);b.y+=ny*penetration*invB/(invA+invB);
+    const closing=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;
+    if(closing<=1e-9)continue;
+    // Normal collision energy per combined mass: tangential motion glances off.
+    const energy=.5*(ma*mb/(ma+mb))*closing*closing/(ma+mb);
+    const smashed=energy>=settings.strength;
+    const contact={a:a.id,b:b.id,time:when,kind:smashed?'smash':'deflect',
+      x:(a.x*mb+b.x*ma)/(ma+mb),y:(a.y*mb+b.y*ma)/(ma+mb),
+      positions:{[a.id]:{x:a.x,y:a.y},[b.id]:{x:b.x,y:b.y}}};
+    w.rockContacts.push(contact);
+    if(smashed){a.hp=0;b.hp=0;}
+    else {
+      const impulse=(1+settings.bounce)*closing/(invA+invB);
+      a.vx-=impulse*invA*nx;a.vy-=impulse*invA*ny;
+      b.vx+=impulse*invB*nx;b.vy+=impulse*invB*ny;
+      a.launched=true;b.launched=true;a.deflected=true;b.deflected=true;
+      a.boosterTeam=null;b.boosterTeam=null;
+    }
+    if(!forecast){
+      if(smashed)burst(w,contact.x,contact.y,'neutral');
+      announce(w,smashed?'Rocks shattered':'Rock deflection',`${a.name} / ${b.name}${smashed?' / harmless debris':''}`);
+    }
+  }
+  for(const r of rocks)if(Math.hypot(r.x,r.y)>2800)r.hp=0;
 }
 function updateBoosters(w, dt, forecast) {
   for (const u of w.units) {
@@ -699,6 +795,17 @@ function predict(world, ids, pending = null, horizon = 90) {
   const iterations = Math.round(horizon / DT);
   for (let n = 1; n <= iterations; n++) {
     advanceMotion(w, DT, true);
+    for(const contact of w.rockContacts||[]) {
+      if(!results.has(contact.a)&&!results.has(contact.b))continue;
+      for(const id of [contact.a,contact.b]) {
+        if(!results.has(id))results.set(id,{points:[],eta:null,closest:Infinity,impact:null,ghost:null,ballistic:true,secondary:true});
+        const result=results.get(id),pos=contact.positions[id];
+        result.points.push({...pos,t:contact.time-start});
+        result.collisions||=[];
+        result.collisions.push({x:contact.x,y:contact.y,time:contact.time-start,kind:contact.kind,otherId:id===contact.a?contact.b:contact.a});
+        if(contact.kind==='smash')result.ended=true;
+      }
+    }
     for (const [id, result] of results) {
       const u = w.units.find(e => e.id === id);
       if (!u || result.impact || result.ended) continue;
@@ -749,9 +856,9 @@ function planet(id, name, orbit, phase, radius, team, color, hp = 240) {
     hp, maxHp: hp };
   return Object.assign(p, planetAt(p, 0));
 }
-function createScenario(key = 'garden', gravitySettings) {
-  const settings = normalizeGravity(gravitySettings);
-  const w = { scenario: key, mode: 'scenario', gravity: settings, setup: { mode: 'scenario', scenario: key, gravity: { ...settings } }, time: 0, serial: 0, eventId: 0, units: [], planets: [], effects: [], events: [],
+function createScenario(key = 'garden', gravitySettings, collisionSettings) {
+  const settings = normalizeGravity(gravitySettings), collisions = normalizeCollisions(collisionSettings);
+  const w = { scenario: key, mode: 'scenario', gravity: settings, collisions, setup: { mode: 'scenario', scenario: key, gravity: { ...settings }, collisions: { ...collisions } }, time: 0, serial: 0, eventId: 0, units: [], planets: [], effects: [], events: [],
     metal: { player: key === 'garden' ? 240 : 160, enemy: key === 'hold' ? 180 : 160 },
     progress: { prepared: false, launched: false, intercepted: false, impact: false }, outcome: null, continueSandbox: false, duration: 240,
     ai: { buildAt: key === 'hold' ? 120 : 48, attackAt: key === 'hold' ? 100 : 65, rockAt: key === 'hold' ? 12 : 95 } };
@@ -763,7 +870,7 @@ function createScenario(key = 'garden', gravitySettings) {
     setGravity(w, settings);
     for (const host of w.planets) for (const type of ['platform', 'ship', 'drone', 'drone']) spawn(w, type, host.team, host, true);
     for (let i = 0; i < 12; i++) {
-      const rock = addRock(w, i / 12 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`);
+      const rock = addRock(w, i / 12 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`, ['medium', 'small', 'large'][i % 3]);
       // Twelve prepared boosters plus the four home defenders fit this range.
       const booster = spawn(w, 'booster', 'player', w.planets[0], true);
       Object.assign(booster, { x: rock.x + 16, y: rock.y, vx: rock.vx, vy: rock.vy,
@@ -787,19 +894,19 @@ function createScenario(key = 'garden', gravitySettings) {
     spawn(w, 'booster', 'enemy', enemy, true);
     if (key === 'neighbors') { spawn(w, 'ship', 'enemy', enemy, true); spawn(w, 'drone', 'enemy', enemy, true); }
   }
-  for (let i = 0; i < 15; i++) addRock(w, i / 15 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`);
+  for (let i = 0; i < 15; i++) addRock(w, i / 15 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`, ['medium', 'small', 'large'][i % 3]);
   return w;
 }
 
 // Open games reuse the proven system and flight rules, with their own objectives.
 function createGame(options = {}) {
   const mode = ['skirmish', 'sandbox'].includes(options.mode) ? options.mode : 'scenario';
-  if (mode === 'scenario') return createScenario(SCENARIOS[options.scenario] ? options.scenario : 'garden', options.gravity);
+  if (mode === 'scenario') return createScenario(SCENARIOS[options.scenario] ? options.scenario : 'garden', options.gravity, options.collisions);
   const setup = { mode, system: options.system === 'two' ? 'two' : 'three',
     budget: [160, 240, 400].includes(Number(options.budget)) ? Number(options.budget) : 160,
     enemies: mode === 'skirmish' || options.enemies === true,
-    unlimited: mode === 'sandbox' && options.unlimited === true, gravity: normalizeGravity(options.gravity) };
-  const w = createScenario('neighbors', setup.gravity);
+    unlimited: mode === 'sandbox' && options.unlimited === true, gravity: normalizeGravity(options.gravity), collisions: normalizeCollisions(options.collisions) };
+  const w = createScenario('neighbors', setup.gravity, setup.collisions);
   w.mode = mode; w.setup = setup; w.unlimitedMetal = setup.unlimited;
   w.metal = { player: setup.budget, enemy: setup.budget };
   if (setup.system === 'two') w.planets = w.planets.filter(p => p.id !== 'ochre');
@@ -810,7 +917,7 @@ function createGame(options = {}) {
   }
   // Seed belt velocities against the actual chosen planets.
   w.units = w.units.filter(u => u.type !== 'rock');
-  for (let i = 0; i < 15; i++) addRock(w, i / 15 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`);
+  for (let i = 0; i < 15; i++) addRock(w, i / 15 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`, ['medium', 'small', 'large'][i % 3]);
   return w;
 }
 
@@ -877,9 +984,17 @@ class Renderer {
       const g = this.screen(forecast.ghost); c.globalAlpha = .5; this.circle(g.x, g.y, forecast.ghost.radius * this.camera.zoom, color, null, [3, 4]);
       this.text('FUTURE POSITION', g.x, g.y - forecast.ghost.radius * this.camera.zoom - 9, color, 8, 'center');
     }
+    if(!faint)for(const hit of forecast.collisions||[]){
+      const key=`${hit.time}:${hit.x}:${hit.y}`;
+      if(this.contactMarkers?.has(key))continue;
+      this.contactMarkers?.add(key);
+      const p=this.screen(hit);this.circle(p.x,p.y,8,hit.kind==='smash'?'#ee9184':'#f2ce87');
+      this.text(`${hit.kind==='smash'?'SMASH':'DEFLECT'} ${hit.time.toFixed(1)}s`,p.x+12,p.y+14,color,8);
+    }
     c.restore();
   }
   draw(w, ui) {
+    this.contactMarkers=new Set();
     const c = this.ctx, z = this.camera.zoom; c.clearRect(0, 0, this.width, this.height); c.fillStyle = '#091622'; c.fillRect(0, 0, this.width, this.height);
     for (const s of this.stars) { c.globalAlpha = s.alpha; c.fillStyle = '#b9ccd8'; c.fillRect(s.x * this.width, s.y * this.height, s.r, s.r); } c.globalAlpha = 1;
     const center = this.screen({ x: 0, y: 0 });
@@ -905,8 +1020,9 @@ class Renderer {
     }
     for (const [id, forecast] of ui.predictions) {
       const u = entity(w, id); if (!u) continue;
-      const color = u.type === 'rock' && u.team !== 'enemy' ? '#d6c398' : objectColor(u);
-      this.path(forecast, color, id !== ui.selectedId && !(u.type === 'rock' && u.team === 'enemy'));
+      const color = forecast.secondary ? '#a7b9df' : u.type === 'rock' && u.team !== 'enemy' ? '#d6c398' : objectColor(u);
+      this.path(forecast, color, !forecast.secondary && id !== ui.selectedId && !(u.type === 'rock' && u.team === 'enemy'));
+      if(forecast.secondary&&forecast.points.length){const p=this.screen(forecast.points.at(-1));this.text(u.name+' / AFTER CONTACT',p.x+8,p.y-8,color,8);}
     }
     if (ui.baseline) this.path(ui.baseline, '#92a4ae', true);
     for (const p of w.planets) {
@@ -924,7 +1040,7 @@ class Renderer {
       if (u.hp <= 0) continue;
       const s = this.screen(u); if (s.x < -30 || s.x > this.width + 30 || s.y < -30 || s.y > this.height + 30) continue;
       const color = objectColor(u); c.save(); c.translate(s.x, s.y); c.strokeStyle = color; c.fillStyle = color; c.lineWidth = 1.3;
-      const size = Math.max(u.type === 'drone' ? 3.2 : 5.5, u.radius * z);
+      const size = Math.max(u.type === 'rock' ? u.size==='small'?4:u.size==='large'?8:5.5 : u.type === 'drone' ? 3.2 : 5.5, u.radius * z);
       if (u.type === 'ship') {
         c.rotate(Math.atan2(u.vy, u.vx) + Math.PI / 2); c.beginPath(); c.moveTo(0, -size * 1.35); c.lineTo(size * .75, size); c.lineTo(0, size * .5); c.lineTo(-size * .75, size); c.closePath(); c.fill();
       } else if (u.type === 'booster') {
@@ -1144,7 +1260,7 @@ function attachPlaytestRecorder(game) {
   const controls = () => ({
     scenario: game.world.scenario, mode: game.world.mode, setup: clone(game.world.setup), scenarioRun, time: game.world.time, paused: game.paused, speed: game.speed,
     selectedId: game.ui.selectedId, hoverId: game.ui.hoverId, pending: clone(game.ui.pending), order: clone(selected()?.order),
-    metal: clone(game.world.metal), gravity: clone(game.world.gravity), units: game.world.units.filter(u => u.hp > 0).length,
+    metal: clone(game.world.metal), gravity: clone(game.world.gravity), collisions: clone(game.world.collisions), units: game.world.units.filter(u => u.hp > 0).length,
     modal: game.modalOpen(), outcome: game.world.outcome,
   });
   const append = (type, data = {}) => {
@@ -1218,7 +1334,7 @@ function attachPlaytestRecorder(game) {
   document.addEventListener('visibilitychange', () => append('visibility', { hidden: document.hidden }));
   window.addEventListener('error', e => append('error', { message: e.message, source: e.filename, line: e.lineno }));
   window.addEventListener('unhandledrejection', e => append('error', { message: String(e.reason) }));
-  for (const name of ['select', 'plan', 'confirm', 'cancel', 'build', 'setSpeed', 'togglePause', 'load', 'showOutcome', 'toast', 'tuneGravity']) {
+  for (const name of ['select', 'plan', 'confirm', 'cancel', 'build', 'setSpeed', 'togglePause', 'load', 'showOutcome', 'toast', 'tuneGravity', 'tuneCollisions']) {
     const original = game[name];
     game[name] = function (...args) {
       const before = recording ? controls() : null;
@@ -1304,6 +1420,8 @@ class Game {
     $('ranges').onchange = e => { this.ui.ranges = e.target.checked; };
     document.querySelectorAll('[data-gravity]').forEach(input => input.oninput = () => this.tuneGravity({ [input.dataset.gravity]: Number(input.value) }));
     $('gravity-reset').onclick = () => this.tuneGravity(GRAVITY_DEFAULTS);
+    document.querySelectorAll('[data-collision]').forEach(input => input.oninput = () => this.tuneCollisions({ [input.dataset.collision]: Number(input.value) }));
+    $('collision-reset').onclick = () => this.tuneCollisions(COLLISION_DEFAULTS);
     $('confirm').onclick = () => this.confirm(); $('cancel').onclick = () => this.cancel();
     $('help').onclick = () => this.help();
     document.querySelectorAll('[data-build]').forEach(b => b.onclick = () => this.build(b.dataset.build));
@@ -1365,7 +1483,7 @@ class Game {
   resetRange() {
     this.load('playground', this.world.setup);
     this.closeModal();
-    this.toast('Range reset. Fresh rocks and defenses; gravity settings kept.');
+    this.toast('Range reset. Fresh rocks and defenses; gravity and collision settings kept.');
   }
   tuneGravity(settings) {
     this.paused = true; this.accumulator = 0;
@@ -1379,6 +1497,17 @@ class Game {
       if (!pending.aim.verified) pending.aim.reason = 'Gravity changed the shot. Right-click the planet to recalculate.';
     }
     this.gravityAdjusted = true; this.updateUI();
+  }
+  tuneCollisions(settings) {
+    this.paused = true; this.accumulator = 0;
+    setCollisions(this.world, settings);
+    scanRockThreats(this.world); this.processEvents(); this.refreshPredictions();
+    const pending=this.ui.pending;
+    if(pending?.aim){
+      pending.aim.verified=this.ui.predictions.get(pending.id)?.impact?.targetId===pending.aim.targetId;
+      if(!pending.aim.verified)pending.aim.reason='Collision tuning changed the shot. Re-aim or choose a new target.';
+    }
+    this.updateUI();
   }
   cancelNewGame() {
     $('new-game-modal').classList.add('hidden');
@@ -1417,7 +1546,7 @@ class Game {
   closeModal() { $('modal').classList.add('hidden'); this.canvas.focus(); this.updateUI(); }
   help() {
     this.showModal('FIELD GUIDE', 'Small orders. Wide orbits.',
-      '<ul><li><b>Left-click</b> to select. Click it again or empty space to clear selection. <b>Right-click</b> to plan an order; <b>Enter</b> confirms, <b>Esc</b> cancels.</li><li><b>Prepare a rock:</b> select it and choose Send booster, or select a booster ship and right-click the rock. Attachment takes 6 seconds after arrival.</li><li><b>Launch:</b> select an equipped rock and right-click a planet to calculate a shot toward its future position. Right-click empty space for manual aim; confirm for 35 metal (free with unlimited metal). Drag aiming also works. The booster fires for 4 seconds, then detaches automatically and awaits orders. Choose Return home to reload in 8 seconds at no extra cost. You can detach manually before launching.</li><li><b>Context orders:</b> a combat ship attacks enemies, escorts friendly mobile units, and defends friendly planets or platforms. A booster attaches to free rocks and returns to a friendly colony to reload. Hover for the action hint.</li><li><b>Right-click</b> a friendly planet or platform with a ship or drone to defend it. Drones protect their assigned local area.</li><li><b>Space</b> pauses. <b>1 / 2 / 3</b> select 1× / 5× / 20×. Scroll to zoom; drag empty space to pan; <b>F</b> fits the system.</li></ul><p>Booster ships cost 50 metal and are unarmed. Select your colony to deploy. Income is 0.4 metal / second; fleet limit 12. Launched rocks damage any planet, including your own. Defenses intercept your rocks when they threaten home. Ship weapons do not fire on friendly ships or colonies.</p><p><b>Gravity:</b> adjust G, shared planet mass, or sun mass in the left-hand controls. Changes pause time and redraw paths. G and sun mass set planetary orbital speed; radii and current positions stay fixed. Planet mass changes its pull on units, not its own orbital speed. Free-flying units keep their velocities. Reset restores defaults; restarting retains tuning, while New game starts at defaults.</p><p class="note">Teal launch segments show powered flight; gold shows coasting. Ship paths end when attachment completes. Predictions cover 90 seconds. Weapons and future enemy decisions can change the outcome.</p>',
+      '<ul><li><b>Left-click</b> to select. Click it again or empty space to clear selection. <b>Right-click</b> to plan an order; <b>Enter</b> confirms, <b>Esc</b> cancels.</li><li><b>Prepare a rock:</b> select it and choose Send booster, or select a booster ship and right-click the rock. Attachment takes 6 seconds after arrival.</li><li><b>Launch:</b> select an equipped rock and right-click a planet to calculate a shot toward its future position. Right-click empty space for manual aim; confirm for 35 metal (free with unlimited metal). Drag aiming also works. The booster fires for 4 seconds, then detaches automatically and awaits orders. Choose Return home to reload in 8 seconds at no extra cost. You can detach manually before launching.</li><li><b>Context orders:</b> a combat ship attacks enemies, escorts friendly mobile units, and defends friendly planets or platforms. A booster attaches to free rocks and returns to a friendly colony to reload. Hover for the action hint.</li><li><b>Right-click</b> a friendly planet or platform with a ship or drone to defend it. Drones protect their assigned local area.</li><li><b>Space</b> pauses. <b>1 / 2 / 3</b> select 1× / 5× / 20×. Scroll to zoom; drag empty space to pan; <b>F</b> fits the system.</li></ul><p>Booster ships cost 50 metal and are unarmed. Select your colony to deploy. Income is 0.4 metal / second; fleet limit 12. Launched rocks damage any planet, including your own. Defenses intercept your rocks when they threaten home. Ship weapons do not fire on friendly ships or colonies.</p><p><b>Rock collisions:</b> small, medium, and large rocks have masses 1, 2, and 4 and colony damage 35, 65, and 100. All fall equally under gravity. Glancing hits deflect; hard hits shatter both rocks and any attached boosters, leaving harmless debris. Collision tuning adjusts rebound and rock strength, pauses time, and redraws both paths. Violet paths show other rocks after contact. Restart keeps tuning.</p><p><b>Gravity:</b> adjust G, shared planet mass, or sun mass in the left-hand controls. Changes pause time and redraw paths. G and sun mass set planetary orbital speed; radii and current positions stay fixed. Planet mass changes its pull on units, not its own orbital speed. Free-flying units keep their velocities. Reset restores defaults; restarting retains tuning, while New game starts at defaults.</p><p class="note">Teal launch segments show powered flight; gold shows coasting. Ship paths end when attachment completes. Predictions cover 90 seconds. Weapons and future enemy decisions can change the outcome.</p>',
       'Back to the system', () => this.closeModal());
   }
   toast(message) { $('toast').textContent = message; $('toast').classList.add('visible'); this.toastUntil = performance.now() + 6000; }
@@ -1496,6 +1625,11 @@ class Game {
       setText(`${input.id}-value`, input.dataset.gravity === 'g' ? value.toFixed(2) : String(value));
     });
     setText('gravity-status', this.gravityAdjusted && this.paused ? 'Paused / paths updated.' : 'Adjust to pause and preview.');
+    document.querySelectorAll('[data-collision]').forEach(input=>{
+      const value=w.collisions[input.dataset.collision];
+      if(Number(input.value)!==value)input.value=value;
+      setText(`${input.id}-value`,input.dataset.collision==='bounce'?value.toFixed(2):String(value));
+    });
     setText('pause', this.paused ? '▶' : 'Ⅱ'); $('pause').setAttribute('aria-label', this.paused ? 'Resume simulation' : 'Pause simulation');
     document.querySelectorAll('[data-speed]').forEach(b => { b.classList.toggle('active', Number(b.dataset.speed) === this.speed); b.setAttribute('aria-pressed', String(Number(b.dataset.speed) === this.speed)); });
     $('clock').textContent = time(w.time); setText('metal', w.unlimitedMetal ? '\u221e' : String(Math.floor(w.metal.player)));
@@ -1538,7 +1672,7 @@ class Game {
       if (u.type === 'planet') status = u.team === 'player' ? playground ? 'Your colony / friendly defenders<br>Ship, platform, and two drones guard home.' : 'Your colony · +0.4 metal / s<br>Select a unit below to deploy in orbit.' : u.team === 'enemy' ? playground ? 'Defended target / ship, platform, two drones<br>Launch a rock to test their interception.' : 'Rival colony · ships can bombard it.' : 'Uninhabited · a safe target for practice.';
       else if (u.type === 'rock') {
         const fitter = w.units.find(b => b.hp > 0 && b.order?.kind === 'fit' && b.order.targetId === u.id);
-        status = u.burn?.remaining > 0 ? `Powered burn · ${Math.ceil(u.burn.remaining)}s left<br>Booster detaches automatically · then coasting` : u.launched ? `Ballistic flight · ${u.team === 'enemy' ? 'incoming threat' : 'launch committed'}<br>${forecast?.impact ? `Impact: ${forecast.impact.name} in ${Math.ceil(forecast.impact.time)}s` : forecast && Number.isFinite(forecast.closest) ? `Closest approach: ${Math.max(0, forecast.closest).toFixed(0)} u in ${Math.ceil(forecast.closestTime)}s` : 'Forecast horizon: 90 seconds'}` : u.boosterTeam ? `${u.boosterTeam === 'player' ? 'Your booster attached · ready to launch' : 'Enemy booster attached · destroy this rock'}<br>${u.boosterTeam === 'player' ? (w.unlimitedMetal ? 'Right-click to aim / free launch' : 'Right-click to aim / launch for 35 metal') : 'An enemy launch is being prepared'}` : fitter ? `${fitter.team === 'enemy' ? 'Enemy' : 'Your'} booster ${fitter.attachProgress > 0 ? `attaching · ${Math.ceil(ATTACH_TIME - fitter.attachProgress)}s left` : 'en route'}<br>${fitter.team === 'player' ? 'Escort it with a combat ship' : 'Intercept the booster before it finishes'}` : 'No booster attached · launch unavailable<br>Send a booster ship to prepare this rock.';
+        status = u.burn?.remaining > 0 ? `Powered burn · ${Math.ceil(u.burn.remaining)}s left<br>Booster detaches automatically · then coasting` : u.launched ? `Ballistic flight · ${u.deflected ? 'redirected by collision' : u.team === 'enemy' ? 'incoming threat' : 'launch committed'}<br>${forecast?.impact ? `Impact: ${forecast.impact.name} in ${Math.ceil(forecast.impact.time)}s` : forecast && Number.isFinite(forecast.closest) ? `Closest approach: ${Math.max(0, forecast.closest).toFixed(0)} u in ${Math.ceil(forecast.closestTime)}s` : 'Forecast horizon: 90 seconds'}` : u.boosterTeam ? `${u.boosterTeam === 'player' ? 'Your booster attached · ready to launch' : 'Enemy booster attached · destroy this rock'}<br>${u.boosterTeam === 'player' ? (w.unlimitedMetal ? 'Right-click to aim / free launch' : 'Right-click to aim / launch for 35 metal') : 'An enemy launch is being prepared'}` : fitter ? `${fitter.team === 'enemy' ? 'Enemy' : 'Your'} booster ${fitter.attachProgress > 0 ? `attaching · ${Math.ceil(ATTACH_TIME - fitter.attachProgress)}s left` : 'en route'}<br>${fitter.team === 'player' ? 'Escort it with a combat ship' : 'Intercept the booster before it finishes'}` : 'No booster attached · launch unavailable<br>Send a booster ship to prepare this rock.';
       }
       else if (u.type === 'booster') {
         const target = entity(w, u.order?.targetId);
@@ -1549,6 +1683,11 @@ class Game {
         status = u.type === 'platform' ? `Local defense · ${u.range} u weapon range` : `${titleCase(u.order?.kind || 'idle')}${target ? ` → ${target.name}` : ''}<br>${u.type === 'drone' ? 'Intercepts rocks & drones · returns to host' : forecast?.eta ? `Arrival / weapons range in ~${Math.ceil(forecast.eta)}s` : 'Right-click to plan a new order'}`;
         if (u.type === 'ship' && u.order?.kind === 'attack' && target && ['ship', 'booster', 'drone', 'platform'].includes(target.type)) status = `Attack / ${target.name}<br>${distance(u, target) <= u.range ? 'Circling target / firing whenever ready' : 'Intercepting / circle and fire on arrival'}`;
       }
+    }
+    if(u?.type==='rock'){
+      status=`${titleCase(u.size||'medium')} / mass ${u.mass||2} / impact ${u.damage}<br>`+status;
+      const contact=this.ui.predictions.get(u.id)?.collisions?.[0];
+      if(contact)status+=`<br>${contact.kind==='smash'?'Shatters':'Deflects'} in ${contact.time.toFixed(1)}s / both paths shown`;
     }
     setText('selected-name', u?.name || 'THE SYSTEM IS YOURS');
     setText('selected-health', u ? `${Math.ceil(u.hp)} / ${u.maxHp}` : '');
@@ -1610,7 +1749,7 @@ class Game {
     const body = win ? training ? '<p>A launch of your own, an incoming rock turned to harmless dust. You have the essentials.</p><p>Keep experimenting, or try a colony under siege.</p>' : this.world.scenario === 'hold' ? '<p>Four minutes in the gravity well. Your colony is still here.</p><p>Your defenses held the orbit.</p>' : '<p>Cinder has fallen silent. Verdant has a future among these little worlds.</p>' : '<p>Your colony has lost its integrity. Try holding your defenses closer to home, or intercept the incoming rocks earlier.</p>';
     this.showModal(win ? 'ENCOUNTER COMPLETE' : 'COLONY LOST', win ? training ? 'A little orbital intuition.' : 'The orbit is yours.' : 'Every orbit is another try.', body,
       'Restart game', () => this.load(this.world.scenario, this.world.setup), win ? 'Keep exploring' : 'Review system', () => {
-        if (win) { this.world.continueSandbox = true; this.world.mode = 'sandbox'; this.world.outcome = null; this.world.setup = { mode: 'sandbox', system: this.world.planets.length === 3 ? 'three' : 'two', enemies: this.world.planets.some(p => p.team === 'enemy'), budget: 160, unlimited: false, gravity: { ...this.world.gravity } }; this.closeModal(); }
+        if (win) { this.world.continueSandbox = true; this.world.mode = 'sandbox'; this.world.outcome = null; this.world.setup = { mode: 'sandbox', system: this.world.planets.length === 3 ? 'three' : 'two', enemies: this.world.planets.some(p => p.team === 'enemy'), budget: 160, unlimited: false, gravity: { ...this.world.gravity }, collisions: { ...this.world.collisions } }; this.closeModal(); }
         else this.closeModal();
       });
   }

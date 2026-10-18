@@ -1,4 +1,4 @@
-import { planetAt, orbitalRate, setGravity, spawn, addRock, BELT_INNER, BELT_WIDTH, normalizeGravity } from './simulation.js';
+import { planetAt, orbitalRate, setGravity, spawn, addRock, BELT_INNER, BELT_WIDTH, normalizeGravity, normalizeCollisions } from './simulation.js';
 export const SCENARIOS = {
   playground: { name: 'Slingshot Playground', kicker: '04 / A LIVE-FIRE PLAYGROUND', objective: 'Test trajectories and planetary defenses. Every rock is ready to launch.',
     body: '<p>Twelve belt rocks already have <b>friendly boosters attached</b>. Launches are free. <b>Verdant is your home</b>; Cinder and Ochre are enemy targets.</p><ul><li><b>Aim:</b> select a rock and right-click a planet, or empty space for manual aim. Review and confirm.</li><li><b>Observe:</b> every planet has a ship, a platform, and two drones. Verdant\'s defenders are yours; enemy defenders match their planet\'s color.</li><li><b>Experiment:</b> try different approaches, coordinate several launches, or adjust the gravity sliders.</li><li><b>Reset range:</b> instantly restore rocks and defenses while keeping your gravity settings.</li></ul><p>The defenders intercept nearby threats but never build units or launch attacks. No victory screen or time limit. Spent boosters detach after firing; reset when you want fresh ammunition.</p>' },
@@ -14,9 +14,9 @@ function planet(id, name, orbit, phase, radius, team, color, hp = 240) {
     hp, maxHp: hp };
   return Object.assign(p, planetAt(p, 0));
 }
-export function createScenario(key = 'garden', gravitySettings) {
-  const settings = normalizeGravity(gravitySettings);
-  const w = { scenario: key, mode: 'scenario', gravity: settings, setup: { mode: 'scenario', scenario: key, gravity: { ...settings } }, time: 0, serial: 0, eventId: 0, units: [], planets: [], effects: [], events: [],
+export function createScenario(key = 'garden', gravitySettings, collisionSettings) {
+  const settings = normalizeGravity(gravitySettings), collisions = normalizeCollisions(collisionSettings);
+  const w = { scenario: key, mode: 'scenario', gravity: settings, collisions, setup: { mode: 'scenario', scenario: key, gravity: { ...settings }, collisions: { ...collisions } }, time: 0, serial: 0, eventId: 0, units: [], planets: [], effects: [], events: [],
     metal: { player: key === 'garden' ? 240 : 160, enemy: key === 'hold' ? 180 : 160 },
     progress: { prepared: false, launched: false, intercepted: false, impact: false }, outcome: null, continueSandbox: false, duration: 240,
     ai: { buildAt: key === 'hold' ? 120 : 48, attackAt: key === 'hold' ? 100 : 65, rockAt: key === 'hold' ? 12 : 95 } };
@@ -28,7 +28,7 @@ export function createScenario(key = 'garden', gravitySettings) {
     setGravity(w, settings);
     for (const host of w.planets) for (const type of ['platform', 'ship', 'drone', 'drone']) spawn(w, type, host.team, host, true);
     for (let i = 0; i < 12; i++) {
-      const rock = addRock(w, i / 12 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`);
+      const rock = addRock(w, i / 12 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`, ['medium', 'small', 'large'][i % 3]);
       // Twelve prepared boosters plus the four home defenders fit this range.
       const booster = spawn(w, 'booster', 'player', w.planets[0], true);
       Object.assign(booster, { x: rock.x + 16, y: rock.y, vx: rock.vx, vy: rock.vy,
@@ -52,19 +52,19 @@ export function createScenario(key = 'garden', gravitySettings) {
     spawn(w, 'booster', 'enemy', enemy, true);
     if (key === 'neighbors') { spawn(w, 'ship', 'enemy', enemy, true); spawn(w, 'drone', 'enemy', enemy, true); }
   }
-  for (let i = 0; i < 15; i++) addRock(w, i / 15 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`);
+  for (let i = 0; i < 15; i++) addRock(w, i / 15 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`, ['medium', 'small', 'large'][i % 3]);
   return w;
 }
 
 // Open games reuse the proven system and flight rules, with their own objectives.
 export function createGame(options = {}) {
   const mode = ['skirmish', 'sandbox'].includes(options.mode) ? options.mode : 'scenario';
-  if (mode === 'scenario') return createScenario(SCENARIOS[options.scenario] ? options.scenario : 'garden', options.gravity);
+  if (mode === 'scenario') return createScenario(SCENARIOS[options.scenario] ? options.scenario : 'garden', options.gravity, options.collisions);
   const setup = { mode, system: options.system === 'two' ? 'two' : 'three',
     budget: [160, 240, 400].includes(Number(options.budget)) ? Number(options.budget) : 160,
     enemies: mode === 'skirmish' || options.enemies === true,
-    unlimited: mode === 'sandbox' && options.unlimited === true, gravity: normalizeGravity(options.gravity) };
-  const w = createScenario('neighbors', setup.gravity);
+    unlimited: mode === 'sandbox' && options.unlimited === true, gravity: normalizeGravity(options.gravity), collisions: normalizeCollisions(options.collisions) };
+  const w = createScenario('neighbors', setup.gravity, setup.collisions);
   w.mode = mode; w.setup = setup; w.unlimitedMetal = setup.unlimited;
   w.metal = { player: setup.budget, enemy: setup.budget };
   if (setup.system === 'two') w.planets = w.planets.filter(p => p.id !== 'ochre');
@@ -75,6 +75,6 @@ export function createGame(options = {}) {
   }
   // Seed belt velocities against the actual chosen planets.
   w.units = w.units.filter(u => u.type !== 'rock');
-  for (let i = 0; i < 15; i++) addRock(w, i / 15 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`);
+  for (let i = 0; i < 15; i++) addRock(w, i / 15 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`, ['medium', 'small', 'large'][i % 3]);
   return w;
 }

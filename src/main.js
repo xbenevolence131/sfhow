@@ -1,4 +1,4 @@
-import { DT, CAP, COST, ATTACH_TIME, REARM_TIME, GRAVITY_DEFAULTS, setGravity, distance, entity, fleet, spawn, setOrder, launchRock, sendPracticeRock, scanRockThreats, predict, step } from './simulation.js';
+import { DT, CAP, COST, ATTACH_TIME, REARM_TIME, GRAVITY_DEFAULTS, COLLISION_DEFAULTS, setCollisions, setGravity, distance, entity, fleet, spawn, setOrder, launchRock, sendPracticeRock, scanRockThreats, predict, step } from './simulation.js';
 import { createGame, SCENARIOS } from './scenarios.js';
 import { Renderer } from './render.js';
 import { attachInput } from './input.js';
@@ -47,6 +47,8 @@ class Game {
     $('ranges').onchange = e => { this.ui.ranges = e.target.checked; };
     document.querySelectorAll('[data-gravity]').forEach(input => input.oninput = () => this.tuneGravity({ [input.dataset.gravity]: Number(input.value) }));
     $('gravity-reset').onclick = () => this.tuneGravity(GRAVITY_DEFAULTS);
+    document.querySelectorAll('[data-collision]').forEach(input => input.oninput = () => this.tuneCollisions({ [input.dataset.collision]: Number(input.value) }));
+    $('collision-reset').onclick = () => this.tuneCollisions(COLLISION_DEFAULTS);
     $('confirm').onclick = () => this.confirm(); $('cancel').onclick = () => this.cancel();
     $('help').onclick = () => this.help();
     document.querySelectorAll('[data-build]').forEach(b => b.onclick = () => this.build(b.dataset.build));
@@ -108,7 +110,7 @@ class Game {
   resetRange() {
     this.load('playground', this.world.setup);
     this.closeModal();
-    this.toast('Range reset. Fresh rocks and defenses; gravity settings kept.');
+    this.toast('Range reset. Fresh rocks and defenses; gravity and collision settings kept.');
   }
   tuneGravity(settings) {
     this.paused = true; this.accumulator = 0;
@@ -122,6 +124,17 @@ class Game {
       if (!pending.aim.verified) pending.aim.reason = 'Gravity changed the shot. Right-click the planet to recalculate.';
     }
     this.gravityAdjusted = true; this.updateUI();
+  }
+  tuneCollisions(settings) {
+    this.paused = true; this.accumulator = 0;
+    setCollisions(this.world, settings);
+    scanRockThreats(this.world); this.processEvents(); this.refreshPredictions();
+    const pending=this.ui.pending;
+    if(pending?.aim){
+      pending.aim.verified=this.ui.predictions.get(pending.id)?.impact?.targetId===pending.aim.targetId;
+      if(!pending.aim.verified)pending.aim.reason='Collision tuning changed the shot. Re-aim or choose a new target.';
+    }
+    this.updateUI();
   }
   cancelNewGame() {
     $('new-game-modal').classList.add('hidden');
@@ -160,7 +173,7 @@ class Game {
   closeModal() { $('modal').classList.add('hidden'); this.canvas.focus(); this.updateUI(); }
   help() {
     this.showModal('FIELD GUIDE', 'Small orders. Wide orbits.',
-      '<ul><li><b>Left-click</b> to select. Click it again or empty space to clear selection. <b>Right-click</b> to plan an order; <b>Enter</b> confirms, <b>Esc</b> cancels.</li><li><b>Prepare a rock:</b> select it and choose Send booster, or select a booster ship and right-click the rock. Attachment takes 6 seconds after arrival.</li><li><b>Launch:</b> select an equipped rock and right-click a planet to calculate a shot toward its future position. Right-click empty space for manual aim; confirm for 35 metal (free with unlimited metal). Drag aiming also works. The booster fires for 4 seconds, then detaches automatically and awaits orders. Choose Return home to reload in 8 seconds at no extra cost. You can detach manually before launching.</li><li><b>Context orders:</b> a combat ship attacks enemies, escorts friendly mobile units, and defends friendly planets or platforms. A booster attaches to free rocks and returns to a friendly colony to reload. Hover for the action hint.</li><li><b>Right-click</b> a friendly planet or platform with a ship or drone to defend it. Drones protect their assigned local area.</li><li><b>Space</b> pauses. <b>1 / 2 / 3</b> select 1× / 5× / 20×. Scroll to zoom; drag empty space to pan; <b>F</b> fits the system.</li></ul><p>Booster ships cost 50 metal and are unarmed. Select your colony to deploy. Income is 0.4 metal / second; fleet limit 12. Launched rocks damage any planet, including your own. Defenses intercept your rocks when they threaten home. Ship weapons do not fire on friendly ships or colonies.</p><p><b>Gravity:</b> adjust G, shared planet mass, or sun mass in the left-hand controls. Changes pause time and redraw paths. G and sun mass set planetary orbital speed; radii and current positions stay fixed. Planet mass changes its pull on units, not its own orbital speed. Free-flying units keep their velocities. Reset restores defaults; restarting retains tuning, while New game starts at defaults.</p><p class="note">Teal launch segments show powered flight; gold shows coasting. Ship paths end when attachment completes. Predictions cover 90 seconds. Weapons and future enemy decisions can change the outcome.</p>',
+      '<ul><li><b>Left-click</b> to select. Click it again or empty space to clear selection. <b>Right-click</b> to plan an order; <b>Enter</b> confirms, <b>Esc</b> cancels.</li><li><b>Prepare a rock:</b> select it and choose Send booster, or select a booster ship and right-click the rock. Attachment takes 6 seconds after arrival.</li><li><b>Launch:</b> select an equipped rock and right-click a planet to calculate a shot toward its future position. Right-click empty space for manual aim; confirm for 35 metal (free with unlimited metal). Drag aiming also works. The booster fires for 4 seconds, then detaches automatically and awaits orders. Choose Return home to reload in 8 seconds at no extra cost. You can detach manually before launching.</li><li><b>Context orders:</b> a combat ship attacks enemies, escorts friendly mobile units, and defends friendly planets or platforms. A booster attaches to free rocks and returns to a friendly colony to reload. Hover for the action hint.</li><li><b>Right-click</b> a friendly planet or platform with a ship or drone to defend it. Drones protect their assigned local area.</li><li><b>Space</b> pauses. <b>1 / 2 / 3</b> select 1× / 5× / 20×. Scroll to zoom; drag empty space to pan; <b>F</b> fits the system.</li></ul><p>Booster ships cost 50 metal and are unarmed. Select your colony to deploy. Income is 0.4 metal / second; fleet limit 12. Launched rocks damage any planet, including your own. Defenses intercept your rocks when they threaten home. Ship weapons do not fire on friendly ships or colonies.</p><p><b>Rock collisions:</b> small, medium, and large rocks have masses 1, 2, and 4 and colony damage 35, 65, and 100. All fall equally under gravity. Glancing hits deflect; hard hits shatter both rocks and any attached boosters, leaving harmless debris. Collision tuning adjusts rebound and rock strength, pauses time, and redraws both paths. Violet paths show other rocks after contact. Restart keeps tuning.</p><p><b>Gravity:</b> adjust G, shared planet mass, or sun mass in the left-hand controls. Changes pause time and redraw paths. G and sun mass set planetary orbital speed; radii and current positions stay fixed. Planet mass changes its pull on units, not its own orbital speed. Free-flying units keep their velocities. Reset restores defaults; restarting retains tuning, while New game starts at defaults.</p><p class="note">Teal launch segments show powered flight; gold shows coasting. Ship paths end when attachment completes. Predictions cover 90 seconds. Weapons and future enemy decisions can change the outcome.</p>',
       'Back to the system', () => this.closeModal());
   }
   toast(message) { $('toast').textContent = message; $('toast').classList.add('visible'); this.toastUntil = performance.now() + 6000; }
@@ -239,6 +252,11 @@ class Game {
       setText(`${input.id}-value`, input.dataset.gravity === 'g' ? value.toFixed(2) : String(value));
     });
     setText('gravity-status', this.gravityAdjusted && this.paused ? 'Paused / paths updated.' : 'Adjust to pause and preview.');
+    document.querySelectorAll('[data-collision]').forEach(input=>{
+      const value=w.collisions[input.dataset.collision];
+      if(Number(input.value)!==value)input.value=value;
+      setText(`${input.id}-value`,input.dataset.collision==='bounce'?value.toFixed(2):String(value));
+    });
     setText('pause', this.paused ? '▶' : 'Ⅱ'); $('pause').setAttribute('aria-label', this.paused ? 'Resume simulation' : 'Pause simulation');
     document.querySelectorAll('[data-speed]').forEach(b => { b.classList.toggle('active', Number(b.dataset.speed) === this.speed); b.setAttribute('aria-pressed', String(Number(b.dataset.speed) === this.speed)); });
     $('clock').textContent = time(w.time); setText('metal', w.unlimitedMetal ? '\u221e' : String(Math.floor(w.metal.player)));
@@ -281,7 +299,7 @@ class Game {
       if (u.type === 'planet') status = u.team === 'player' ? playground ? 'Your colony / friendly defenders<br>Ship, platform, and two drones guard home.' : 'Your colony · +0.4 metal / s<br>Select a unit below to deploy in orbit.' : u.team === 'enemy' ? playground ? 'Defended target / ship, platform, two drones<br>Launch a rock to test their interception.' : 'Rival colony · ships can bombard it.' : 'Uninhabited · a safe target for practice.';
       else if (u.type === 'rock') {
         const fitter = w.units.find(b => b.hp > 0 && b.order?.kind === 'fit' && b.order.targetId === u.id);
-        status = u.burn?.remaining > 0 ? `Powered burn · ${Math.ceil(u.burn.remaining)}s left<br>Booster detaches automatically · then coasting` : u.launched ? `Ballistic flight · ${u.team === 'enemy' ? 'incoming threat' : 'launch committed'}<br>${forecast?.impact ? `Impact: ${forecast.impact.name} in ${Math.ceil(forecast.impact.time)}s` : forecast && Number.isFinite(forecast.closest) ? `Closest approach: ${Math.max(0, forecast.closest).toFixed(0)} u in ${Math.ceil(forecast.closestTime)}s` : 'Forecast horizon: 90 seconds'}` : u.boosterTeam ? `${u.boosterTeam === 'player' ? 'Your booster attached · ready to launch' : 'Enemy booster attached · destroy this rock'}<br>${u.boosterTeam === 'player' ? (w.unlimitedMetal ? 'Right-click to aim / free launch' : 'Right-click to aim / launch for 35 metal') : 'An enemy launch is being prepared'}` : fitter ? `${fitter.team === 'enemy' ? 'Enemy' : 'Your'} booster ${fitter.attachProgress > 0 ? `attaching · ${Math.ceil(ATTACH_TIME - fitter.attachProgress)}s left` : 'en route'}<br>${fitter.team === 'player' ? 'Escort it with a combat ship' : 'Intercept the booster before it finishes'}` : 'No booster attached · launch unavailable<br>Send a booster ship to prepare this rock.';
+        status = u.burn?.remaining > 0 ? `Powered burn · ${Math.ceil(u.burn.remaining)}s left<br>Booster detaches automatically · then coasting` : u.launched ? `Ballistic flight · ${u.deflected ? 'redirected by collision' : u.team === 'enemy' ? 'incoming threat' : 'launch committed'}<br>${forecast?.impact ? `Impact: ${forecast.impact.name} in ${Math.ceil(forecast.impact.time)}s` : forecast && Number.isFinite(forecast.closest) ? `Closest approach: ${Math.max(0, forecast.closest).toFixed(0)} u in ${Math.ceil(forecast.closestTime)}s` : 'Forecast horizon: 90 seconds'}` : u.boosterTeam ? `${u.boosterTeam === 'player' ? 'Your booster attached · ready to launch' : 'Enemy booster attached · destroy this rock'}<br>${u.boosterTeam === 'player' ? (w.unlimitedMetal ? 'Right-click to aim / free launch' : 'Right-click to aim / launch for 35 metal') : 'An enemy launch is being prepared'}` : fitter ? `${fitter.team === 'enemy' ? 'Enemy' : 'Your'} booster ${fitter.attachProgress > 0 ? `attaching · ${Math.ceil(ATTACH_TIME - fitter.attachProgress)}s left` : 'en route'}<br>${fitter.team === 'player' ? 'Escort it with a combat ship' : 'Intercept the booster before it finishes'}` : 'No booster attached · launch unavailable<br>Send a booster ship to prepare this rock.';
       }
       else if (u.type === 'booster') {
         const target = entity(w, u.order?.targetId);
@@ -292,6 +310,11 @@ class Game {
         status = u.type === 'platform' ? `Local defense · ${u.range} u weapon range` : `${titleCase(u.order?.kind || 'idle')}${target ? ` → ${target.name}` : ''}<br>${u.type === 'drone' ? 'Intercepts rocks & drones · returns to host' : forecast?.eta ? `Arrival / weapons range in ~${Math.ceil(forecast.eta)}s` : 'Right-click to plan a new order'}`;
         if (u.type === 'ship' && u.order?.kind === 'attack' && target && ['ship', 'booster', 'drone', 'platform'].includes(target.type)) status = `Attack / ${target.name}<br>${distance(u, target) <= u.range ? 'Circling target / firing whenever ready' : 'Intercepting / circle and fire on arrival'}`;
       }
+    }
+    if(u?.type==='rock'){
+      status=`${titleCase(u.size||'medium')} / mass ${u.mass||2} / impact ${u.damage}<br>`+status;
+      const contact=this.ui.predictions.get(u.id)?.collisions?.[0];
+      if(contact)status+=`<br>${contact.kind==='smash'?'Shatters':'Deflects'} in ${contact.time.toFixed(1)}s / both paths shown`;
     }
     setText('selected-name', u?.name || 'THE SYSTEM IS YOURS');
     setText('selected-health', u ? `${Math.ceil(u.hp)} / ${u.maxHp}` : '');
@@ -353,7 +376,7 @@ class Game {
     const body = win ? training ? '<p>A launch of your own, an incoming rock turned to harmless dust. You have the essentials.</p><p>Keep experimenting, or try a colony under siege.</p>' : this.world.scenario === 'hold' ? '<p>Four minutes in the gravity well. Your colony is still here.</p><p>Your defenses held the orbit.</p>' : '<p>Cinder has fallen silent. Verdant has a future among these little worlds.</p>' : '<p>Your colony has lost its integrity. Try holding your defenses closer to home, or intercept the incoming rocks earlier.</p>';
     this.showModal(win ? 'ENCOUNTER COMPLETE' : 'COLONY LOST', win ? training ? 'A little orbital intuition.' : 'The orbit is yours.' : 'Every orbit is another try.', body,
       'Restart game', () => this.load(this.world.scenario, this.world.setup), win ? 'Keep exploring' : 'Review system', () => {
-        if (win) { this.world.continueSandbox = true; this.world.mode = 'sandbox'; this.world.outcome = null; this.world.setup = { mode: 'sandbox', system: this.world.planets.length === 3 ? 'three' : 'two', enemies: this.world.planets.some(p => p.team === 'enemy'), budget: 160, unlimited: false, gravity: { ...this.world.gravity } }; this.closeModal(); }
+        if (win) { this.world.continueSandbox = true; this.world.mode = 'sandbox'; this.world.outcome = null; this.world.setup = { mode: 'sandbox', system: this.world.planets.length === 3 ? 'three' : 'two', enemies: this.world.planets.some(p => p.team === 'enemy'), budget: 160, unlimited: false, gravity: { ...this.world.gravity }, collisions: { ...this.world.collisions } }; this.closeModal(); }
         else this.closeModal();
       });
   }
