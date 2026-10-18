@@ -16,7 +16,7 @@ export function contextualOrder(w, selectedId, target, point) {
     const scale = Math.min(1, MAX_IMPULSE / (Math.hypot(x, y) || 1));
     return { label: 'Aim launch', pending: { id: u.id, impulse: { x: x * scale, y: y * scale } } };
   }
-  if (u.type === 'planet') return unavailable('Choose a tool to deploy at your colony');
+  if (u.type === 'planet') return unavailable('Choose a unit to deploy at your colony');
   if (u.type === 'platform') return unavailable('Platform defends its local orbit');
   if (u.attachedRockId) return unavailable(entity(w, u.attachedRockId)?.burn?.remaining > 0 ? 'Burning / automatic detach after launch' : 'Use Aim rock or Detach first');
   if (target?.hp <= 0) return unavailable('Target has been destroyed');

@@ -930,7 +930,7 @@ function contextualOrder(w, selectedId, target, point) {
     const scale = Math.min(1, MAX_IMPULSE / (Math.hypot(x, y) || 1));
     return { label: 'Aim launch', pending: { id: u.id, impulse: { x: x * scale, y: y * scale } } };
   }
-  if (u.type === 'planet') return unavailable('Choose a tool to deploy at your colony');
+  if (u.type === 'planet') return unavailable('Choose a unit to deploy at your colony');
   if (u.type === 'platform') return unavailable('Platform defends its local orbit');
   if (u.attachedRockId) return unavailable(entity(w, u.attachedRockId)?.burn?.remaining > 0 ? 'Burning / automatic detach after launch' : 'Use Aim rock or Detach first');
   if (target?.hp <= 0) return unavailable('Target has been destroyed');
@@ -1413,7 +1413,7 @@ class Game {
     let status = 'Click a planet, ship, or belt rock.<br>Give time a moment to unfold.';
     if (u) {
       const forecast = this.ui.predictions.get(u.id);
-      if (u.type === 'planet') status = u.team === 'player' ? 'Your colony · +0.4 metal / s<br>Select a tool below to deploy in orbit.' : u.team === 'enemy' ? 'Rival colony · ships can bombard it.' : 'Uninhabited · a safe target for practice.';
+      if (u.type === 'planet') status = u.team === 'player' ? 'Your colony · +0.4 metal / s<br>Select a unit below to deploy in orbit.' : u.team === 'enemy' ? 'Rival colony · ships can bombard it.' : 'Uninhabited · a safe target for practice.';
       else if (u.type === 'rock') {
         const fitter = w.units.find(b => b.hp > 0 && b.order?.kind === 'fit' && b.order.targetId === u.id);
         status = u.burn?.remaining > 0 ? `Powered burn · ${Math.ceil(u.burn.remaining)}s left<br>Booster detaches automatically · then coasting` : u.launched ? `Ballistic flight · ${u.team === 'enemy' ? 'incoming threat' : 'launch committed'}<br>${forecast?.impact ? `Impact: ${forecast.impact.name} in ${Math.ceil(forecast.impact.time)}s` : forecast && Number.isFinite(forecast.closest) ? `Closest approach: ${Math.max(0, forecast.closest).toFixed(0)} u in ${Math.ceil(forecast.closestTime)}s` : 'Forecast horizon: 90 seconds'}` : u.boosterTeam ? `${u.boosterTeam === 'player' ? 'Your booster attached · ready to launch' : 'Enemy booster attached · destroy this rock'}<br>${u.boosterTeam === 'player' ? (w.unlimitedMetal ? 'Right-click to aim / free launch' : 'Right-click to aim / launch for 35 metal') : 'An enemy launch is being prepared'}` : fitter ? `${fitter.team === 'enemy' ? 'Enemy' : 'Your'} booster ${fitter.attachProgress > 0 ? `attaching · ${Math.ceil(ATTACH_TIME - fitter.attachProgress)}s left` : 'en route'}<br>${fitter.team === 'player' ? 'Escort it with a combat ship' : 'Intercept the booster before it finishes'}` : 'No booster attached · launch unavailable<br>Send a booster ship to prepare this rock.';
