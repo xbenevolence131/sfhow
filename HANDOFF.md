@@ -4,6 +4,12 @@ Updated October 18, 2026 after adding Slingshot Playground.
 
 ## Resume here
 
+User approved the welcome screen and aligned control panels for a local commit. This checkpoint includes source, standalone build, tests, and notes. Earlier uncommitted references for these UI changes are superseded. No remote or live-game reset requested.
+
+The control layout now uses matching cartouches: navigation above scrollable scenario details/tuning on the left; playback above shared-playtest recording on the right. Panel widths, edges, borders, and spacing match. Recording has a coral indicator that turns muted when paused. Mobile details start below the header and scroll independently. Verified layout at 1440, 900, and 390px; modes tests, 47-control persistence audit, and headed recording/dropdown regression passed. Standalone rebuilt; live window untouched; changes uncommitted.
+
+Latest UI revision after `2d74282`: startup/refresh shows a general Welcome to ORBITAL dialog with game blurb, Scenario/New game guidance, and one Let's explore button. Dismissal leaves Rock Garden paused and focuses the scenario selector, with no follow-up briefing. Explicit scenario selection, restart, and New game still show normal briefings. Navigation now has a subtle rounded outline, distinct New game button, and native select with a clear custom arrow/hover state. Interactive elements remain mounted. Extended modes browser checks passed welcome, reload, no double modal, paused state, focus, scenario briefing, and desktop/mobile layouts. Screenshots reviewed. Build updated; live session untouched; uncommitted.
+
 The user approved the second gravity doubling and steering adjustment for a local commit. This checkpoint includes source, standalone build, tests, and notes; references below to this tuning being uncommitted are superseded. No remote or live-game reset requested.
 
 Newest uncommitted tuning after `5f6b02d`: user requested another doubling. GRAVITY_BASE is now 4, so slider G=1 has twice the last build's pull, four times the original; G=.5 reproduces the last tuning, .25 the original. Derived orbit/belt speeds follow sqrt scaling. Strong fields exposed gravity compensation consuming the whole ship thrust budget near platforms; 90% gravity assistance now applies separately from clamped maneuver acceleration for both teams/previews, preserving circling behavior. Flyby test uses relative speed 18 instead of 12 (the old shot is captured); practice test exercises existing retries if defenders destroy the incoming booster. All 57 simulation tests and full browser gameplay passed; gravity and playground browser checks passed too. README/build updated, live run untouched. No commit requested yet.
@@ -56,7 +62,7 @@ Last gameplay revision passed all 24 simulation tests, browser gameplay checks, 
 
 ## Open notes and collaboration preferences
 
-- Add a conspicuous red recording indicator beside the recorder button: requested as a note only, not implemented.
+- Recording indicator is now implemented in the right-side recording cartouche; it dims when paused.
 - Rocks are central to the fun. Fleets should contest booster missions, escort, intercept, and defend, not just rush colonies.
 - Explain unexpected gameplay before changing it; obtain approval unless the user explicitly requests implementation. Keep spoken explanations concise and give concrete progress updates while working.
 - The user wants to play while development continues. Do not reset, reload, or close their live game without authorization. A source rebuild does not update an already-open tab; refreshing starts a fresh run.

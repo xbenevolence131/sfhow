@@ -14,6 +14,10 @@ Run `npm run build` after source changes to refresh the standalone copy. Buildin
 
 ## Controls
 
+Navigation and scrollable scenario details/tuning form the left column. Playback controls and optional shared-playtest recording form aligned panels on the right; the recording indicator dims when paused.
+
+Opening or refreshing the game shows **Welcome to ORBITAL**. Choose **Let's explore** to dismiss it; Rock Garden stays paused, with no second dialog. The outlined navigation area at the upper left contains the **Scenario** dropdown for arranged missions and **New game** for Scenarios, Skirmish, and Sandbox. Choosing a scenario or starting/restarting a game still shows its briefing.
+
 - With an equipped rock selected, hold right-click in empty space and drag to continuously adjust its trajectory preview. Release to keep the preview, then confirm to launch; Escape cancels. Starting a right-click on a planet still calculates an automatic shot.
 - Left-click a combat ship, booster ship, platform, drone, planet, or large belt rock to select it. Click the selected object again, or click empty space, to clear selection. Dragging empty space pans without clearing selection.
 - Right-click a point or target to plan a ship order. Moving planets are tracked automatically. Enter confirms; Escape cancels. Planning pauses time.

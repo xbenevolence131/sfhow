@@ -14,17 +14,12 @@
     <div class="game-navigation">
       <a class="wordmark" href="#" aria-label="ORBITAL, fit system"><span class="orbit-logo">&#10023;</span> ORBITAL</a>
       <span class="tagline">A LITTLE PLANETARY WARFARE</span>
+      <div class="game-controls cartouche" role="group" aria-label="Game navigation">
       <div class="navigation-row"><button id="new-game">New game</button><span id="current-mode" class="eyebrow">SCENARIO</span><button id="restart" title="Restart current game" aria-label="Restart current game">&#8635;</button></div>
       <div id="scenario-picker"><label class="eyebrow" for="scenario">SCENARIO</label><select id="scenario" aria-label="Scenario"><option value="garden">01 / Rock Garden</option><option value="hold">02 / Hold the Orbit</option><option value="neighbors">03 / Neighbors</option><option value="playground">04 / Slingshot Playground</option></select></div>
       <span id="open-game-name" class="hidden"></span>
-    </div>
-    <div class="mission-summary"><span id="objective-label" class="eyebrow">YOUR OBJECTIVE</span><p id="objective"></p><div id="top-threat" class="hidden" role="status"></div></div>
-    <div class="header-status">
-      <div class="top-right"><span class="metal-icon">&#9671;</span><strong id="metal">160</strong><span class="muted">metal</span><button id="help" title="Controls and field guide" aria-label="Field guide">?</button></div>
-      <div class="time-controls" aria-label="Simulation speed"><button id="pause" title="Pause or resume (Space)" aria-label="Resume simulation">&#9654;</button><button data-speed="1" class="active">1&#215;</button><button data-speed="5">5&#215;</button><button data-speed="20">20&#215;</button><span id="clock">00:00</span></div>
-    </div>
-  </header>
-  <aside class="mission">
+      </div>
+  <aside class="mission cartouche" aria-label="Scenario details and tuning">
     <div id="colonies"></div>
     <div id="lesson"><div id="garden-lesson"><div id="lesson-prepare"></div><div id="lesson-launch"></div><div id="lesson-intercept"></div><button id="practice">↗ Send practice rock</button></div><span id="income-hint" class="hidden">+0.4 metal / second from your colony</span></div>
     <section class="gravity-controls" aria-label="Gravity settings">
@@ -47,7 +42,16 @@
       <small>Higher strength survives harder hits.</small><small>Changes pause and update both paths.</small>
     </details>
   </aside>
-  <aside id="alerts" aria-live="polite"></aside>
+    </div>
+    <div class="mission-summary"><span id="objective-label" class="eyebrow">YOUR OBJECTIVE</span><p id="objective"></p><div id="top-threat" class="hidden" role="status"></div></div>
+    <div class="header-status">
+      <div class="top-right"><span class="metal-icon">&#9671;</span><strong id="metal">160</strong><span class="muted">metal</span><button id="help" title="Controls and field guide" aria-label="Field guide">?</button></div>
+      <div class="time-controls cartouche" aria-label="Simulation speed"><button id="pause" title="Pause or resume (Space)" aria-label="Resume simulation">&#9654;</button><button data-speed="1" class="active">1&#215;</button><button data-speed="5">5&#215;</button><button data-speed="20">20&#215;</button><span id="clock">00:00</span></div>
+      <aside id="alerts" aria-live="polite"></aside>
+    </div>
+  </header>
+
+
   <div id="toast" role="status"></div>
   <div id="cursor-action" class="hidden" aria-hidden="true"></div>
   <div id="paused-label"><i></i> TIME TO THINK <span>Orders work while paused</span></div>

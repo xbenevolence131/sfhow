@@ -14,6 +14,30 @@ const get = async endpoint => fetch(`http://127.0.0.1:9334${endpoint}`).then(r =
 try {
   assert.ok(await page.locator('#playtest-status').innerText().then(t => t.includes('RECORDING')));
   await page.locator('#modal-action').click();
+  const originalViewport = page.viewportSize() || await page.evaluate(() => ({width:innerWidth,height:innerHeight}));
+  for (const width of [1440, 900, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.locator('#collision-controls').evaluate(el => { el.open = true; });
+    await page.waitForTimeout(100);
+    const panels = await page.evaluate(() => {
+      const rect = selector => {
+        const el = document.querySelector(selector), box = el.getBoundingClientRect();
+        return { x: box.x, y: box.y, width: box.width, bottom: box.bottom, right: box.right, scrollHeight: el.scrollHeight, height: el.clientHeight };
+      };
+      return ['.game-controls', '.mission', '.time-controls', '#playtest-toolbar'].map(rect);
+    });
+    for (const [a, b] of [[panels[0], panels[1]], [panels[2], panels[3]]]) {
+      assert.ok(Math.abs(a.x-b.x)<1 && Math.abs(a.width-b.width)<1, `${width}: panels align`);
+      assert.ok(a.bottom < b.y, `${width}: stacked panels do not overlap`);
+    }
+    for (const panel of panels) assert.ok(panel.x>=0 && panel.right<=width, `${width}: panel fits`);
+    assert.ok(panels[1].bottom<=844-170, 'Details leave room for bottom controls');
+    await page.locator('#collision-strength').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `test-results/orbital-panels-${width}.png` });
+    await page.locator('.mission').evaluate(el => { el.scrollTop=0; });
+  }
+  await page.locator('#collision-controls').evaluate(el => { el.open=false; });
+  await page.setViewportSize(originalViewport);
   // Keep the real select popup open across repeated captures, then commit a
   // choice through its keyboard interaction (selectOption bypasses the popup).
   for (const [scenario, steps] of [['hold', 1], ['neighbors', 2], ['garden', 0]]) {

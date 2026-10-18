@@ -13,7 +13,11 @@ class Game {
     this.ui = { selectedId: null, hoverId: null, pending: null, predictions: new Map(), baseline: null, ranges: false, allPaths: false };
     this.paused = true; this.speed = 1; this.accumulator = 0; this.lastFrame = performance.now();
     this.lastPreview = 0; this.previewDirty = true; this.lastUI = 0; this.seenEvent = 0; this.toastUntil = 0;
-    this.bindUI(); this.load('garden'); attachInput(this);
+    this.bindUI(); this.load('garden', undefined, true); attachInput(this);
+    this.headerObserver = new ResizeObserver(() => {
+      document.documentElement.style.setProperty('--header-bottom', `${document.querySelector('header').getBoundingClientRect().bottom + 12}px`);
+    });
+    this.headerObserver.observe(document.querySelector('header'));
     requestAnimationFrame(t => this.frame(t));
   }
   modalOpen() { return !$('modal').classList.contains('hidden') || !$('new-game-modal').classList.contains('hidden'); }
@@ -150,7 +154,7 @@ class Game {
     setText('setup-description', mode === 'scenario' ? SCENARIOS[$('setup-scenario').value].objective : mode === 'skirmish' ? 'Protect your colony and destroy your rival. Both sides start with the same metal budget. No time limit.' : 'Experiment with trajectories and fleets. No victory or defeat screens; colonies can still be destroyed.');
     setText('start-game', mode === 'scenario' ? 'Start scenario' : mode === 'skirmish' ? 'Start skirmish' : 'Enter sandbox');
   }
-  load(key, options = { mode: 'scenario', scenario: key }) {
+  load(key, options = { mode: 'scenario', scenario: key }, welcome = false) {
     $('new-game-modal').classList.add('hidden');
     this.world = createGame(options); key = this.world.scenario; this.paused = true; this.speed = 1; this.accumulator = 0; this.gravityAdjusted = false;
     this.seenEvent = 0; this.outcomeShown = false; this.ui.selectedId = key === 'playground' ? this.world.units.find(u => u.type === 'rock').id : this.world.planets[0].id;
@@ -158,10 +162,16 @@ class Game {
     this.toastUntil = 0; $('toast').classList.remove('visible'); this.renderer.fit(); $('scenario').value = key;
     const open = this.world.mode !== 'scenario', sandbox = this.world.mode === 'sandbox';
     const briefing = open ? `<p>${sandbox ? 'An open playground. Explore trajectories, deploy fleets, and take your time. There are no victory or defeat screens.' : 'Protect Verdant and destroy Cinder. Both sides pay the same prices and earn metal from their colony. There is no time limit.'}</p><p>${this.world.planets.length} planets. ${this.world.setup.enemies ? 'An AI rival occupies Cinder.' : 'No enemy fleet; the other worlds are uninhabited targets.'} ${this.world.unlimitedMetal ? 'Your deployments and launches are free.' : `Starting budget: ${this.world.setup.budget} metal.`}</p><p>Rocks still need booster ships. Prepare, preview, and launch. New game lets you choose another mode at any time.</p>` : SCENARIOS[key].body;
-    this.showModal(open ? 'OPEN SYSTEM' : SCENARIOS[key].kicker, open ? titleCase(this.world.mode) : SCENARIOS[key].name, briefing, 'Enter the system', () => {
+    if(welcome)this.showWelcome();
+    else this.showModal(open ? 'OPEN SYSTEM' : SCENARIOS[key].kicker, open ? titleCase(this.world.mode) : SCENARIOS[key].name, briefing, 'Enter the system', () => {
       this.closeModal(); this.toast('The system is paused. Plan an order, or press Space to let time flow.');
     });
     this.updateUI();
+  }
+  showWelcome() {
+    this.showModal('A LITTLE PLANETARY WARFARE', 'Welcome to ORBITAL',
+      '<p>Prepare asteroids, bend trajectories around moving worlds, and protect your colony. Make a small decision, preview its path, and watch the consequences unfold.</p><ul class="welcome-directions"><li><b>Scenario</b><br>Use the dropdown at the upper left to choose a ready-made challenge or playground.</li><li><b>New game</b><br>Explore Scenarios, Skirmish, and Sandbox with different starting options.</li></ul><p class="note">Rock Garden is ready behind this welcome. Take your time: the system starts paused.</p>',
+      "Let's explore",()=>{this.closeModal();$('scenario').focus();});
   }
   showModal(kicker, title, body, action, onAction, secondary, onSecondary) {
     this.paused = true; this.accumulator = 0;

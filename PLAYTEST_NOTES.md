@@ -1,5 +1,15 @@
 # ORBITAL playtest notes
 
+## October 18: aligned control panels
+
+The control layout now uses matching cartouches: navigation above scrollable scenario details/tuning on the left; playback above shared-playtest recording on the right. Panel widths, edges, borders, and spacing match. Recording has a coral indicator that turns muted when paused. Mobile details start below the header and scroll independently. Verified layout at 1440, 900, and 390px; modes tests, 47-control persistence audit, and headed recording/dropdown regression passed. Standalone rebuilt; live window untouched; changes uncommitted.
+
+## October 18: welcome screen and navigation emphasis
+
+User requested a general splash dialog on refresh explaining ORBITAL and how to find scenarios versus open modes, plus a cartouche to signal interactive navigation. Approved implementation after review. Startup now shows Welcome to ORBITAL with a short blurb, Scenario/New game guidance, and Let's explore. Dismissal keeps the prepared Rock Garden paused, focuses the scenario selector, and does not open another dialog. Explicit scenario changes/new games/restarts retain briefings. A thin rounded navigation border groups the controls; New game has a distinct filled/hover treatment, and the native dropdown has its own border and clear arrow. No control nodes are recreated.
+
+Extended the existing mode/browser test to verify welcome text, paused dismissal without a second dialog, keyboard focus, refresh showing the welcome again, and scenario selection still showing its briefing. Mode/navigation tests passed. Desktop/mobile welcome and mobile navigation screenshots reviewed. Standalone build updated; live game not refreshed. No commit requested yet.
+
 ## October 18: second gravity doubling
 
 User requested another twofold increase while keeping the normalized default slider at 1.0. GRAVITY_BASE changed from 2 to 4, consistently affecting star/planet attraction, planetary angular rates, and initial belt velocities. G=.5 restores the preceding version; G=.25 restores the original strength. Planet speeds increase by sqrt(2) compared with the previous tuning. Collision parameters remain unchanged.

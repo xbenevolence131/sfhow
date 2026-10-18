@@ -33,10 +33,11 @@ export function attachPlaytestRecorder(game) {
     cursorNode.hidden = !recording;
     cursorNode.classList.toggle('pressed', !!e.buttons);
   };
-  const toolbar = document.createElement('div'); toolbar.id = 'playtest-toolbar';
-  toolbar.innerHTML = '<span id="playtest-status">● SHARED PLAYTEST · RECORDING</span><button id="playtest-mark" title="Preserve this moment and its recent history (M)">Mark moment</button><button id="playtest-toggle">Pause recording</button>';
+  const toolbar = document.createElement('div'); toolbar.id = 'playtest-toolbar'; toolbar.className = 'cartouche'; toolbar.setAttribute('aria-label', 'Shared playtest recording');
+  toolbar.innerHTML = '<span id="playtest-status">SHARED PLAYTEST · RECORDING</span><button id="playtest-mark" title="Preserve this moment and its recent history (M)">Mark moment</button><button id="playtest-toggle">Pause recording</button>';
   const cursorNode = document.createElement('div'); cursorNode.id = 'playtest-cursor'; cursorNode.hidden = true;
-  document.body.append(toolbar, cursorNode);
+  document.querySelector('.header-status').insertBefore(toolbar, document.getElementById('alerts'));
+  document.body.append(cursorNode);
   const mark = (label = 'Player marked this moment') => {
     if (!recording) return false;
     append('bookmark', { label, state: controls() });
@@ -47,8 +48,9 @@ export function attachPlaytestRecorder(game) {
     if (recording === enabled) return;
     if (!enabled) append('recording-paused');
     recording = enabled;
+    toolbar.classList.toggle('recording-paused', !enabled);
     if (enabled) append('recording-resumed');
-    document.getElementById('playtest-status').textContent = enabled ? '● SHARED PLAYTEST · RECORDING' : '○ SHARED PLAYTEST · RECORDING PAUSED';
+    document.getElementById('playtest-status').textContent = enabled ? 'SHARED PLAYTEST · RECORDING' : 'SHARED PLAYTEST · RECORDING PAUSED';
     document.getElementById('playtest-toggle').textContent = enabled ? 'Pause recording' : 'Resume recording';
     document.getElementById('playtest-mark').disabled = !enabled;
     cursorNode.hidden = !enabled || !cursor.inside;

@@ -43,6 +43,26 @@ header{top:18px;display:grid;grid-template-columns:270px minmax(200px,1fr) 270px
 
 .collision-controls{pointer-events:auto}.collision-controls summary{cursor:pointer;font-size:10px;color:var(--text);padding:4px 0}.collision-controls .gravity-heading{margin-top:8px}.mission{max-height:calc(100vh - 365px);overflow-y:auto;scrollbar-width:thin;pointer-events:auto}@media(max-width:720px){.mission{max-height:calc(100vh - 420px)}}
 
+.game-controls{display:flex;flex-direction:column;gap:8px;padding:8px 10px;border:1px solid #3b5968;border-radius:9px;background:#102330b3;max-width:100%}
+.game-controls .navigation-row{justify-content:space-between;gap:8px}.game-controls #new-game{background:#183e43;border-color:#548c8e;color:#a4e5df;padding:6px 12px}.game-controls #new-game:hover{background:#24525a;border-color:#80d6cf;color:#fff}
+.game-controls #scenario-picker{position:relative;gap:7px}.game-controls #scenario{appearance:none;-webkit-appearance:none;border:1px solid #3b5968;background:#0b1b28;border-radius:5px;padding:6px 24px 6px 7px;max-width:205px;min-width:0;width:100%}.game-controls #scenario-picker:after{content:"";position:absolute;right:10px;top:50%;width:6px;height:6px;border-right:1.5px solid var(--teal);border-bottom:1.5px solid var(--teal);transform:translateY(-70%) rotate(45deg);pointer-events:none}.game-controls #scenario:hover{border-color:#80d6cf;background:#193240}
+.welcome-directions li{padding:11px 0}.welcome-directions b{font-size:13px}
+@media(max-width:720px){.game-controls{padding:6px;gap:6px}.game-controls #scenario-picker{flex-direction:column;align-items:stretch;gap:4px}.game-controls #scenario-picker label{font-size:7px}.game-controls #scenario-picker:after{top:auto;bottom:11px;right:9px;transform:rotate(45deg)}.game-controls #scenario{max-width:100%;padding:6px 22px 6px 6px;font-size:9px}.game-controls #new-game{font-size:10px;padding:5px 8px}.game-controls .navigation-row{gap:4px}.game-navigation{min-width:0}.game-controls{width:100%}}
+
+/* Two aligned control columns. Only scenario details scroll. */
+:root{--control-width:270px;--panel-gap:10px;--header-bottom:225px}
+header{grid-template-columns:var(--control-width) minmax(160px,1fr) var(--control-width)}
+.cartouche{border:1px solid #3b5968;border-radius:9px;background:#102330e8;padding:10px 12px}
+.game-navigation{position:relative;width:100%;min-width:0}.game-controls.cartouche{width:100%;max-width:none;padding:10px 12px}
+.game-navigation .mission.cartouche{position:absolute;top:calc(100% + var(--panel-gap));left:0;width:100%;max-height:calc(100dvh - 365px);overflow-y:auto;overscroll-behavior:contain;padding:10px 12px;scrollbar-width:thin;scrollbar-gutter:stable;pointer-events:auto}
+.mission .colony,.mission .gravity-controls{width:100%;max-width:none}.mission p{max-width:none}.mission .colony:first-child{margin-top:0}.mission .gravity-controls{margin-top:15px}.mission .eyebrow{display:inline}.mission #lesson{margin-top:12px}.mission .collision-controls{padding-bottom:6px}
+.header-status{position:relative;width:100%;gap:var(--panel-gap);align-items:stretch}.header-status .top-right{justify-content:flex-end}.header-status .time-controls.cartouche{width:100%;justify-content:space-between;gap:3px;padding:9px 10px}.header-status .time-controls #clock{margin-left:3px}
+.header-status #playtest-toolbar.cartouche{position:static;inset:auto;transform:none;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px;border:1px solid #3b5968;border-radius:9px;background:#102330e8;color:var(--teal);font-size:8px;z-index:auto;letter-spacing:.2px}
+#playtest-status{grid-column:1/-1;line-height:1.6}#playtest-status:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--coral);margin-right:7px}#playtest-toolbar.recording-paused #playtest-status:before{background:var(--muted)}#playtest-toolbar button{white-space:normal;line-height:1.5;border-radius:5px}
+.header-status #alerts{position:absolute;top:calc(100% + var(--panel-gap));left:0;right:auto;width:100%;max-height:calc(100dvh - 440px);overflow:hidden}
+@media(max-width:1050px) and (min-width:721px){:root{--control-width:235px}.time-controls button{min-width:30px;padding:6px}.header-status .time-controls.cartouche{padding:9px 7px}}
+@media(max-width:720px){:root{--panel-gap:8px;--control-width:calc((100vw - 36px)/2)}header{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}.game-controls.cartouche{padding:8px}.game-navigation .mission.cartouche{position:fixed;top:var(--header-bottom);bottom:185px;left:14px;width:var(--control-width);max-height:none;padding:8px}.header-status .time-controls.cartouche{padding:7px 4px;gap:0}.header-status .time-controls button{min-width:23px;padding:6px 3px;font-size:10px}.header-status .time-controls #pause{margin-right:0}.header-status .time-controls #clock{font-size:8px;margin-left:0}.header-status #playtest-toolbar.cartouche{padding:8px;gap:5px;font-size:7px}.header-status #playtest-toolbar button{font-size:8px;padding:4px 2px}.header-status #alerts{top:calc(var(--header-bottom) - 12px);max-height:calc(100dvh - var(--header-bottom) - 185px)}.mission .gravity-controls{margin-top:12px}.mission-summary{max-width:100%}.mission .colony div{font-size:8px}.mission .gravity-controls label{font-size:8px}#playtest-status:before{width:6px;height:6px;margin-right:4px}}
+
 </style>
 </head>
 <body>
@@ -51,17 +71,12 @@ header{top:18px;display:grid;grid-template-columns:270px minmax(200px,1fr) 270px
     <div class="game-navigation">
       <a class="wordmark" href="#" aria-label="ORBITAL, fit system"><span class="orbit-logo">&#10023;</span> ORBITAL</a>
       <span class="tagline">A LITTLE PLANETARY WARFARE</span>
+      <div class="game-controls cartouche" role="group" aria-label="Game navigation">
       <div class="navigation-row"><button id="new-game">New game</button><span id="current-mode" class="eyebrow">SCENARIO</span><button id="restart" title="Restart current game" aria-label="Restart current game">&#8635;</button></div>
       <div id="scenario-picker"><label class="eyebrow" for="scenario">SCENARIO</label><select id="scenario" aria-label="Scenario"><option value="garden">01 / Rock Garden</option><option value="hold">02 / Hold the Orbit</option><option value="neighbors">03 / Neighbors</option><option value="playground">04 / Slingshot Playground</option></select></div>
       <span id="open-game-name" class="hidden"></span>
-    </div>
-    <div class="mission-summary"><span id="objective-label" class="eyebrow">YOUR OBJECTIVE</span><p id="objective"></p><div id="top-threat" class="hidden" role="status"></div></div>
-    <div class="header-status">
-      <div class="top-right"><span class="metal-icon">&#9671;</span><strong id="metal">160</strong><span class="muted">metal</span><button id="help" title="Controls and field guide" aria-label="Field guide">?</button></div>
-      <div class="time-controls" aria-label="Simulation speed"><button id="pause" title="Pause or resume (Space)" aria-label="Resume simulation">&#9654;</button><button data-speed="1" class="active">1&#215;</button><button data-speed="5">5&#215;</button><button data-speed="20">20&#215;</button><span id="clock">00:00</span></div>
-    </div>
-  </header>
-  <aside class="mission">
+      </div>
+  <aside class="mission cartouche" aria-label="Scenario details and tuning">
     <div id="colonies"></div>
     <div id="lesson"><div id="garden-lesson"><div id="lesson-prepare"></div><div id="lesson-launch"></div><div id="lesson-intercept"></div><button id="practice">↗ Send practice rock</button></div><span id="income-hint" class="hidden">+0.4 metal / second from your colony</span></div>
     <section class="gravity-controls" aria-label="Gravity settings">
@@ -84,7 +99,16 @@ header{top:18px;display:grid;grid-template-columns:270px minmax(200px,1fr) 270px
       <small>Higher strength survives harder hits.</small><small>Changes pause and update both paths.</small>
     </details>
   </aside>
-  <aside id="alerts" aria-live="polite"></aside>
+    </div>
+    <div class="mission-summary"><span id="objective-label" class="eyebrow">YOUR OBJECTIVE</span><p id="objective"></p><div id="top-threat" class="hidden" role="status"></div></div>
+    <div class="header-status">
+      <div class="top-right"><span class="metal-icon">&#9671;</span><strong id="metal">160</strong><span class="muted">metal</span><button id="help" title="Controls and field guide" aria-label="Field guide">?</button></div>
+      <div class="time-controls cartouche" aria-label="Simulation speed"><button id="pause" title="Pause or resume (Space)" aria-label="Resume simulation">&#9654;</button><button data-speed="1" class="active">1&#215;</button><button data-speed="5">5&#215;</button><button data-speed="20">20&#215;</button><span id="clock">00:00</span></div>
+      <aside id="alerts" aria-live="polite"></aside>
+    </div>
+  </header>
+
+
   <div id="toast" role="status"></div>
   <div id="cursor-action" class="hidden" aria-hidden="true"></div>
   <div id="paused-label"><i></i> TIME TO THINK <span>Orders work while paused</span></div>
@@ -1285,10 +1309,11 @@ function attachPlaytestRecorder(game) {
     cursorNode.hidden = !recording;
     cursorNode.classList.toggle('pressed', !!e.buttons);
   };
-  const toolbar = document.createElement('div'); toolbar.id = 'playtest-toolbar';
-  toolbar.innerHTML = '<span id="playtest-status">● SHARED PLAYTEST · RECORDING</span><button id="playtest-mark" title="Preserve this moment and its recent history (M)">Mark moment</button><button id="playtest-toggle">Pause recording</button>';
+  const toolbar = document.createElement('div'); toolbar.id = 'playtest-toolbar'; toolbar.className = 'cartouche'; toolbar.setAttribute('aria-label', 'Shared playtest recording');
+  toolbar.innerHTML = '<span id="playtest-status">SHARED PLAYTEST · RECORDING</span><button id="playtest-mark" title="Preserve this moment and its recent history (M)">Mark moment</button><button id="playtest-toggle">Pause recording</button>';
   const cursorNode = document.createElement('div'); cursorNode.id = 'playtest-cursor'; cursorNode.hidden = true;
-  document.body.append(toolbar, cursorNode);
+  document.querySelector('.header-status').insertBefore(toolbar, document.getElementById('alerts'));
+  document.body.append(cursorNode);
   const mark = (label = 'Player marked this moment') => {
     if (!recording) return false;
     append('bookmark', { label, state: controls() });
@@ -1299,8 +1324,9 @@ function attachPlaytestRecorder(game) {
     if (recording === enabled) return;
     if (!enabled) append('recording-paused');
     recording = enabled;
+    toolbar.classList.toggle('recording-paused', !enabled);
     if (enabled) append('recording-resumed');
-    document.getElementById('playtest-status').textContent = enabled ? '● SHARED PLAYTEST · RECORDING' : '○ SHARED PLAYTEST · RECORDING PAUSED';
+    document.getElementById('playtest-status').textContent = enabled ? 'SHARED PLAYTEST · RECORDING' : 'SHARED PLAYTEST · RECORDING PAUSED';
     document.getElementById('playtest-toggle').textContent = enabled ? 'Pause recording' : 'Resume recording';
     document.getElementById('playtest-mark').disabled = !enabled;
     cursorNode.hidden = !enabled || !cursor.inside;
@@ -1388,7 +1414,11 @@ class Game {
     this.ui = { selectedId: null, hoverId: null, pending: null, predictions: new Map(), baseline: null, ranges: false, allPaths: false };
     this.paused = true; this.speed = 1; this.accumulator = 0; this.lastFrame = performance.now();
     this.lastPreview = 0; this.previewDirty = true; this.lastUI = 0; this.seenEvent = 0; this.toastUntil = 0;
-    this.bindUI(); this.load('garden'); attachInput(this);
+    this.bindUI(); this.load('garden', undefined, true); attachInput(this);
+    this.headerObserver = new ResizeObserver(() => {
+      document.documentElement.style.setProperty('--header-bottom', `${document.querySelector('header').getBoundingClientRect().bottom + 12}px`);
+    });
+    this.headerObserver.observe(document.querySelector('header'));
     requestAnimationFrame(t => this.frame(t));
   }
   modalOpen() { return !$('modal').classList.contains('hidden') || !$('new-game-modal').classList.contains('hidden'); }
@@ -1525,7 +1555,7 @@ class Game {
     setText('setup-description', mode === 'scenario' ? SCENARIOS[$('setup-scenario').value].objective : mode === 'skirmish' ? 'Protect your colony and destroy your rival. Both sides start with the same metal budget. No time limit.' : 'Experiment with trajectories and fleets. No victory or defeat screens; colonies can still be destroyed.');
     setText('start-game', mode === 'scenario' ? 'Start scenario' : mode === 'skirmish' ? 'Start skirmish' : 'Enter sandbox');
   }
-  load(key, options = { mode: 'scenario', scenario: key }) {
+  load(key, options = { mode: 'scenario', scenario: key }, welcome = false) {
     $('new-game-modal').classList.add('hidden');
     this.world = createGame(options); key = this.world.scenario; this.paused = true; this.speed = 1; this.accumulator = 0; this.gravityAdjusted = false;
     this.seenEvent = 0; this.outcomeShown = false; this.ui.selectedId = key === 'playground' ? this.world.units.find(u => u.type === 'rock').id : this.world.planets[0].id;
@@ -1533,10 +1563,16 @@ class Game {
     this.toastUntil = 0; $('toast').classList.remove('visible'); this.renderer.fit(); $('scenario').value = key;
     const open = this.world.mode !== 'scenario', sandbox = this.world.mode === 'sandbox';
     const briefing = open ? `<p>${sandbox ? 'An open playground. Explore trajectories, deploy fleets, and take your time. There are no victory or defeat screens.' : 'Protect Verdant and destroy Cinder. Both sides pay the same prices and earn metal from their colony. There is no time limit.'}</p><p>${this.world.planets.length} planets. ${this.world.setup.enemies ? 'An AI rival occupies Cinder.' : 'No enemy fleet; the other worlds are uninhabited targets.'} ${this.world.unlimitedMetal ? 'Your deployments and launches are free.' : `Starting budget: ${this.world.setup.budget} metal.`}</p><p>Rocks still need booster ships. Prepare, preview, and launch. New game lets you choose another mode at any time.</p>` : SCENARIOS[key].body;
-    this.showModal(open ? 'OPEN SYSTEM' : SCENARIOS[key].kicker, open ? titleCase(this.world.mode) : SCENARIOS[key].name, briefing, 'Enter the system', () => {
+    if(welcome)this.showWelcome();
+    else this.showModal(open ? 'OPEN SYSTEM' : SCENARIOS[key].kicker, open ? titleCase(this.world.mode) : SCENARIOS[key].name, briefing, 'Enter the system', () => {
       this.closeModal(); this.toast('The system is paused. Plan an order, or press Space to let time flow.');
     });
     this.updateUI();
+  }
+  showWelcome() {
+    this.showModal('A LITTLE PLANETARY WARFARE', 'Welcome to ORBITAL',
+      '<p>Prepare asteroids, bend trajectories around moving worlds, and protect your colony. Make a small decision, preview its path, and watch the consequences unfold.</p><ul class="welcome-directions"><li><b>Scenario</b><br>Use the dropdown at the upper left to choose a ready-made challenge or playground.</li><li><b>New game</b><br>Explore Scenarios, Skirmish, and Sandbox with different starting options.</li></ul><p class="note">Rock Garden is ready behind this welcome. Take your time: the system starts paused.</p>',
+      "Let's explore",()=>{this.closeModal();$('scenario').focus();});
   }
   showModal(kicker, title, body, action, onAction, secondary, onSecondary) {
     this.paused = true; this.accumulator = 0;
