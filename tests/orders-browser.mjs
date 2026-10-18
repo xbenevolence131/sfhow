@@ -1,0 +1,64 @@
+﻿import { chromium } from '@playwright/test';
+import assert from 'node:assert/strict';
+const browser=await chromium.launch({executablePath:process.env.ORBITAL_BROWSER||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+const page=await browser.newPage({viewport:{width:1440,height:960}}),errors=[];
+page.on('pageerror',e=>errors.push(e.message));
+const pos=id=>page.evaluate(id=>{const u=[...orbital.world.units,...orbital.world.planets].find(u=>u.id===id);return orbital.renderer.screen(u);},id);
+const click=async(id,button='left')=>{const p=await pos(id);await page.mouse.click(p.x,p.y,{button});};
+try {
+  await page.goto(new URL('../dist/index.html',import.meta.url).href);await page.locator('#modal-action').click();
+  const ids=await page.evaluate(()=>{
+    orbital.load('neighbors',{mode:'skirmish'});orbital.closeModal();
+    const ship=orbital.world.units.find(u=>u.type==='ship'&&u.team==='player');
+    const booster=orbital.world.units.find(u=>u.type==='booster'&&u.team==='player');
+    const drone=orbital.world.units.find(u=>u.type==='drone'&&u.team==='player');
+    Object.assign(ship,{x:0,y:350});Object.assign(booster,{x:150,y:350});Object.assign(drone,{x:300,y:350});
+    return {ship:ship.id,booster:booster.id,drone:drone.id};
+  });
+  await click(ids.ship);assert.equal(await page.evaluate(()=>orbital.ui.selectedId),ids.ship);
+  await click(ids.ship);assert.equal(await page.evaluate(()=>orbital.ui.selectedId),null);
+  await click(ids.ship);await page.mouse.click(600,700);assert.equal(await page.evaluate(()=>orbital.ui.selectedId),null);
+  await click(ids.ship);
+  const camera=await page.evaluate(()=>({...orbital.renderer.camera}));
+  await page.mouse.move(600,700);await page.mouse.down();await page.mouse.move(650,720,{steps:5});await page.mouse.up();
+  assert.equal(await page.evaluate(()=>orbital.ui.selectedId),ids.ship);
+  assert.notEqual(await page.evaluate(()=>orbital.renderer.camera.x),camera.x);await page.locator('#fit').click();
+  const b=await pos(ids.booster);await page.mouse.move(b.x,b.y);
+  assert.ok((await page.locator('#cursor-action').innerText()).includes('Escort'));
+  await click(ids.booster,'right');assert.equal(await page.evaluate(()=>orbital.ui.pending.order.kind),'defend');
+  await page.locator('#confirm').click();
+  await click('verdant','right');assert.equal(await page.evaluate(()=>orbital.ui.pending.order.kind),'defend');await page.locator('#cancel').click();
+  await click(ids.booster);await click('verdant','right');assert.equal(await page.evaluate(()=>orbital.ui.pending.order.kind),'rearm');await page.locator('#cancel').click();
+  await click(ids.drone);await click('verdant','right');assert.equal(await page.evaluate(()=>orbital.ui.pending.order.kind),'defend');await page.locator('#cancel').click();
+  await page.mouse.click(600,700,{button:'right'});assert.equal(await page.evaluate(()=>orbital.ui.pending),null);
+  const rockId=await page.evaluate(()=>{
+    const w=orbital.world,p=w.planets[0],rock=w.units.find(u=>u.type==='rock'),booster=w.units.find(u=>u.type==='booster'&&u.team==='player');
+    w.units=[rock,booster];Object.assign(rock,{x:p.x+250,y:p.y+90,vx:0,vy:0,team:'player',boosterTeam:'player',boosterId:booster.id});
+    Object.assign(booster,{x:rock.x+16,y:rock.y,attachedRockId:rock.id,attachOffset:{x:16,y:0},order:{kind:'attached',targetId:rock.id}});
+    orbital.select(null);return rock.id;
+  });
+  await click(rockId);
+  const home=await pos('verdant');await page.mouse.move(home.x,home.y);
+  assert.ok((await page.locator('#cursor-action').innerText()).includes('Target VERDANT'));
+  const metal=await page.evaluate(()=>orbital.world.metal.player);
+  await click('verdant','right');
+  assert.equal(await page.evaluate(()=>orbital.ui.pending.aim.verified),true);
+  assert.ok((await page.locator('#plan-summary').innerText()).includes('WARNING: YOUR COLONY'));
+  assert.ok(await page.evaluate(()=>orbital.ui.predictions.get(orbital.ui.selectedId).ghost));
+  assert.equal(await page.evaluate(()=>orbital.world.metal.player),metal);
+  await page.locator('#cancel').click();
+  await page.evaluate(id=>{const r=orbital.world.units.find(u=>u.id===id);r.x=-2300;r.y=-1300;r.vx=-20;r.vy=-10;orbital.select(id);},rockId);
+  await click('verdant','right');
+  assert.equal(await page.locator('#confirm').isDisabled(),true);
+  assert.ok((await page.locator('#plan-summary').innerText()).includes('NO VERIFIED SHOT'));
+  await page.keyboard.press('Enter');assert.equal(await page.evaluate(()=>orbital.world.units.find(u=>u.type==='rock').launched),false);
+  // An empty-space right-click replaces the failed targeted solution with manual aim.
+  await page.mouse.click(650,600,{button:'right'});
+  assert.equal(await page.evaluate(()=>orbital.ui.pending.aim),undefined);
+  assert.equal(await page.locator('#confirm').isDisabled(),false);
+  await page.locator('#confirm').click();
+  assert.equal(await page.evaluate(()=>orbital.world.units.find(u=>u.type==='rock').launched),true);
+  assert.equal(await page.evaluate(()=>orbital.world.metal.player),metal-35);
+  assert.deepEqual(errors,[]);
+  console.log('Context controls passed: selection toggle/clear, pan preserves selection, hover hints, escort/defend/reload, drone limits, verified moving-planet aim and friendly warning, failed aim blocked, manual revision/launch.');
+}finally{await browser.close();}

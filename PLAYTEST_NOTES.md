@@ -1,5 +1,19 @@
 # ORBITAL playtest notes
 
+## October 18: consistent contextual controls
+
+The player proposed left-click to select/unselect and right-click for the selected object's default action, then explicitly approved applying the pattern throughout gameplay. Implemented a shared action resolver for both cursor hints and input. Ships attack enemies, escort friendly mobile units, defend friendly planets/platforms, and move to empty space. Boosters attach to free rocks and return to friendly colonies to reload. Drones retain bounded planet/platform defense. Attached boosters still require the existing detach/launch workflow before travel.
+
+Equipped rocks can right-click a planet to calculate a launch at its future position. The solver checks 30/45/60/75/90-second windows with the actual powered-flight preview, including impulse limits and intervening collisions. Verified shots display target, impact timing, and a future-position ghost; own-colony warnings remain. If no shot is verified, the best attempt is shown but confirmation is blocked, with instructions to revise or wait. This is a bounded search, not proof that every other trajectory is impossible. Right-click empty space gives a manual impulse preview; legacy drag aiming remains available. All orders still require confirmation. Clicking an already selected object or empty space clears selection; dragging empty space pans without clearing.
+
+Validation passed: 37 simulation tests, the full browser gameplay suite, the 39-control stability audit, and dedicated contextual-input browser checks. These cover hints/actions, selection and panning, defense/escort/reload, verified impact matching actual motion, unverified-shot blocking, manual revision, and friendly-fire warnings. Help, tutorial text, README, and the standalone build were updated. The live game was not refreshed or reset.
+
+## October 18: sustained circling attacks
+
+During Skirmish, the player saw their ship pursue an enemy booster and fire, but wanted it to circle the target instead of flying ahead along its path. They explicitly requested implementation. Ships now blend from approach steering into a moving circle inside weapon range when attacking boosters, ships, drones, or platforms. Target velocity is included, firing retains the assigned target priority and existing cooldown, and both factions use the same motion rules. Near planets the circle tightens to prevent avoidance from pinning the ship to one side. Dead/missing targets end the attack order; reassignment works normally. Previews use the same steering.
+
+Validation: all 33 simulation tests and the full browser gameplay suite passed. A dedicated browser encounter used actual selection, right-click, preview, and confirmation: the attacker swept roughly 170 degrees around a moving booster before destroying it, stayed in range throughout, and stopped afterward. Simulation tests verify continuous firing, long-range acquisition, precise preview agreement, other unit targets, planet clearance, target priority, cancellation, and both factions. Standalone build updated; refresh starts a fresh run. This change is separate from the pending strategic AI upgrade.
+
 ## October 18: game modes and top strip
 
 The player found the scenario selector unclear and wanted to distinguish arranged missions from open play, while using the empty top-center space for useful information. After discussion, explicitly approved trying all the proposed changes.

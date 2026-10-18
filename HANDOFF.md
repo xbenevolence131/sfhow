@@ -1,8 +1,12 @@
 # ORBITAL session handoff
 
-Updated October 18, 2026 after the game-mode and top-strip revision.
+Updated October 18, 2026 after the contextual-controls revision.
 
 ## Resume here
+
+Latest approved change: consistent left-click selection/clearing and right-click contextual orders. `src/orders.js` is the shared mapping for input and cursor hints; `build.mjs` now includes it. Ships attack/escort/defend/move by target; boosters attach/reload/move; drones retain bounded defense. Equipped rocks right-click planets for numerically verified moving-target shots or empty space for manual aim. `planRockTarget` searches five arrival windows up to 90 seconds, respects impulse limits, and validates actual preview impacts. Unverified automatic aims cannot be confirmed; manual revision clears that restriction. Legacy drag aiming remains. All orders still use preview/confirmation. Clicking empty space clears selection; dragging pans without clearing. All 37 simulation tests, browser gameplay, the 39-control audit, and `node tests/orders-browser.mjs` passed. Build and notes updated; changes remain uncommitted after `52b59cc`. The existing shared game was not reset for this revision.
+
+Newest change, after the modes checkpoint `52b59cc`: the player approved ships circling targeted enemy units while firing continuously on cooldown. Implemented shared approach/circle steering for both factions, tighter circles near planets, and Stop after target destruction. Preview uses the same movement rules; selected-object and plan text explain the behavior. All 33 simulation tests, full browser gameplay checks, and `node tests/pursuit-browser.mjs` passed. Changes are in the working tree and rebuilt standalone game. No strategic AI upgrade was included.
 
 The October 17 session was archived in local Git on `main`: gameplay checkpoint `1bc0f20`, notes checkpoint `262476d`. No remote is wanted. The user returned October 18 and approved implementing New game modes and a clearer top strip. That revision is now in the working tree and standalone build. This handoff is the current summary; older entries in PLAYTEST_NOTES.md include superseded mechanics.
 

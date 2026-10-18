@@ -14,13 +14,14 @@ Run `npm run build` after source changes to refresh the standalone copy. Buildin
 
 ## Controls
 
-- Click a combat ship, booster ship, platform, drone, planet, or large belt rock to select it.
+- Left-click a combat ship, booster ship, platform, drone, planet, or large belt rock to select it. Click the selected object again, or click empty space, to clear selection. Dragging empty space pans without clearing selection.
 - Right-click a point or target to plan a ship order. Moving planets are tracked automatically. Enter confirms; Escape cancels. Planning pauses time.
-- Shift + right-click a friendly planet or platform to defend it persistently. Drones can be assigned to these hosts and automatically intercept rocks and hostile drones within their local defense area.
+- Right-click gives the selected object's contextual order; the cursor hint names it. Combat ships attack enemies, escort friendly mobile units, defend friendly planets/platforms, and move to empty space. Boosters attach to free rocks and return to friendly colonies to reload. Drones defend friendly planets/platforms and retain their bounded interception behavior.
 - Select a free belt rock and choose **Send booster**, or select a loaded booster ship and right-click the rock. Confirm and unpause. The ship travels to the rock, matches its velocity, and attaches over six seconds. Its countdown is visible on the map and in the selection panel.
-- Drag a rock equipped with **your** booster to add velocity to its current orbital velocity. Release to review, drag again to revise, then confirm. A launch costs 35 metal, with an impulse limit of 26 units/second. Untouched or enemy-equipped rocks cannot be launched.
+- Select a rock equipped with **your** booster and right-click a planet to calculate a shot toward its future position. Several arrival windows within 90 seconds are checked against actual burn, gravity, and collision rules. If no impact is verified within the impulse limit, confirmation stays disabled: choose another target, aim manually, or cancel and wait. Right-click empty space to preview a manual velocity change; legacy drag aiming also works. Enter confirms and Escape cancels. A launch costs 35 metal, with an impulse limit of 26 units/second. Untouched or enemy-equipped rocks cannot be launched.
 - Booster ships are unarmed and carry one booster each. After attachment they stay locked to the moving rock. **Aim rock** selects it for launch; **Detach** previews separation and requires confirmation. A launch spends the charge and applies the chosen velocity change over a four-second powered burn. The ship stays attached during the countdown, detaches automatically at burn completion, and waits for your next order. Return home explicitly sends it to reload for eight seconds at no additional cost. Detaching before launch keeps the charge for another rock. Rocks require a living, loaded attached ship to launch.
 - Select a combat ship and right-click a friendly booster ship to escort it. Right-click an enemy booster to attack it. Destroying a booster before it finishes attachment prevents that shot; equipped enemy rocks can also be destroyed before launch.
+- Attacking an enemy unit closes the distance, then circles the moving target inside weapon range while prioritizing it on every firing cooldown. This applies to boosters, ships, drones, and platforms, for both factions. Circles tighten near planets; ship orders return to Stop when their target disappears. A new order replaces the pursuit. Planet bombardment and bounded drone defense retain their existing behavior.
 - Space pauses or resumes. The 1 / 2 / 3 keys select 1× / 5× / 20×. Clicking a speed resumes time.
 - Scroll to zoom at the pointer. Drag empty space or use the middle mouse button to pan. F fits the system.
 - Select your home colony to deploy combat ships (60), platforms (80), drones (25), or booster ships (50). Your colony earns 0.4 metal per simulation second. Each faction has a 12-unit fleet limit, including booster ships.
@@ -64,6 +65,7 @@ Artifacts stay in the ignored `.orbital-playtest/` folder. The inspection helper
 - `src/scenarios.js`: starting systems, fleets, budgets, objectives, and briefings.
 - `src/render.js`: camera transforms and procedural drawing.
 - `src/input.js`: selection, order planning, asteroid dragging, and camera input.
+- `src/orders.js`: the shared contextual action mapping used by right-click handling and cursor hints.
 - `src/main.js`: game loop, UI, pause/speed controls, warnings, and scenario lifecycle.
 
 `npm test` runs the Node simulation suite. It checks forecast agreement with actual flight, moving-target pursuit, powered burns, all-faction rock impacts, defensive interception of friendly threats, high-speed collisions, deployment restrictions, interception, bounded drone defense, victory/defeat, restart, and frame-group independence. Booster tests cover launch authorization, rendezvous and attachment timing, persistent attachment before launch, timed burn and automatic separation, manual return/rearming, matching forecasts, escorts, destruction before attachment, and enemy preparation and launch costs.
@@ -73,3 +75,7 @@ For browser checks, run `npm install`, start the local server, and run `npm run 
 `npm run test:controls` audits every control in the standalone build. It verifies controls survive changing health, forecasts, selections, and scenarios, then tests held clicks across UI refreshes, keyboard focus, and ship/drone/booster orders while the game runs. Run `npm run build` first when source files change.
 
 `npm run test:modes` checks the New game flow, cancellation without losing orders, sandbox purchases, restart settings, skirmish budgets, continued exploration, threat summaries, and responsive header layout. `npm test` also verifies open-game economy and outcomes. The shared playtest regression includes native system/budget dropdowns during screenshot capture.
+
+`node tests/pursuit-browser.mjs` checks selecting a moving enemy booster, preview/confirmation, actual circling and sustained fire, and stopping after destruction. Simulation tests also cover forecast agreement, other unit types, planet clearance, firing priority, and enemy symmetry.
+
+`node tests/orders-browser.mjs` checks selection/clearing, pan preservation, cursor hints, contextual orders, moving-planet targeting, own-colony warnings, blocked unverified shots, and manual revision/launch. Simulation tests cover the action mapping and agreement between verified aim forecasts and actual impacts.

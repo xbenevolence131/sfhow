@@ -179,6 +179,7 @@ function steering(u, w, g) {
     standoff = kind === 'fit' ? target.radius + u.radius + 2 : ['planet', 'dock'].includes(target.type) ? target.radius + (hostile(u, target) ? 52 : 45) : u.order.kind === 'attack' ? u.range * .6 : 25;
   }
   if (!target || target.hp <= 0) target = { x: u.order?.x ?? u.x, y: u.order?.y ?? u.y, vx: 0, vy: 0 };
+  const circleTarget = u.type === 'ship' && kind === 'attack' && hostile(u, target) && ['ship', 'booster', 'drone', 'platform'].includes(target.type);
   const rawDist = distance(u, target);
   const lead = clamp((rawDist - standoff) / u.speed, 0, 24);
   let tx = target.x + (target.vx || 0) * lead, ty = target.y + (target.vy || 0) * lead;
@@ -186,7 +187,9 @@ function steering(u, w, g) {
   // A gentle tangent waypoint avoids steering through the star.
   const lx = tx - u.x, ly = ty - u.y, len2 = lx * lx + ly * ly;
   const t = clamp(-(u.x * lx + u.y * ly) / (len2 || 1), 0, 1);
+  let avoidingStar = false;
   if (Math.hypot(u.x + lx * t, u.y + ly * t) < 68 && rawDist > 70) {
+    avoidingStar = true;
     const side = u.x * ty - u.y * tx >= 0 ? 1 : -1;
     const angle = Math.atan2(u.y, u.x) + side * .7;
     tx = Math.cos(angle) * 100; ty = Math.sin(angle) * 100; standoff = 0;
@@ -197,10 +200,28 @@ function steering(u, w, g) {
   const follow = clamp(1 - Math.max(0, gap) / 70, 0, 1);
   let vx = dx / d * desired + (target.vx || 0) * follow;
   let vy = dy / d * desired + (target.vy || 0) * follow;
+  if (circleTarget && !avoidingStar) {
+    // Intercept at distance, then blend into a moving circle inside weapon range.
+    // This is actual thrust-assisted flight, shared with previews, not a drawn orbit.
+    const blend = clamp((u.range * 1.5 - rawDist) / (u.range * .65), 0, 1);
+    const minimumRadius = target.radius + u.radius + 8;
+    let radius = Math.max(minimumRadius, u.range * .55);
+    // Platforms sit close to a planet. Tighten the circle to fit that space
+    // instead of letting planet avoidance pin the attacker on one side.
+    for (const p of w.planets) radius = Math.max(minimumRadius, Math.min(radius, distance(target, p) - p.radius - u.radius - 14));
+    const angle = rawDist > .001 ? Math.atan2(u.y - target.y, u.x - target.x) : u.phase;
+    const nx = Math.cos(angle), ny = Math.sin(angle);
+    const radial = clamp((radius - rawDist) * .65, -u.speed, u.speed * .6);
+    const direction = Math.sin(u.phase) >= 0 ? 1 : -1;
+    const tangent = Math.min(u.speed * .48, Math.sqrt(u.thrust * radius) * .65) * direction;
+    vx = vx * (1 - blend) + ((target.vx || 0) + nx * radial - ny * tangent) * blend;
+    vy = vy * (1 - blend) + ((target.vy || 0) + ny * radial + nx * tangent) * blend;
+  }
   // Local avoidance keeps assistance forgiving around planets en route.
   for (const p of w.planets) {
     const px = u.x - p.x, py = u.y - p.y, pd = Math.hypot(px, py) || 1;
-    if (pd < p.radius + 27) { const push = (p.radius + 27 - pd) * 1.5; vx += px / pd * push; vy += py / pd * push; }
+    const clearance = circleTarget && rawDist < u.range ? u.radius + 10 : 27;
+    if (pd < p.radius + clearance) { const push = (p.radius + clearance - pd) * 1.5; vx += px / pd * push; vy += py / pd * push; }
   }
   let ax = (vx - u.vx) * 1.4 - g.x * .9, ay = (vy - u.vy) * 1.4 - g.y * .9;
   const force = Math.hypot(ax, ay);
@@ -221,6 +242,10 @@ export function advanceMotion(w, dt = DT, forecast = false) {
   const accelerations = new Map();
   for (const u of w.units) {
     if (u.hp <= 0 || u.type === 'platform' || u.attachedRockId) continue;
+    if (u.order?.kind === 'attack' && u.order.targetId) {
+      const target = entity(w, u.order.targetId);
+      if (!target || target.hp <= 0) u.order = { kind: 'stop', x: u.x, y: u.y };
+    }
     const g = gravity(u.x, u.y, w.planets);
     let a;
     if (u.type === 'rock') {
@@ -314,7 +339,7 @@ function updateBoosters(w, dt, forecast) {
         u.vx = target.vx; u.vy = target.vy; u.attachProgress = 0;
         u.order = { kind: 'attached', targetId: target.id };
         if (u.team === 'player') w.progress.prepared = true;
-        if (!forecast) announce(w, u.team === 'player' ? `${target.name} ready to launch` : 'Enemy asteroid armed', u.team === 'player' ? 'Booster attached and waiting. Drag the rock to launch, or choose Detach.' : 'A booster has attached. Destroy it or the rock before launch.', u.team === 'enemy');
+        if (!forecast) announce(w, u.team === 'player' ? `${target.name} ready to launch` : 'Enemy asteroid armed', u.team === 'player' ? 'Booster attached and waiting. Select the rock and right-click to aim, or choose Detach.' : 'A booster has attached. Destroy it or the rock before launch.', u.team === 'enemy');
       }
     } else if (u.order.kind === 'rearm') {
       if (!target || target.hp <= 0 || target.team !== u.team) { u.rearmProgress = 0; continue; }
@@ -381,6 +406,29 @@ export function aimRock(w, rock, target, flightTime = 55) {
     vx += clamp((ex * d - b * ey) / det, -6, 6); vy += clamp((a * ey - ex * c) / det, -6, 6);
   }
   return { x: vx - rock.vx, y: vy - rock.vy };
+}
+export function planRockTarget(w, rock, target) {
+  // Search a small set of arrival windows, then verify with the actual preview
+  // integrator, including the burn, impulse cap, moving bodies and collisions.
+  let best = null, closest = Infinity;
+  for (const flightTime of [30, 45, 60, 75, 90]) {
+    const requested = aimRock(w, rock, target, flightTime);
+    const magnitude = Math.hypot(requested.x, requested.y);
+    if (!Number.isFinite(magnitude)) continue;
+    const scale = Math.min(1, MAX_IMPULSE / (magnitude || 1));
+    const pending = { id: rock.id, impulse: { x: requested.x * scale, y: requested.y * scale },
+      aim: { targetId: target.id, flightTime, verified: false } };
+    const f = predict(w, [rock.id], pending).get(rock.id);
+    if (f?.impact?.targetId === target.id) {
+      pending.aim.verified = true; pending.aim.flightTime = f.impact.time;
+      return pending;
+    }
+    if (f && f.closest < closest) {
+      closest = f.closest; best = pending;
+      pending.aim.reason = f.impact ? `Trajectory hits ${f.impact.name} first.` : 'No verified impact within the 90-second forecast and boost limit.';
+    }
+  }
+  return best || { id: rock.id, impulse: { x: 0, y: 0 }, aim: { targetId: target.id, flightTime: 90, verified: false, reason: 'No verified launch solution.' } };
 }
 export function enemyLaunch(w, practice = false) {
   const home = w.planets.find(p => p.team === 'player');
@@ -510,7 +558,7 @@ export function predict(world, ids, pending = null, horizon = 90) {
       let target = u.order?.targetId ? entity(w, u.order.targetId) : u.order?.x !== undefined ? u.order : null;
       if (u.type === 'rock') {
         const targets = [...w.planets];
-        target = targets.sort((a, b) => distance(a, u) - distance(b, u))[0];
+        target = pending?.id === u.id && pending.aim?.targetId ? entity(w, pending.aim.targetId) : targets.sort((a, b) => distance(a, u) - distance(b, u))[0];
       }
       if (target) {
         const d = distance(u, target) - (target.radius || 0);

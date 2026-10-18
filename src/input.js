@@ -1,50 +1,55 @@
-import { entity, distance, MAX_IMPULSE } from './simulation.js';
+import { entity, distance, MAX_IMPULSE, planRockTarget } from './simulation.js';
+import { contextualOrder } from './orders.js';
 export function attachInput(game) {
   const { renderer: r, canvas } = game;
-  let drag = null;
+  let drag = null, pointer = null;
   const point = e => ({ x: e.clientX, y: e.clientY });
   const pick = p => {
     const w = game.world;
     return [...w.units.filter(u => u.hp > 0), ...w.planets].map(u => ({ u, d: distance(r.screen(u), p), radius: Math.max(15, u.radius * r.camera.zoom + 6) }))
       .filter(o => o.d <= o.radius).sort((a, b) => a.d - b.d)[0]?.u;
   };
+  const hint = document.getElementById('cursor-action');
+  game.updateContextHint = () => {
+    const visible = pointer && !drag && !game.modalOpen() && game.ui.selectedId;
+    hint.classList.toggle('hidden', !visible);
+    if (!visible) return;
+    const action = contextualOrder(game.world, game.ui.selectedId, pick(pointer), r.world(pointer));
+    const text = `${action.error ? '' : 'Right-click / '}${action.label}`;
+    if (hint.textContent !== text) hint.textContent = text;
+    hint.classList.toggle('unavailable', !!action.error);
+    hint.style.left = `${Math.max(8, Math.min(pointer.x + 17, innerWidth - hint.offsetWidth - 8))}px`;
+    hint.style.top = `${Math.max(8, Math.min(pointer.y + 20, innerHeight - hint.offsetHeight - 8))}px`;
+  };
+  canvas.addEventListener('pointerleave', () => { pointer = null; game.ui.hoverId = null; game.updateContextHint(); });
   canvas.addEventListener('contextmenu', e => {
     e.preventDefault();
     if (game.modalOpen()) return;
-    const u = entity(game.world, game.ui.selectedId);
-    if (!u || u.team !== 'player' || !['ship', 'drone', 'booster'].includes(u.type)) { game.toast('Select a friendly ship, booster, or drone first.'); return; }
-    if (u.attachedRockId) { game.toast(entity(game.world, u.attachedRockId)?.burn?.remaining > 0 ? 'Booster firing. It will detach automatically when the burn ends.' : 'This booster is attached. Choose Detach before giving it a new destination.'); return; }
-    const target = pick(point(e));
-    const friendlyAnchor = target?.team === 'player' && ['planet', 'platform'].includes(target.type);
-    if (u.type === 'drone' && !friendlyAnchor) { game.toast('Drones defend a friendly planet or platform. Right-click one to assign it.'); return; }
-    let order;
-    if (u.type === 'booster' && target?.type === 'rock') {
-      if (!u.loaded) { game.toast('This booster ship is empty. Let it return home to rearm.'); return; }
-      if (target.launched || target.boosterTeam) { game.toast('Choose an unlaunched rock with no booster attached.'); return; }
-      order = { kind: 'fit', targetId: target.id };
-    } else if (u.type === 'booster' && target?.team === 'enemy') { game.toast('Booster ships are unarmed. Use a combat ship to intercept enemies.'); return; }
-    else if (u.type === 'booster' && friendlyAnchor && target.type === 'planet') order = { kind: 'rearm', targetId: target.id };
-    else if (u.type === 'ship' && target?.team === 'player' && target.type === 'booster') order = { kind: 'defend', targetId: target.id };
-    else if ((e.shiftKey || u.type === 'drone') && friendlyAnchor) order = { kind: 'defend', targetId: target.id };
-    else if (target && target.id !== u.id) order = { kind: target.team === 'enemy' ? 'attack' : 'move', targetId: target.id };
-    else order = { kind: 'move', ...r.world(point(e)) };
-    game.plan({ id: u.id, order });
+    const p = point(e), target = pick(p);
+    const action = contextualOrder(game.world, game.ui.selectedId, target, r.world(p));
+    if (action.error) { game.toast(action.error); return; }
+    if (action.rockTargetId) {
+      game.paused = true; game.accumulator = 0;
+      const rock = entity(game.world, action.id);
+      game.plan(planRockTarget(game.world, rock, target));
+    } else game.plan(action.pending);
   });
   canvas.addEventListener('pointerdown', e => {
     if (game.modalOpen() || e.button === 2) return;
     const p = point(e), target = pick(p);
     canvas.setPointerCapture(e.pointerId);
-    if (e.button === 1 || !target) { drag = { kind: 'pan', start: p, last: p, moved: false }; canvas.style.cursor = 'grabbing'; return; }
+    if (e.button === 1 || !target) { drag = { kind: 'pan', start: p, last: p, moved: false, clear: e.button === 0 && !target }; canvas.style.cursor = 'grabbing'; return; }
+    const wasSelected = game.ui.selectedId === target.id;
     game.select(target.id);
-    if (target.type === 'rock' && !target.launched && target.boosterTeam === 'player') drag = { kind: 'rock', id: target.id, start: p, moved: false };
+    drag = { kind: target.type === 'rock' && !target.launched && target.boosterTeam === 'player' ? 'rock' : 'select', id: target.id, start: p, moved: false, clear: wasSelected };
   });
   canvas.addEventListener('pointermove', e => {
-    const p = point(e);
+    const p = point(e); pointer = p;
     if (drag) {
       if (distance(p, drag.start) > 4) drag.moved = true;
       if (drag.kind === 'pan') {
         r.camera.x -= (p.x - drag.last.x) / r.camera.zoom; r.camera.y -= (p.y - drag.last.y) / r.camera.zoom; drag.last = p;
-      } else if (drag.moved) {
+      } else if (drag.kind === 'rock' && drag.moved) {
         const rock = entity(game.world, drag.id); if (!rock) return;
         const worldPoint = r.world(p);
         let x = (worldPoint.x - rock.x) / 10, y = (worldPoint.y - rock.y) / 10;
@@ -53,9 +58,16 @@ export function attachInput(game) {
       }
       return;
     }
+    game.updateContextHint();
     const target = pick(p); game.ui.hoverId = target?.id || null; canvas.style.cursor = target ? target.type === 'rock' && !target.launched && target.boosterTeam === 'player' ? 'grab' : 'pointer' : 'default';
   });
-  const endDrag = e => { if (drag?.kind === 'rock' && drag.moved) game.refreshPredictions(); drag = null; canvas.style.cursor = 'default'; if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId); };
+  const endDrag = e => {
+    if (drag?.kind === 'rock' && drag.moved) game.refreshPredictions();
+    else if (drag?.clear && !drag.moved && e.type !== 'pointercancel') game.select(null);
+    drag = null; canvas.style.cursor = 'default';
+    if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+    game.updateContextHint();
+  };
   canvas.addEventListener('pointerup', endDrag);
   canvas.addEventListener('pointercancel', endDrag);
   canvas.addEventListener('wheel', e => { e.preventDefault(); if (!game.modalOpen()) r.zoomAt(point(e), Math.exp(-e.deltaY * .001)); }, { passive: false });
