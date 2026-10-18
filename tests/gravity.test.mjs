@@ -9,8 +9,8 @@ test('G scales both attractors; masses scale their own pull with equal planetary
   const twice=gravity(600,100,planets,{...GRAVITY_DEFAULTS,g:2});
   assert.ok(Math.abs(twice.x-base.x*2)<1e-12);assert.ok(Math.abs(twice.y-base.y*2)<1e-12);
   const sun=gravity(100,0,[],{g:2,sunMass:5000,planetMass:0});
-  assert.equal(sun.x,-4);assert.equal(Math.abs(sun.y),0);
-  assert.equal(gravity(200,0,[],{g:2,sunMass:5000,planetMass:0}).x,-1);
+  assert.equal(sun.x,-3);assert.equal(Math.abs(sun.y),0);
+  assert.equal(gravity(200,0,[],{g:2,sunMass:5000,planetMass:0}).x,-.75);
   const a=gravity(100,0,[{x:0,y:0,radius:13}],{g:1,sunMass:0,planetMass:2800});
   const b=gravity(100,0,[{x:0,y:0,radius:21}],{g:1,sunMass:0,planetMass:2800});
   assert.deepEqual(a,b,'different visible radii must not imply different planet masses');
@@ -21,10 +21,15 @@ test('G scales both attractors; masses scale their own pull with equal planetary
 
 test('runtime tuning preserves free-flight motion and orders, clears threat caches, and restarts with chosen settings', () => {
   const w=createGame({mode:'skirmish'});
+  w.units.find(u=>u.type==='rock').launched=true;
   const units=structuredClone(w.units),planets=structuredClone(w.planets),metal=structuredClone(w.metal);
   w.rockThreats={stale:{time:20}};w.threatWarnings={stale:'verdant'};
   setGravity(w,{g:2,planetMass:4200,sunMass:8200});
-  assert.deepEqual(w.units.filter(u=>u.type!=='platform'),units.filter(u=>u.type!=='platform'));
+  const free=u=>u.type!=='platform' && (u.type!=='rock' || u.launched);
+  assert.deepEqual(w.units.filter(free),units.filter(free));
+  for(const rock of w.units.filter(u=>u.type==='rock' && !u.launched)) {
+    const before=units.find(u=>u.id===rock.id);assert.equal(rock.x,before.x);assert.equal(rock.y,before.y);
+  }
   w.planets.forEach((p,i)=>{assert.equal(p.x,planets[i].x);assert.equal(p.y,planets[i].y);});assert.deepEqual(w.metal,metal);assert.equal(w.time,0);
   assert.deepEqual(w.rockThreats,{});assert.deepEqual(w.threatWarnings,{});
   assert.deepEqual(createGame(w.setup).gravity,w.gravity);
@@ -35,6 +40,7 @@ test('runtime tuning preserves free-flight motion and orders, clears threat cach
 
 test('zero gravity coasts at existing velocity; a fresh zero-gravity belt starts stationary', () => {
   const w=createScenario('garden'),r=w.units.find(u=>u.type==='rock');w.units=[r];
+  r.launched=true;
   setGravity(w,{g:0});const before={...r};
   for(let i=0;i<10/DT;i++)advanceMotion(w);
   assert.ok(Math.abs(r.x-before.x-before.vx*10)<1e-8);assert.ok(Math.abs(r.y-before.y-before.vy*10)<1e-8);
@@ -87,7 +93,7 @@ test('custom gravity is shared by forecasts and moving-planet launch aiming', ()
   const pending=planRockTarget(w,r,p);
   assert.ok(pending.aim.verified);assert.equal(predict(w,[r.id],pending).get(r.id).impact.targetId,p.id);
   b.attachedRockId=null;r.boosterId=null;r.boosterTeam=null;
-  Object.assign(r,{x:700,y:-400,vx:6,vy:8});w.units=[r];
+  Object.assign(r,{x:700,y:-400,vx:6,vy:8,launched:true});w.units=[r];
   const f=predict(w,[r.id],null,30).get(r.id);
   for(let n=1;n<=30/DT&&r.hp>0;n++){
     advanceMotion(w);
@@ -108,12 +114,20 @@ test('slider extrema stay finite and fixed-step grouping remains deterministic',
 });
 
 
-test('normalized G=1 doubles the previous tuning and G=0.5 restores that tuning', () => {
+test('default gravity is 75 percent of the preceding baseline, with matching initial speeds', () => {
   assert.equal(GRAVITY_DEFAULTS.g,1);
-  assert.equal(GRAVITY_BASE,4);
+  assert.equal(GRAVITY_BASE,3);
   const p={x:400,y:0,radius:18};
-  assert.equal(gravity(100,0,[],GRAVITY_DEFAULTS).x,-2.16);
-  assert.equal(gravity(100,0,[],{...GRAVITY_DEFAULTS,g:.5}).x,-1.08);
-  assert.equal(gravity(300,0,[p],{...GRAVITY_DEFAULTS,sunMass:0}).x,1.12);
-  assert.equal(gravity(300,0,[p],{...GRAVITY_DEFAULTS,sunMass:0,g:.5}).x,.56);
+  assert.equal(gravity(100,0,[],GRAVITY_DEFAULTS).x,-1.62);
+  assert.equal(gravity(300,0,[p],{...GRAVITY_DEFAULTS,sunMass:0}).x,.84);
+  const current=createGame({mode:'scenario',scenario:'garden'});
+  const previous=createGame({mode:'scenario',scenario:'garden',gravity:{g:4/3}});
+  for(const [i,rock] of current.units.entries()) {
+    if(rock.type!=='rock')continue;
+    const old=previous.units[i];
+    assert.ok(Math.abs(Math.hypot(rock.vx,rock.vy)/Math.hypot(old.vx,old.vy)-Math.sqrt(.75))<1e-12);
+  }
+  for(const [i,planet] of current.planets.entries()) {
+    assert.ok(Math.abs(planet.omega/previous.planets[i].omega-Math.sqrt(.75))<1e-12);
+  }
 });

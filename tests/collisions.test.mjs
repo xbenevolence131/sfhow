@@ -8,7 +8,7 @@ function range(bounce=1,strength=100){
   setGravity(w,{g:0});setCollisions(w,{bounce,strength});return w;
 }
 function rock(w,name,x,y,vx,vy,size='medium'){
-  const r=addRock(w,0,600,name,size);Object.assign(r,{x,y,vx,vy});return r;
+  const r=addRock(w,0,600,name,size);Object.assign(r,{x,y,vx,vy,beltOrbit:null});return r;
 }
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,`${a} vs ${b}`);
 

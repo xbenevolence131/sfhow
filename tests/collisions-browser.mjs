@@ -11,8 +11,8 @@ try{
   const ids=await page.evaluate(()=>{
     const w=orbital.world,a=w.units.find(u=>u.type==='rock'),b=w.units.filter(u=>u.type==='rock')[1],booster=w.units.find(u=>u.id===a.boosterId);
     w.planets=[];w.units=[a,b,booster];
-    Object.assign(a,{x:200,y:100,vx:0,vy:0});
-    Object.assign(b,{x:260,y:100,vx:0,vy:0,team:'neutral',boosterTeam:null,boosterId:null});
+    Object.assign(a,{x:200,y:100,vx:0,vy:0,beltOrbit:null});
+    Object.assign(b,{x:260,y:100,vx:0,vy:0,beltOrbit:null,team:'neutral',boosterTeam:null,boosterId:null});
     orbital.tuneGravity({g:0});orbital.select(a.id);orbital.plan({id:a.id,impulse:{x:20,y:0}});
     window.collisionNodes=[...document.querySelectorAll('[data-collision]')];
     return {a:a.id,b:b.id};

@@ -1,5 +1,5 @@
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
-const modules = ['simulation', 'scenarios', 'render', 'orders', 'input', 'playtest', 'main'];
+const modules = ['simulation', 'scenarios', 'render', 'orders', 'input', 'playtest', 'tutorial', 'main'];
 // This small, dependency-free bundle keeps the delivered game usable via file://.
 // The source modules deliberately use unique top-level names and named exports.
 const scripts = await Promise.all(modules.map(async name => {

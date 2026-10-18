@@ -59,6 +59,33 @@ try {
   }
   await stage(7);
   assert.equal(await page.evaluate(()=>orbital.world.progress.intercepted),true);
+  assert.equal(await page.evaluate(()=>orbital.world.outcome),null,'First interception must not end the extended tutorial');
+  assert.equal(await page.evaluate(()=>orbital.world.lesson.phase),'combat');
+  const combatShip=await page.evaluate(()=>orbital.ui.tutorialId);
+  const shipPoint=await pos(combatShip); await page.mouse.click(shipPoint.x,shipPoint.y);
+  const enemy=await page.evaluate(()=>orbital.ui.tutorialId), enemyPoint=await pos(enemy);
+  await page.mouse.click(enemyPoint.x,enemyPoint.y,{button:'right'});
+  await page.locator('#cancel').click();
+  assert.equal(await page.evaluate(()=>orbital.world.lesson.attackerId),null);
+  await page.mouse.click(enemyPoint.x,enemyPoint.y,{button:'right'});
+  await page.locator('#confirm').click();
+  await page.locator('[data-speed="20"]').click();
+  await stage(8);
+  assert.equal(await page.evaluate(()=>orbital.world.lesson.attackHit),true);
+  assert.equal(await page.evaluate(id=>orbital.world.units.find(u=>u.id===id)?.hp,enemy),0);
+  assert.equal(await page.evaluate(()=>orbital.world.lesson.grant),true);
+  const home=await page.evaluate(()=>orbital.renderer.screen(orbital.world.planets.find(p=>p.id==='verdant')));
+  await page.mouse.click(home.x,home.y);
+  const beforeMetal=await page.evaluate(()=>orbital.world.metal.player);
+  for(const type of ['platform','drone','drone']) await page.locator(`[data-build="${type}"]`).click();
+  assert.equal(Math.round(beforeMetal-await page.evaluate(()=>orbital.world.metal.player)),130);
+  await stage(9);
+  await page.screenshot({path:'test-results/orbital-tutorial-reinforce.png'});
+  await page.locator('#tutorial-attack').click(); await stage(10);
+  await page.locator('[data-speed="20"]').click();
+  await stage(11);
+  assert.equal(await page.evaluate(()=>orbital.world.lesson.finalIntercepted),true);
+  assert.equal(await page.evaluate(()=>orbital.world.outcome),'victory');
   await page.locator('#modal-secondary').click();
   assert.equal(await page.locator('#tutorial').isVisible(),false);
   // Starting again, skipping, and changing scenario clear all highlights.
@@ -76,5 +103,5 @@ try {
   await page.locator('#scenario').selectOption('hold'); await page.locator('#modal-action').click();
   assert.equal(await page.locator('#tutorial').isVisible(),false);
   assert.deepEqual(errors,[]);
-  console.log('Tutorial passed: real selection, canceled order, rendezvous/attachment, aim/cancel, launch, practice interception, completion, skip, free exploration, scenario change, and mobile layout.');
+  console.log('Tutorial passed: attachment/launch, initial interception, confirmed ship attack and booster destruction, grant, paid platform/two drones, staged attack, final interception/victory, skip, free exploration, scenario change, and mobile layout.');
 } finally { await browser.close(); }

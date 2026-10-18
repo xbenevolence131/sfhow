@@ -3,6 +3,7 @@ import { createGame, SCENARIOS } from './scenarios.js';
 import { Renderer } from './render.js';
 import { attachInput } from './input.js';
 import { attachPlaytestRecorder } from './playtest.js';
+import { beginTutorial, skipTutorial, advanceTutorial, tutorialDefenses, prepareTutorialAttack, launchTutorialAttack } from './tutorial.js';
 const $ = id => document.getElementById(id);
 const setText = (id, value) => { const node = $(id); if (node.textContent !== value) node.textContent = value; };
 const time = seconds => `${String(Math.floor(Math.max(0, seconds) / 60)).padStart(2, '0')}:${String(Math.floor(Math.max(0, seconds) % 60)).padStart(2, '0')}`;
@@ -22,7 +23,19 @@ class Game {
   }
   modalOpen() { return !$('modal').classList.contains('hidden') || !$('new-game-modal').classList.contains('hidden'); }
   bindUI() {
-    $('tutorial-skip').onclick = () => { this.tutorial = null; this.updateUI(); };
+    $('tutorial-skip').onclick = () => { this.tutorial = null; skipTutorial(this.world); this.updateUI(); };
+    $('tutorial-attack').onclick = () => {
+      const result=launchTutorialAttack(this.world);
+      this.paused=true; this.accumulator=0;
+      this.toast(result.error || 'Practice attack launched. Unpause to watch your reinforced defenses.');
+      this.previewDirty=true; this.processEvents(); this.updateUI();
+    };
+    $('tutorial-reset').onclick = () => {
+      this.paused=true; this.accumulator=0;
+      const result=prepareTutorialAttack(this.world);
+      if(result.error)this.toast(result.error);
+      this.previewDirty=true; this.updateUI();
+    };
     $('pause').onclick = () => this.togglePause();
     document.querySelectorAll('[data-speed]').forEach(button => button.onclick = () => this.setSpeed(Number(button.dataset.speed)));
     $('scenario').onchange = e => this.load(e.target.value);
@@ -159,6 +172,7 @@ class Game {
     this.tutorial = this.tutorial && key === 'garden' && options.mode === 'scenario' ? { stage: '' } : null;
     $('new-game-modal').classList.add('hidden');
     this.world = createGame(options); key = this.world.scenario; this.paused = true; this.speed = 1; this.accumulator = 0; this.gravityAdjusted = false;
+    if(this.tutorial)beginTutorial(this.world);
     this.seenEvent = 0; this.outcomeShown = false; this.ui.selectedId = key === 'playground' ? this.world.units.find(u => u.type === 'rock').id : this.world.planets[0].id;
     this.ui.hoverId = null; this.ui.pending = null; this.ui.predictions = new Map(); this.ui.baseline = null; this.previewDirty = true;
     this.toastUntil = 0; $('toast').classList.remove('visible'); this.renderer.fit(); $('scenario').value = key;
@@ -173,7 +187,7 @@ class Game {
   showWelcome() {
     this.showModal('A LITTLE PLANETARY WARFARE', 'Welcome to ORBITAL',
       '<p>Prepare asteroids, bend trajectories around moving worlds, and protect your colony. Make a small decision, preview its path, and watch the consequences unfold.</p><ul class="welcome-directions"><li><b>Scenario</b><br>Use the dropdown at the upper left to choose a ready-made challenge or playground.</li><li><b>New game</b><br>Explore Scenarios, Skirmish, and Sandbox with different starting options.</li></ul><p class="note">Rock Garden is ready behind this welcome. Take your time: the system starts paused.</p>',
-      'Start tutorial',()=>{ this.tutorial = { stage: '' }; this.ui.selectedId = null; this.closeModal(); },
+      'Start tutorial',()=>{ this.tutorial = { stage: '' }; beginTutorial(this.world); this.ui.selectedId = null; this.closeModal(); },
       'Explore freely',()=>{this.closeModal();$('scenario').focus();});
   }
   updateTutorial() {
@@ -182,6 +196,7 @@ class Game {
     document.querySelectorAll('.tutorial-focus').forEach(el => el.classList.remove('tutorial-focus'));
     this.ui.tutorialId = null;
     this.ui.tutorialAction = '';
+    $('tutorial-attack').classList.add('hidden'); $('tutorial-reset').classList.add('hidden');
     if (!active) return;
     const selected = entity(w, this.ui.selectedId), pending = this.ui.pending;
     const booster = w.units.find(u => u.type === 'booster' && u.team === 'player' && u.hp > 0 && u.loaded);
@@ -190,8 +205,48 @@ class Game {
     const practice = w.units.some(u => u.hp > 0 && u.practice && (u.type === 'rock' || u.order?.kind === 'fit'));
     const burning = w.units.find(u => u.hp > 0 && u.type === 'rock' && u.team === 'player' && u.burn?.remaining > 0);
     let stage, title, copy, highlight, target, action='WATCH';
-    if (w.progress.launched && w.progress.intercepted) {
-      stage=7; title='You know the essentials'; copy='You prepared a rock, launched it, and intercepted an attack. Keep experimenting, or choose another scenario using the menu above.'; highlight='scenario';
+    const lesson=w.lesson;
+    if (lesson?.phase==='complete') {
+      stage=11; title='You know the essentials'; copy='You launched a rock, destroyed its enemy launcher, deployed reinforcements, and stopped a stronger attack. Keep exploring, or choose another scenario.'; highlight='scenario';
+    } else if(lesson?.phase==='combat') {
+      stage=7;
+      const enemy=entity(w,lesson.targetId), attacker=entity(w,lesson.attackerId);
+      if(attacker?.order?.kind==='attack' && attacker.order.targetId===enemy?.id) {
+        title='Destroy the enemy booster'; target=enemy?.id; highlight=this.paused?'pause':null;
+        copy='Attack confirmed. Unpause to watch your ship approach, circle, and fire automatically. Destroy this booster to continue. Platforms and drones keep guarding home.';
+      } else if(pending?.order?.kind==='attack' && pending.order.targetId===enemy?.id) {
+        title='Confirm the attack'; highlight='confirm'; copy='Review the pursuit path, then Confirm or press Enter. Your ship will stay on this target until it is destroyed or you change its order.';
+      } else if(selected?.type==='ship' && selected.team==='player') {
+        title='Target the enemy booster'; target=enemy?.id; action='RIGHT-CLICK'; copy='Right-click the magenta-ringed enemy booster to preview an attack order.';
+      } else {
+        const ship=w.units.find(u=>u.hp>0 && u.type==='ship' && u.team==='player');
+        title=ship?'Select a combat ship':'Deploy a combat ship'; target=ship?.id || 'verdant'; action='LEFT-CLICK';
+        copy=ship?'The first rock was intercepted. Left-click the marked friendly ship. Next, attack the enemy booster that launched it. If that booster was already lost, a replacement waits at the practice dock.':'Select Verdant, then build a Ship in the bottom dock to continue the attack lesson.';
+      }
+    } else if(lesson?.phase==='fortify') {
+      const defenses=tutorialDefenses(w), ready=defenses.platforms>=1 && defenses.drones>=2;
+      stage=ready?9:8; title=ready?'Test your reinforced defenses':'Reinforce Verdant';
+      $('tutorial-reset').classList.remove('hidden');
+      if(ready) {
+        $('tutorial-attack').classList.remove('hidden'); highlight='tutorial-attack';
+        copy='Your new platform and two drones are ready. Click Launch practice attack, then unpause. The staged asteroid has 140 integrity: watch the extra defenders help break it up.';
+        target=lesson.rockId;
+      } else if(selected?.id!=='verdant') {
+        target='verdant'; action='LEFT-CLICK'; copy='A fresh asteroid and enemy booster are staged outside your colony. You received 130 metal. Left-click Verdant to deploy more defenses.';
+      } else {
+        const type=defenses.platforms<1?'platform':'drone';
+        document.querySelector(`[data-build="${type}"]`).classList.add('tutorial-focus');
+        copy=`Build one new Platform (80 metal) and two Drones (25 each). Added so far: ${Math.min(1,defenses.platforms)}/1 platform, ${Math.min(2,defenses.drones)}/2 drones. These units defend their home automatically.`;
+        if(w.metal.player<COST[type]) {copy+=' Unpause to earn the missing metal.';highlight=this.paused?'pause':null;}
+      }
+    } else if(lesson?.phase==='defense' || lesson?.phase==='retry') {
+      stage=10; title=lesson.phase==='retry'?'Try the defense test again':'Watch the interception';
+      target=entity(w,lesson.rockId)?.id; highlight=this.paused?'pause':'ranges';
+      copy='Unpause and watch your platform and drones engage. The rock takes ordinary weapon damage; your new units add more firepower.';
+      if(lesson.phase==='retry') {
+        $('tutorial-reset').classList.remove('hidden');highlight='tutorial-reset';
+        copy='That rock was not intercepted. Keep your defenders at Verdant and prepare another attack. Your surviving reinforcements still count.';
+      }
     } else if (w.progress.launched) {
       if (burning) {
         stage=4; title='Let your rock fly'; target=burning.id; highlight=this.paused ? 'pause' : null;
@@ -233,7 +288,7 @@ class Game {
     } else {
       stage=0; title=booster ? 'Select your booster' : 'Prepare a booster'; copy=booster ? 'Welcome to the Rock Garden tutorial. Left-click the booster ship inside the magenta circle near Verdant. Left-click selects; right-click gives an order. Time starts paused.' : 'Select Verdant and deploy a booster, or select your spent booster and right-click Verdant to reload. You can also restart for a fresh tutorial.'; target=booster?.id; action='LEFT-CLICK';
     }
-    setText('tutorial-step', stage===7 ? 'TUTORIAL COMPLETE' : `TUTORIAL / ${stage+1} OF 7`);
+    setText('tutorial-step', stage===11 ? 'TUTORIAL COMPLETE' : `TUTORIAL / ${stage+1} OF 11`);
     setText('tutorial-title',title); setText('tutorial-copy',copy);
     if(highlight)$(highlight)?.classList.add('tutorial-focus');
     this.ui.tutorialId=target || null;
@@ -250,7 +305,7 @@ class Game {
   closeModal() { $('modal').classList.add('hidden'); this.canvas.focus(); this.updateUI(); }
   help() {
     this.showModal('FIELD GUIDE', 'Small orders. Wide orbits.',
-      '<ul><li><b>Left-click</b> to select. Click it again or empty space to clear selection. <b>Right-click</b> to plan an order; <b>Enter</b> confirms, <b>Esc</b> cancels.</li><li><b>Prepare a rock:</b> select it and choose Send booster, or select a booster ship and right-click the rock. Attachment takes 6 seconds after arrival.</li><li><b>Launch:</b> select an equipped rock and right-click a planet to calculate a shot toward its future position. Right-click empty space for manual aim; confirm for 35 metal (free with unlimited metal). Drag aiming also works. The booster fires for 4 seconds, then detaches automatically and awaits orders. Choose Return home to reload in 8 seconds at no extra cost. You can detach manually before launching.</li><li><b>Context orders:</b> a combat ship attacks enemies, escorts friendly mobile units, and defends friendly planets or platforms. A booster attaches to free rocks and returns to a friendly colony to reload. Hover for the action hint.</li><li><b>Right-click</b> a friendly planet or platform with a ship or drone to defend it. Drones protect their assigned local area.</li><li><b>Space</b> pauses. <b>1 / 2 / 3</b> select 1× / 5× / 20×. Scroll to zoom; drag empty space to pan; <b>F</b> fits the system.</li></ul><p>Booster ships cost 50 metal and are unarmed. Select your colony to deploy. Income is 0.4 metal / second; fleet limit 12. Launched rocks damage any planet, including your own. Defenses intercept your rocks when they threaten home. Ship weapons do not fire on friendly ships or colonies.</p><p><b>Rock collisions:</b> small, medium, and large rocks have masses 1, 2, and 4 and colony damage 35, 65, and 100. All fall equally under gravity. Glancing hits deflect; hard hits shatter both rocks and any attached boosters, leaving harmless debris. Collision tuning adjusts rebound and rock strength, pauses time, and redraws both paths. Violet paths show other rocks after contact. Restart keeps tuning.</p><p><b>Gravity:</b> adjust G, shared planet mass, or sun mass in the left-hand controls. Changes pause time and redraw paths. G and sun mass set planetary orbital speed; radii and current positions stay fixed. Planet mass changes its pull on units, not its own orbital speed. Free-flying units keep their velocities. Reset restores defaults; restarting retains tuning, while New game starts at defaults.</p><p class="note">Teal launch segments show powered flight; gold shows coasting. Ship paths end when attachment completes. Predictions cover 90 seconds. Weapons and future enemy decisions can change the outcome.</p>',
+      '<ul><li><b>Left-click</b> to select. Click it again or empty space to clear selection. <b>Right-click</b> to plan an order; <b>Enter</b> confirms, <b>Esc</b> cancels.</li><li><b>Prepare a rock:</b> untouched rocks follow stable belt orbits until launched or struck. Select it and choose Send booster, or select a booster ship and right-click the rock. Attachment takes 6 seconds after arrival.</li><li><b>Launch:</b> select an equipped rock and right-click a planet to calculate a shot toward its future position. Right-click empty space for manual aim; confirm for 35 metal (free with unlimited metal). Drag aiming also works. The booster fires for 4 seconds, then detaches automatically and awaits orders. Choose Return home to reload in 8 seconds at no extra cost. You can detach manually before launching.</li><li><b>Context orders:</b> a combat ship attacks enemies, escorts friendly mobile units, and defends friendly planets or platforms. A booster attaches to free rocks and returns to a friendly colony to reload. Hover for the action hint.</li><li><b>Right-click</b> a friendly planet or platform with a ship or drone to defend it. Drones protect their assigned local area.</li><li><b>Space</b> pauses. <b>1 / 2 / 3</b> select 1× / 5× / 20×. Scroll to zoom; drag empty space to pan; <b>F</b> fits the system.</li></ul><p>Booster ships cost 50 metal and are unarmed. Select your colony to deploy. Income is 0.4 metal / second; fleet limit 12. Launched rocks damage any planet, including your own. Defenses intercept your rocks when they threaten home. Ship weapons do not fire on friendly ships or colonies.</p><p><b>Rock collisions:</b> small, medium, and large rocks have masses 1, 2, and 4 and colony damage 35, 65, and 100. All fall equally under gravity. Glancing hits deflect; hard hits shatter both rocks and any attached boosters, leaving harmless debris. Collision tuning adjusts rebound and rock strength, pauses time, and redraws both paths. Violet paths show other rocks after contact. Restart keeps tuning.</p><p><b>Gravity:</b> adjust G, shared planet mass, or sun mass in the left-hand controls. Changes pause time and redraw paths. G and sun mass set planetary orbital speed; radii and current positions stay fixed. Planet mass changes its pull on units, not its own orbital speed. Free-flying units keep their velocities. Reset restores defaults; restarting retains tuning, while New game starts at defaults.</p><p class="note">Teal launch segments show powered flight; gold shows coasting. Ship paths end when attachment completes. Predictions cover 90 seconds. Weapons and future enemy decisions can change the outcome.</p>',
       'Back to the system', () => this.closeModal());
   }
   toast(message) { $('toast').textContent = message; $('toast').classList.add('visible'); this.toastUntil = performance.now() + 6000; }
@@ -295,7 +350,7 @@ class Game {
     if (host?.type !== 'planet') { this.toast('Select Verdant to deploy near its colony.'); return; }
     const result = spawn(this.world, type, 'player', host);
     if (result.error) this.toast(result.error);
-    else { this.toast(`${titleCase(type)} deployed at ${host.name}. Defending its local orbit.`); this.previewDirty = true; }
+    else { if(this.world.lesson?.phase==='fortify')this.world.lesson.builtIds.push(result.id); this.toast(`${titleCase(type)} deployed at ${host.name}. Defending its local orbit.`); this.previewDirty = true; }
     this.updateUI();
   }
   refreshPredictions() {
@@ -358,6 +413,7 @@ class Game {
     $('paused-label').classList.toggle('hidden', !this.paused || !!this.ui.pending || this.modalOpen());
     // Interactive elements live in index.html; refresh only text/state around them.
     $('garden-lesson').classList.toggle('hidden', w.scenario !== 'garden' || w.mode !== 'scenario');
+    $('practice').classList.toggle('hidden', !!w.lesson && w.lesson.phase!=='basics');
     $('income-hint').classList.toggle('hidden', w.scenario === 'garden' && w.mode === 'scenario');
     if (w.scenario === 'garden' && w.mode === 'scenario') {
       for (const [id, done, label] of [
@@ -390,6 +446,7 @@ class Game {
     }
     if(u?.type==='rock'){
       status=`${titleCase(u.size||'medium')} / mass ${u.mass||2} / impact ${u.damage}<br>`+status;
+      if(!u.launched && u.beltOrbit)status+=' <br>Stable orbit / launch or impact releases it.';
       const contact=this.ui.predictions.get(u.id)?.collisions?.[0];
       if(contact)status+=`<br>${contact.kind==='smash'?'Shatters':'Deflects'} in ${contact.time.toFixed(1)}s / both paths shown`;
     }
@@ -451,7 +508,7 @@ class Game {
   showOutcome() {
     this.outcomeShown = true; const win = this.world.outcome === 'victory';
     const training = this.world.scenario === 'garden';
-    const body = win ? training ? '<p>A launch of your own, an incoming rock turned to harmless dust. You have the essentials.</p><p>Keep experimenting, or try a colony under siege.</p>' : this.world.scenario === 'hold' ? '<p>Four minutes in the gravity well. Your colony is still here.</p><p>Your defenses held the orbit.</p>' : '<p>Cinder has fallen silent. Verdant has a future among these little worlds.</p>' : '<p>Your colony has lost its integrity. Try holding your defenses closer to home, or intercept the incoming rocks earlier.</p>';
+    const body = win ? training ? this.world.lesson ? '<p>You launched an asteroid, destroyed an enemy booster, and reinforced Verdant with a platform and two drones.</p><p>Your defenses stopped the final attack. Keep experimenting, or try another scenario.</p>' : '<p>A launch of your own, an incoming rock turned to harmless dust. You have the essentials.</p><p>Keep experimenting, or try a colony under siege.</p>' : this.world.scenario === 'hold' ? '<p>Four minutes in the gravity well. Your colony is still here.</p><p>Your defenses held the orbit.</p>' : '<p>Cinder has fallen silent. Verdant has a future among these little worlds.</p>' : '<p>Your colony has lost its integrity. Try holding your defenses closer to home, or intercept the incoming rocks earlier.</p>';
     this.showModal(win ? 'ENCOUNTER COMPLETE' : 'COLONY LOST', win ? training ? 'A little orbital intuition.' : 'The orbit is yours.' : 'Every orbit is another try.', body,
       'Restart game', () => this.load(this.world.scenario, this.world.setup), win ? 'Keep exploring' : 'Review system', () => {
         if (win) { this.world.continueSandbox = true; this.world.mode = 'sandbox'; this.world.outcome = null; this.world.setup = { mode: 'sandbox', system: this.world.planets.length === 3 ? 'three' : 'two', enemies: this.world.planets.some(p => p.team === 'enemy'), budget: 160, unlimited: false, gravity: { ...this.world.gravity }, collisions: { ...this.world.collisions } }; this.closeModal(); }
@@ -463,7 +520,9 @@ class Game {
     if (!this.paused && !this.modalOpen()) {
       this.accumulator += elapsed * this.speed;
       while (this.accumulator >= DT) {
-        step(this.world); this.accumulator -= DT; this.processEvents();
+        const lessonPhase=this.world.lesson?.phase;
+        step(this.world); advanceTutorial(this.world); this.accumulator -= DT; this.processEvents();
+        if(this.world.lesson?.phase!==lessonPhase) { this.paused=true; this.accumulator=0; this.updateUI(); }
         if (this.paused || (this.world.outcome && !this.world.continueSandbox)) { this.accumulator = 0; break; }
       }
     }

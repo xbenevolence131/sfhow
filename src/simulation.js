@@ -1,7 +1,7 @@
 // All distances and masses are game units. Both forecasts and live flight use DT.
 export const DT = 1 / 20;
 // The displayed G is a normalized multiplier; 1.0 uses this tuned baseline.
-export const GRAVITY_BASE = 4;
+export const GRAVITY_BASE = 3;
 export const GRAVITY_DEFAULTS = Object.freeze({ g: 1, planetMass: 2800, sunMass: 5400 });
 export const GRAVITY_LIMITS = Object.freeze({ g: 3, planetMass: 8400, sunMass: 16200 });
 export const COLLISION_DEFAULTS = Object.freeze({ bounce: .35, strength: 18 });
@@ -17,9 +17,9 @@ export function setCollisions(w, settings) {
 }
 export const STAR_RADIUS = 25;
 export const MAX_IMPULSE = 26;
-export const BELT_INNER = 820;
-export const BELT_WIDTH = 36;
-export const SYSTEM_DIAMETER = 1840;
+export const BELT_INNER = 1025;
+export const BELT_WIDTH = 45;
+export const SYSTEM_DIAMETER = 2300;
 export const CAP = 12;
 export const ATTACH_TIME = 6;
 export const REARM_TIME = 8;
@@ -42,6 +42,16 @@ export function planetAt(p, time) {
   return { x: Math.cos(a) * p.orbit, y: Math.sin(a) * p.orbit, vx: -Math.sin(a) * p.orbit * p.omega, vy: Math.cos(a) * p.orbit * p.omega };
 }
 export function entity(world, id) { return world.planets.find(p => p.id === id) || world.units.find(u => u.id === id && u.hp > 0) || (id && world.practiceDock?.id === id ? world.practiceDock : null); }
+export function isBeltRock(u) { return u.type === 'rock' && !u.launched && u.beltOrbit > 0; }
+function beltSpeed(x, y, radius, planets, settings) {
+  const g = gravity(x, y, planets, settings);
+  return Math.sqrt(Math.max(GRAVITY_BASE * settings.g * settings.sunMass / radius, -(g.x*x + g.y*y)));
+}
+function beltPosition(u, time) {
+  const a=u.beltPhase+time*u.beltOmega;
+  return {x:Math.cos(a)*u.beltOrbit,y:Math.sin(a)*u.beltOrbit,
+    vx:-Math.sin(a)*u.beltOrbit*u.beltOmega,vy:Math.cos(a)*u.beltOrbit*u.beltOmega};
+}
 export function normalizeGravity(settings = {}) {
   return Object.fromEntries(Object.entries(GRAVITY_DEFAULTS).map(([key, fallback]) =>
     [key, Number.isFinite(settings[key]) ? clamp(settings[key], 0, GRAVITY_LIMITS[key]) : fallback]));
@@ -59,6 +69,15 @@ export function setGravity(w, settings) {
     for (const u of w.units) if (u.type === 'platform' && u.hostId === p.id) {
       u.vx += p.vx - oldVx; u.vy += p.vy - oldVy;
     }
+  }
+  for(const rock of w.units.filter(isBeltRock)) {
+    const angle=Math.atan2(rock.y,rock.x);
+    rock.beltOmega=beltSpeed(rock.x,rock.y,rock.beltOrbit,w.planets,w.gravity)/rock.beltOrbit;
+    rock.beltPhase=angle-w.time*rock.beltOmega;
+    rock.vx=-Math.sin(angle)*rock.beltOrbit*rock.beltOmega;
+    rock.vy=Math.cos(angle)*rock.beltOrbit*rock.beltOmega;
+    const booster=entity(w,rock.boosterId);
+    if(booster?.attachedRockId===rock.id){booster.vx=rock.vx;booster.vy=rock.vy;}
   }
   w.setup.gravity = { ...w.gravity };
   w.threatScanAt = 0; w.rockThreats = {}; w.threatWarnings = {};
@@ -102,12 +121,12 @@ export function addRock(w, angle, orbit = BELT_INNER + BELT_WIDTH / 2, name, siz
   // Account for the planets' stronger radial pull when seeding belt velocities.
   const radial = { x: Math.cos(angle), y: Math.sin(angle) };
   const settings = w.gravity || GRAVITY_DEFAULTS;
-  const g = gravity(radial.x * orbit, radial.y * orbit, w.planets, settings);
-  const speed = Math.sqrt(Math.max(GRAVITY_BASE * settings.g * settings.sunMass / orbit, -(g.x * radial.x + g.y * radial.y) * orbit));
+  const speed = beltSpeed(radial.x*orbit,radial.y*orbit,orbit,w.planets,settings);
   const serial = ++w.serial;
   const rock = { id: `r${serial}`, name: name || `ROCK ${String(serial).padStart(2, '0')}`, type: 'rock', team: 'neutral',
     ...TYPES.rock, ...ROCK_SIZES[size], size, maxHp: TYPES.rock.hp, x: Math.cos(angle) * orbit, y: Math.sin(angle) * orbit,
-    vx: -Math.sin(angle) * speed, vy: Math.cos(angle) * speed, launched: false, order: { kind: 'ballistic' } };
+    vx: -Math.sin(angle) * speed, vy: Math.cos(angle) * speed, launched: false,
+    beltOrbit:orbit,beltOmega:speed/orbit,beltPhase:angle-w.time*speed/orbit,order: { kind: 'ballistic' } };
   w.units.push(rock); return rock;
 }
 export function setOrder(w, id, order, team = 'player') {
@@ -133,6 +152,7 @@ export function setOrder(w, id, order, team = 'player') {
   if (order.kind === 'stop') order = { kind: 'stop', x: u.x, y: u.y };
   if (u.type === 'drone' && order.kind !== 'defend' && order.kind !== 'stop') return false;
   u.order = { ...order };
+  if (w.lesson?.phase === 'combat' && u.type === 'ship' && team === 'player' && order.kind === 'attack' && target?.id === w.lesson.targetId) w.lesson.attackerId = u.id;
   u.attachProgress = 0; u.rearmProgress = 0;
   if (order.kind === 'defend' && target?.type === 'planet') u.hostId = order.targetId;
   if (u.type === 'drone' && order.kind === 'defend' && order.targetId) u.hostId = order.targetId;
@@ -286,7 +306,7 @@ export function advanceMotion(w, dt = DT, forecast = false) {
   // Evaluate all accelerations from the same instant, independent of array order.
   const accelerations = new Map();
   for (const u of w.units) {
-    if (u.hp <= 0 || u.type === 'platform' || u.attachedRockId) continue;
+    if (u.hp <= 0 || u.type === 'platform' || u.attachedRockId || isBeltRock(u)) continue;
     if (u.order?.kind === 'attack' && u.order.targetId) {
       const target = entity(w, u.order.targetId);
       if (!target || target.hp <= 0) u.order = { kind: 'stop', x: u.x, y: u.y };
@@ -307,7 +327,9 @@ export function advanceMotion(w, dt = DT, forecast = false) {
   for (const p of w.planets) Object.assign(p, planetAt(p, w.time));
   for (const u of w.units) {
     if (u.hp <= 0 || u.attachedRockId) continue;
-    if (u.type === 'platform') {
+    if (isBeltRock(u)) {
+      Object.assign(u,beltPosition(u,w.time));
+    } else if (u.type === 'platform') {
       const host = entity(w, u.hostId);
       if (host) {
         const a = u.phase + w.time * u.omega;
@@ -348,7 +370,17 @@ function contactTime(a, b, radius, limit) {
 function resolveRockContacts(w, previous, oldPlanets, dt, forecast) {
   w.rockContacts=[];
   const rocks=w.units.filter(u=>u.type==='rock'&&u.hp>0).sort((a,b)=>a.id.localeCompare(b.id));
-  for(const r of rocks) Object.assign(r,previous.get(r.id));
+  const railEnds=new Map();
+  for(const r of rocks) {
+    const old=previous.get(r.id);
+    if(isBeltRock(r)) {
+      railEnds.set(r.id,{x:r.x,y:r.y,vx:r.vx,vy:r.vy});
+      // Sweep the tiny orbital arc by its chord. A struck rock keeps the
+      // resulting physical velocity; untouched rocks end on their exact rail.
+      r.vx=(r.x-old.x)/dt;r.vy=(r.y-old.y)/dt;
+    }
+    Object.assign(r,old);
+  }
   const bodies=[{id:'star',name:'SOL',radius:STAR_RADIUS,x:0,y:0,vx:0,vy:0},
     ...w.planets.map((p,i)=>({id:p.id,name:p.name,radius:p.radius,x:oldPlanets[i].x,y:oldPlanets[i].y,vx:(p.x-oldPlanets[i].x)/dt,vy:(p.y-oldPlanets[i].y)/dt,planet:p}))];
   const settings=w.collisions||COLLISION_DEFAULTS;
@@ -361,12 +393,13 @@ function resolveRockContacts(w, previous, oldPlanets, dt, forecast) {
     for(let i=0;i<rocks.length;i++) {
       const a=rocks[i];if(a.hp<=0)continue;
       for(const body of bodies) {
-        if(body.planet&&!a.launched)continue;
+        if(isBeltRock(a))continue;
         const t=contactTime(a,{...body,x:body.x+body.vx*elapsed,y:body.y+body.vy*elapsed},a.radius+body.radius,remain);
         if(t<earliest){earliest=t;hit={a,body};}
       }
       for(let j=i+1;j<rocks.length;j++) {
         const b=rocks[j];if(b.hp<=0)continue;
+        if(isBeltRock(a)&&isBeltRock(b))continue;
         const t=contactTime(a,b,a.radius+b.radius,remain);
         if(t<earliest){earliest=t;hit={a,b};}
       }
@@ -416,7 +449,10 @@ function resolveRockContacts(w, previous, oldPlanets, dt, forecast) {
       announce(w,smashed?'Rocks shattered':'Rock deflection',`${a.name} / ${b.name}${smashed?' / harmless debris':''}`);
     }
   }
-  for(const r of rocks)if(Math.hypot(r.x,r.y)>2800)r.hp=0;
+  for(const r of rocks) {
+    if(r.hp>0 && isBeltRock(r) && railEnds.has(r.id))Object.assign(r,railEnds.get(r.id));
+    if(Math.hypot(r.x,r.y)>2800)r.hp=0;
+  }
 }
 function updateBoosters(w, dt, forecast) {
   for (const u of w.units) {
@@ -487,11 +523,13 @@ function combat(w, dt) {
     const target = options[0];
     if (!target) continue;
     target.hp = Math.max(0, target.hp - u.damage);
+    if (w.lesson?.phase === 'combat' && w.lesson.attackerId === u.id && w.lesson.targetId === target.id && u.order.kind === 'attack') w.lesson.attackHit = true;
     u.fireTimer = u.cooldown;
     w.effects.push({ type: 'shot', x: u.x, y: u.y, tx: target.x, ty: target.y, team: u.team, color: u.color, born: w.time, life: .45 });
     if (target.hp <= 0) {
       burst(w, target.x, target.y, target.team);
       if (target.type === 'rock') {
+        if (w.lesson?.phase === 'defense' && target.id === w.lesson.rockId && u.team === 'player') w.lesson.finalIntercepted = true;
         if (u.team === 'player' && target.team !== 'player') w.progress.intercepted = true;
         announce(w, 'Asteroid intercepted', 'The debris is harmless.');
       }
@@ -552,7 +590,7 @@ export function enemyLaunch(w, practice = false) {
   const home = w.planets.find(p => p.team === 'player');
   if (!home || home.hp <= 0 || (!practice && w.metal.enemy < COST.rock)) return false;
   const future = planetAt(home, w.time + 60);
-  const candidates = w.units.filter(u => u.type === 'rock' && !u.launched && u.hp > 0 && u.boosterTeam === 'enemy' && (!practice || u.practice)).sort((a, b) => distance(a, future) - distance(b, future));
+  const candidates = w.units.filter(u => u.type === 'rock' && !u.tutorialStaged && !u.launched && u.hp > 0 && u.boosterTeam === 'enemy' && (!practice || u.practice)).sort((a, b) => distance(a, future) - distance(b, future));
   for (const r of candidates.slice(0, 4)) {
     const impulse = aimRock(w, r, home, 60);
     if (Math.hypot(impulse.x, impulse.y) > MAX_IMPULSE) continue;
@@ -637,7 +675,7 @@ export function step(w, dt = DT) {
   if (home.hp <= 0) w.outcome = 'defeat';
   else if (w.scenario === 'neighbors' && w.planets.find(p => p.team === 'enemy').hp <= 0) w.outcome = 'victory';
   else if (w.scenario === 'hold' && w.time >= w.duration) w.outcome = 'victory';
-  else if (w.scenario === 'garden' && w.progress.launched && w.progress.intercepted && !w.continueSandbox) w.outcome = 'victory';
+  else if (w.scenario === 'garden' && w.progress.launched && w.progress.intercepted && !w.continueSandbox && (!w.lesson || w.lesson.phase === 'complete')) w.outcome = 'victory';
 }
 export function predict(world, ids, pending = null, horizon = 90) {
   const w = structuredClone(world);

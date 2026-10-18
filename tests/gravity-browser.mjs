@@ -20,12 +20,14 @@ try {
     assert.equal(await page.locator('#'+id+'-value').innerText(),id==='gravity-g'?'2.00':value);
   }
   const changed=await page.evaluate(()=>({time:orbital.world.time,planets:orbital.world.planets,units:orbital.world.units,path:orbital.ui.predictions.get(orbital.ui.selectedId).points}));
-  assert.equal(changed.time,state.time);assert.deepEqual(changed.units.filter(u=>u.type!=='platform'),state.units.filter(u=>u.type!=='platform'));assert.notDeepEqual(changed.path,state.path);
+  const free=u=>u.type!=='platform' && (u.type!=='rock' || u.launched);
+  assert.equal(changed.time,state.time);assert.deepEqual(changed.units.filter(free),state.units.filter(free));assert.notDeepEqual(changed.path,state.path);
+  for(const rock of changed.units.filter(u=>u.type==='rock')) { const old=state.units.find(u=>u.id===rock.id); assert.equal(rock.x,old.x);assert.equal(rock.y,old.y); }
   for(let i=0;i<changed.planets.length;i++){
     const p=changed.planets[i],before=state.planets[i];
     assert.equal(p.x,before.x);assert.equal(p.y,before.y);
     assert.ok(Math.hypot(p.vx,p.vy)>Math.hypot(before.vx,before.vy));
-    assert.ok(Math.abs(Math.hypot(p.vx,p.vy)-Math.sqrt(4*2*8200/p.orbit))<1e-10);
+    assert.ok(Math.abs(Math.hypot(p.vx,p.vy)-Math.sqrt(3*2*8200/p.orbit))<1e-10);
   }
   assert.ok(await page.evaluate(()=>gravityNodes.every(n=>n.isConnected)));
   // A held drag must survive repeated UI updates and keep keyboard focus.
@@ -41,7 +43,7 @@ try {
   assert.deepEqual(await page.evaluate(()=>orbital.world.gravity),{g:1,planetMass:2800,sunMass:5400});
   await page.evaluate(()=>{
     const w=orbital.world,r=w.units.find(u=>u.type==='rock'),b=w.units.find(u=>u.type==='booster'),p=w.planets[0];
-    w.units=[r,b];Object.assign(r,{x:p.x-500,y:p.y+200,vx:0,vy:0,team:'player',boosterTeam:'player',boosterId:b.id});
+    w.units=[r,b];Object.assign(r,{x:p.x-500,y:p.y+200,vx:0,vy:0,beltOrbit:null,team:'player',boosterTeam:'player',boosterId:b.id});
     Object.assign(b,{x:r.x+16,y:r.y,attachedRockId:r.id,attachOffset:{x:16,y:0},order:{kind:'attached',targetId:r.id}});orbital.select(r.id);
   });
   const home=await page.evaluate(()=>orbital.renderer.screen(orbital.world.planets[0]));
