@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, createScenario } from '../src/scenarios.js';
-import { DT, GRAVITY_DEFAULTS, GRAVITY_LIMITS, gravity, setGravity, normalizeGravity, predict, advanceMotion, planRockTarget, distance } from '../src/simulation.js';
+import { DT, GRAVITY_BASE, GRAVITY_DEFAULTS, GRAVITY_LIMITS, gravity, setGravity, normalizeGravity, predict, advanceMotion, planRockTarget, distance } from '../src/simulation.js';
 
 test('G scales both attractors; masses scale their own pull with equal planetary masses', () => {
   const planets=[{x:400,y:200,radius:13},{x:-200,y:300,radius:21}];
@@ -9,8 +9,8 @@ test('G scales both attractors; masses scale their own pull with equal planetary
   const twice=gravity(600,100,planets,{...GRAVITY_DEFAULTS,g:2});
   assert.ok(Math.abs(twice.x-base.x*2)<1e-12);assert.ok(Math.abs(twice.y-base.y*2)<1e-12);
   const sun=gravity(100,0,[],{g:2,sunMass:5000,planetMass:0});
-  assert.equal(sun.x,-1);assert.equal(Math.abs(sun.y),0);
-  assert.equal(gravity(200,0,[],{g:2,sunMass:5000,planetMass:0}).x,-.25);
+  assert.equal(sun.x,-2);assert.equal(Math.abs(sun.y),0);
+  assert.equal(gravity(200,0,[],{g:2,sunMass:5000,planetMass:0}).x,-.5);
   const a=gravity(100,0,[{x:0,y:0,radius:13}],{g:1,sunMass:0,planetMass:2800});
   const b=gravity(100,0,[{x:0,y:0,radius:21}],{g:1,sunMass:0,planetMass:2800});
   assert.deepEqual(a,b,'different visible radii must not imply different planet masses');
@@ -47,7 +47,7 @@ test('planet speeds balance centripetal acceleration, scale with G and sun mass,
   const w=createScenario('neighbors');
   const speeds=()=>w.planets.map(p=>Math.hypot(p.vx,p.vy));
   const base=speeds();
-  for(const p of w.planets)assert.ok(Math.abs((p.vx*p.vx+p.vy*p.vy)/p.orbit-w.gravity.g*w.gravity.sunMass/p.orbit**2)<1e-12);
+  for(const p of w.planets)assert.ok(Math.abs((p.vx*p.vx+p.vy*p.vy)/p.orbit-GRAVITY_BASE*w.gravity.g*w.gravity.sunMass/p.orbit**2)<1e-12);
   setGravity(w,{g:2});speeds().forEach((v,i)=>assert.ok(Math.abs(v/base[i]-Math.sqrt(2))<1e-12));
   setGravity(w,{sunMass:10800});speeds().forEach((v,i)=>assert.ok(Math.abs(v/base[i]-2)<1e-12));
   const planets=structuredClone(w.planets);setGravity(w,{planetMass:0});assert.deepEqual(w.planets,planets);
@@ -105,4 +105,15 @@ test('slider extrema stay finite and fixed-step grouping remains deterministic',
       assert.equal(a.units[i].x,b.units[i].x);assert.equal(a.units[i].y,b.units[i].y);
     }
   }
+});
+
+
+test('normalized G=1 doubles the old baseline pull and G=0.5 restores it', () => {
+  assert.equal(GRAVITY_DEFAULTS.g,1);
+  assert.equal(GRAVITY_BASE,2);
+  const p={x:400,y:0,radius:18};
+  assert.equal(gravity(100,0,[],GRAVITY_DEFAULTS).x,-1.08);
+  assert.equal(gravity(100,0,[],{...GRAVITY_DEFAULTS,g:.5}).x,-.54);
+  assert.equal(gravity(300,0,[p],{...GRAVITY_DEFAULTS,sunMass:0}).x,.56);
+  assert.equal(gravity(300,0,[p],{...GRAVITY_DEFAULTS,sunMass:0,g:.5}).x,.28);
 });

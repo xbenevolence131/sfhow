@@ -1,5 +1,13 @@
 # ORBITAL playtest notes
 
+## October 18: double the normalized gravity baseline
+
+Final browser gameplay regression also passed, including the existing practice retry control. With changed orbital timing, the first practice booster can fly through defenders and be destroyed before launching; the browser test now retries through the real UI before checking rock interception and victory. No tutorial or AI gameplay rules were changed for that case.
+
+User requested a first experiment with twice the gravitational strength while the default G slider still reads 1.0. Added GRAVITY_BASE=2 to star/planet acceleration, derived planetary orbital rates, and initial belt velocity calculation. Mass slider values/ranges stay unchanged. G=0.5 gives the previous pull; G=0 remains zero. Planets move sqrt(2) faster at the default, consistent with centripetal balance. Preview and AI use the same force rules.
+
+All 49 simulation tests and dedicated gravity/playground browser checks passed. Two old fixtures required updated assumptions: a slow outward rock now falls back toward home (correctly marked a threat), and the real enemy booster expedition launches at 104.5 seconds, just after the old test cutoff. Updated the safe outgoing speed and extended the launch observation window without changing those gameplay rules. User also asked about portable sharing; explained the existing self-contained dist/index.html can be zipped and opened offline, with no install/server. No archive requested or created yet.
+
 ## October 18: gravity-derived planetary orbital speed
 
 After discussion and misleading voice progress reports, the user explicitly requested implementation. Planet speed now obeys `v = sqrt(G * sunMass / radius)` with fixed orbital radius. G and sun mass immediately affect orbital velocity; planet mass does not, since the sun remains anchored. Runtime updates preserve exact current positions by re-anchoring each planet's phase. Zero G or sun mass freezes the planets; restoring it resumes from that position. Free-flight velocities are preserved. Platforms inherit their host's changed velocity while retaining their prescribed local orbit rate. Initial scenarios and restarts also derive speed from their gravity settings; previews, future-position ghosts, and numerical aiming use the same orbital parameters. Baseline planets orbit faster than under the old independently tuned angular rate.

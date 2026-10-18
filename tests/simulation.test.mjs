@@ -135,7 +135,7 @@ test('both factions intercept their own incoming rocks but preserve safe outgoin
     w.ai = { buildAt: Infinity, attackAt: Infinity, rockAt: Infinity, launchAt: Infinity };
     w.units = w.units.filter(u => u.team === team || u.type === 'rock');
     const rock = w.units.find(u => u.type === 'rock'), platform = w.units.find(u => u.type === 'platform');
-    Object.assign(rock, { x: home.x + 110, y: home.y, vx: home.vx + (mode === 'outgoing' ? 6 : -6), vy: home.vy, team, launched: mode !== 'unlaunched', hp: 12 });
+    Object.assign(rock, { x: home.x + 110, y: home.y, vx: home.vx + (mode === 'outgoing' ? 12 : -6), vy: home.vy, team, launched: mode !== 'unlaunched', hp: 12 });
     platform.phase = -w.time * platform.omega; platform.fireTimer = 0;
     scanRockThreats(w);
     assert.equal(!!w.rockThreats[rock.id], mode === 'incoming', `${team} / ${mode}`);
@@ -304,7 +304,8 @@ test('enemy launches require a real booster expedition and paid launch', () => {
   advance(w, 13);
   assert.ok(w.units.some(u => u.type === 'booster' && u.order.kind === 'fit'));
   assert.equal(w.units.some(u => u.type === 'rock' && u.launched), false);
-  advance(w, 90);
+  // Stronger gravity changes rendezvous and launch windows; allow two minutes.
+  advance(w, 110);
   assert.ok(w.events.some(e => e.text === 'Enemy asteroid armed'));
   assert.ok(w.events.some(e => e.text === 'Incoming asteroid'));
   assert.ok(w.metal.enemy < 180 + w.time * .4 - 34);

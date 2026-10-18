@@ -1,5 +1,7 @@
 // All distances and masses are game units. Both forecasts and live flight use DT.
 export const DT = 1 / 20;
+// The displayed G is a normalized multiplier; 1.0 uses this tuned baseline.
+export const GRAVITY_BASE = 2;
 export const GRAVITY_DEFAULTS = Object.freeze({ g: 1, planetMass: 2800, sunMass: 5400 });
 export const GRAVITY_LIMITS = Object.freeze({ g: 3, planetMass: 8400, sunMass: 16200 });
 export const STAR_RADIUS = 25;
@@ -22,7 +24,7 @@ export const TYPES = {
 export const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 export const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 export function orbitalRate(radius, settings = GRAVITY_DEFAULTS) {
-  return Math.sqrt(settings.g * settings.sunMass / radius ** 3);
+  return Math.sqrt(GRAVITY_BASE * settings.g * settings.sunMass / radius ** 3);
 }
 export function planetAt(p, time) {
   const a = p.phase + time * p.omega;
@@ -52,7 +54,7 @@ export function setGravity(w, settings) {
 }
 export function gravity(x, y, planets, settings = GRAVITY_DEFAULTS) {
   const d = Math.max(38, Math.hypot(x, y));
-  const starMu = settings.g * settings.sunMass, planetMu = settings.g * settings.planetMass;
+  const starMu = GRAVITY_BASE * settings.g * settings.sunMass, planetMu = GRAVITY_BASE * settings.g * settings.planetMass;
   let ax = -starMu * x / d ** 3, ay = -starMu * y / d ** 3;
   for (const p of planets) {
     const dx = p.x - x, dy = p.y - y, r = Math.max(p.radius + 12, Math.hypot(dx, dy));
@@ -90,7 +92,7 @@ export function addRock(w, angle, orbit = BELT_INNER + BELT_WIDTH / 2, name) {
   const radial = { x: Math.cos(angle), y: Math.sin(angle) };
   const settings = w.gravity || GRAVITY_DEFAULTS;
   const g = gravity(radial.x * orbit, radial.y * orbit, w.planets, settings);
-  const speed = Math.sqrt(Math.max(settings.g * settings.sunMass / orbit, -(g.x * radial.x + g.y * radial.y) * orbit));
+  const speed = Math.sqrt(Math.max(GRAVITY_BASE * settings.g * settings.sunMass / orbit, -(g.x * radial.x + g.y * radial.y) * orbit));
   const serial = ++w.serial;
   const rock = { id: `r${serial}`, name: name || `ROCK ${String(serial).padStart(2, '0')}`, type: 'rock', team: 'neutral',
     ...TYPES.rock, maxHp: TYPES.rock.hp, x: Math.cos(angle) * orbit, y: Math.sin(angle) * orbit,

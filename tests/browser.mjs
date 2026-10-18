@@ -97,6 +97,17 @@ try {
   await page.locator('#practice').click({ delay: 350 });
   assert.equal(await page.evaluate(() => orbital.world.units.filter(u => u.practice).length), 1);
   await page.locator('[data-speed="20"]').click();
+  // Orbital timing can route the unarmed practice booster through defenders.
+  // Exercise the actual retry button if they intercept it before launch.
+  for (let attempt=0;attempt<3;attempt++) {
+    await page.waitForFunction(() => orbital.world.outcome === 'victory' ||
+      !orbital.world.units.some(u=>u.practice&&u.hp>0), null, { timeout: 20000 });
+    if (await page.evaluate(()=>orbital.world.outcome==='victory')) break;
+    assert.ok(await page.evaluate(()=>orbital.world.units.some(u=>u.practice&&u.type==='booster'&&u.hp<=0)));
+    await page.locator('#pause').click();
+    await page.locator('#practice').click();
+    await page.locator('[data-speed="20"]').click();
+  }
   await page.waitForFunction(() => orbital.world.outcome === 'victory', null, { timeout: 20000 });
   await page.getByRole('button', { name: 'Keep exploring' }).click();
   assert.ok(await page.evaluate(() => orbital.world.progress.intercepted));

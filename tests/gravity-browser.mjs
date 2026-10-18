@@ -25,7 +25,7 @@ try {
     const p=changed.planets[i],before=state.planets[i];
     assert.equal(p.x,before.x);assert.equal(p.y,before.y);
     assert.ok(Math.hypot(p.vx,p.vy)>Math.hypot(before.vx,before.vy));
-    assert.ok(Math.abs(Math.hypot(p.vx,p.vy)-Math.sqrt(2*8200/p.orbit))<1e-10);
+    assert.ok(Math.abs(Math.hypot(p.vx,p.vy)-Math.sqrt(2*2*8200/p.orbit))<1e-10);
   }
   assert.ok(await page.evaluate(()=>gravityNodes.every(n=>n.isConnected)));
   // A held drag must survive repeated UI updates and keep keyboard focus.
