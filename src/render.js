@@ -160,6 +160,14 @@ export class Renderer {
         for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; this.circle(s.x + Math.cos(a) * age * 32 * z, s.y + Math.sin(a) * age * 32 * z, 1.5, null, color); }
       } c.restore();
     }
+    const tutorialTarget = entity(w, ui.tutorialId);
+    if (tutorialTarget) {
+      const s = this.screen(tutorialTarget), radius = Math.max(21, tutorialTarget.radius * z + 18);
+      c.save(); c.lineWidth=2;
+      this.circle(s.x, s.y, radius, '#ff72ed');
+      c.restore();
+      this.text(ui.tutorialAction || 'TUTORIAL', s.x + radius + 7, s.y + 16, '#ff72ed', 9);
+    }
     for (const id of [ui.hoverId, ui.selectedId]) {
       const u = entity(w, id); if (!u) continue; const s = this.screen(u), r = Math.max(13, u.radius * z + 11);
       this.circle(s.x, s.y, r, id === ui.selectedId ? (u.team === 'neutral' ? '#d9d2b9' : objectColor(u)) : '#768b9b66', null, id === ui.selectedId ? [6, 4] : []);

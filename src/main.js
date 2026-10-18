@@ -22,6 +22,7 @@ class Game {
   }
   modalOpen() { return !$('modal').classList.contains('hidden') || !$('new-game-modal').classList.contains('hidden'); }
   bindUI() {
+    $('tutorial-skip').onclick = () => { this.tutorial = null; this.updateUI(); };
     $('pause').onclick = () => this.togglePause();
     document.querySelectorAll('[data-speed]').forEach(button => button.onclick = () => this.setSpeed(Number(button.dataset.speed)));
     $('scenario').onchange = e => this.load(e.target.value);
@@ -155,6 +156,7 @@ class Game {
     setText('start-game', mode === 'scenario' ? 'Start scenario' : mode === 'skirmish' ? 'Start skirmish' : 'Enter sandbox');
   }
   load(key, options = { mode: 'scenario', scenario: key }, welcome = false) {
+    this.tutorial = this.tutorial && key === 'garden' && options.mode === 'scenario' ? { stage: '' } : null;
     $('new-game-modal').classList.add('hidden');
     this.world = createGame(options); key = this.world.scenario; this.paused = true; this.speed = 1; this.accumulator = 0; this.gravityAdjusted = false;
     this.seenEvent = 0; this.outcomeShown = false; this.ui.selectedId = key === 'playground' ? this.world.units.find(u => u.type === 'rock').id : this.world.planets[0].id;
@@ -171,7 +173,72 @@ class Game {
   showWelcome() {
     this.showModal('A LITTLE PLANETARY WARFARE', 'Welcome to ORBITAL',
       '<p>Prepare asteroids, bend trajectories around moving worlds, and protect your colony. Make a small decision, preview its path, and watch the consequences unfold.</p><ul class="welcome-directions"><li><b>Scenario</b><br>Use the dropdown at the upper left to choose a ready-made challenge or playground.</li><li><b>New game</b><br>Explore Scenarios, Skirmish, and Sandbox with different starting options.</li></ul><p class="note">Rock Garden is ready behind this welcome. Take your time: the system starts paused.</p>',
-      "Let's explore",()=>{this.closeModal();$('scenario').focus();});
+      'Start tutorial',()=>{ this.tutorial = { stage: '' }; this.ui.selectedId = null; this.closeModal(); },
+      'Explore freely',()=>{this.closeModal();$('scenario').focus();});
+  }
+  updateTutorial() {
+    const w = this.world, active = !!this.tutorial && w.scenario === 'garden' && w.mode === 'scenario';
+    $('tutorial').classList.toggle('hidden', !active);
+    document.querySelectorAll('.tutorial-focus').forEach(el => el.classList.remove('tutorial-focus'));
+    this.ui.tutorialId = null;
+    this.ui.tutorialAction = '';
+    if (!active) return;
+    const selected = entity(w, this.ui.selectedId), pending = this.ui.pending;
+    const booster = w.units.find(u => u.type === 'booster' && u.team === 'player' && u.hp > 0 && u.loaded);
+    const attached = w.units.find(u => u.type === 'rock' && u.hp > 0 && u.boosterTeam === 'player' && !u.launched);
+    const fitting = w.units.find(u => u.type === 'booster' && u.team === 'player' && u.hp > 0 && u.order?.kind === 'fit');
+    const practice = w.units.some(u => u.hp > 0 && u.practice && (u.type === 'rock' || u.order?.kind === 'fit'));
+    const burning = w.units.find(u => u.hp > 0 && u.type === 'rock' && u.team === 'player' && u.burn?.remaining > 0);
+    let stage, title, copy, highlight, target, action='WATCH';
+    if (w.progress.launched && w.progress.intercepted) {
+      stage=7; title='You know the essentials'; copy='You prepared a rock, launched it, and intercepted an attack. Keep experimenting, or choose another scenario using the menu above.'; highlight='scenario';
+    } else if (w.progress.launched) {
+      if (burning) {
+        stage=4; title='Let your rock fly'; target=burning.id; highlight=this.paused ? 'pause' : null;
+        copy=this.paused ? 'Launch confirmed. Press Space or Play to fire the booster. Watch the four-second burn and automatic separation before trying an incoming attack.' : 'Your booster is accelerating the rock. After four seconds it detaches, leaving the rock to coast under gravity.';
+      } else if (practice) {
+        stage=6; title='Watch your defenses'; copy='The practice booster must attach before it launches. Your platform and drones fire automatically. If it is stopped before launching, send another practice rock.'; highlight=this.paused ? 'pause' : 'ranges';
+        target=w.units.find(u=>u.hp>0 && u.practice && u.type==='rock')?.id || w.units.find(u=>u.hp>0 && u.practice && u.order?.kind==='fit')?.id;
+        if(this.paused) copy+=' Press Space to let time flow. Threat pause may pause fast-forward again.';
+      } else {
+        stage=5; title='Try an incoming attack'; copy='Click Send practice rock below. An enemy booster will prepare a real incoming shot. Your defenders are already guarding Verdant.'; highlight='practice';
+      }
+    } else if (attached) {
+      if (pending?.impulse) {
+        stage=4; title='Review and launch'; copy='The dotted route predicts your shot. Drag to revise it, or cancel and aim again. Confirm when ready, then unpause for the four-second burn. Your own planet can be hit too.'; highlight='confirm';
+        if(pending.aim && !pending.aim.verified) { copy='This shot has no verified impact. Right-click empty space to aim manually, choose another target, or cancel and wait for a better alignment.'; highlight='cancel'; }
+      } else {
+        stage=3;
+        if(selected?.id===attached.id) {
+          title='Target Ochre'; target='ochre'; action='RIGHT-CLICK';
+          copy='Right-click the magenta-ringed planet, Ochre. The preview calculates an intercept with its future position. Nothing launches until you confirm. Empty space is also available for manual aiming.';
+        } else {
+          title='Select your equipped rock'; target=attached.id; action='LEFT-CLICK';
+          copy='Your booster is attached. Left-click the rock inside the magenta circle. Next, you will choose a planet to aim at.';
+        }
+      }
+    } else if (fitting) {
+      stage=2; title='Rendezvous and attach'; copy='Your booster follows the moving rock and attaches automatically after a six-second countdown. Journeys take time; try 5× to watch it sooner.'; target=fitting.id; highlight=this.paused ? 'pause' : null;
+      if(this.paused)copy='Press Space or Play to fly your confirmed route. '+copy;
+    } else if (pending?.order?.kind === 'fit' || selected?.type === 'booster' && selected.team === 'player' && selected.loaded) {
+      stage=1; title='Send it to a rock'; copy=pending?.order?.kind==='fit' ? 'The dotted path shows the rendezvous. Click Confirm or press Enter to accept it. Escape cancels; orders work while paused.' : 'Right-click the rock inside the magenta circle to preview an attachment order. The booster will meet it as it moves. You can choose another rock instead.'; highlight=pending?.order?.kind==='fit' ? 'confirm' : null;
+      if(!pending) {
+        let rock=entity(w,this.tutorial.rockId);
+        if(!rock || rock.launched || rock.boosterTeam) {
+          rock=w.units.filter(u=>u.hp>0 && u.type==='rock' && !u.launched && !u.boosterTeam).sort((a,b)=>distance(a,selected)-distance(b,selected))[0];
+          this.tutorial.rockId=rock?.id;
+        }
+        target=rock?.id; action='RIGHT-CLICK';
+      }
+    } else {
+      stage=0; title=booster ? 'Select your booster' : 'Prepare a booster'; copy=booster ? 'Welcome to the Rock Garden tutorial. Left-click the booster ship inside the magenta circle near Verdant. Left-click selects; right-click gives an order. Time starts paused.' : 'Select Verdant and deploy a booster, or select your spent booster and right-click Verdant to reload. You can also restart for a fresh tutorial.'; target=booster?.id; action='LEFT-CLICK';
+    }
+    setText('tutorial-step', stage===7 ? 'TUTORIAL COMPLETE' : `TUTORIAL / ${stage+1} OF 7`);
+    setText('tutorial-title',title); setText('tutorial-copy',copy);
+    if(highlight)$(highlight)?.classList.add('tutorial-focus');
+    this.ui.tutorialId=target || null;
+    this.ui.tutorialAction=action;
+    if(this.tutorial.stage!==stage) { this.tutorial.stage=stage; document.querySelector('.mission').scrollTop=0; }
   }
   showModal(kicker, title, body, action, onAction, secondary, onSecondary) {
     this.paused = true; this.accumulator = 0;
@@ -379,6 +446,7 @@ class Game {
     $('alerts').innerHTML = alerts.slice(0, 4).join('');
     $('hint').innerHTML = this.ui.pending ? 'Enter to commit · Esc to cancel<br><span>Time is paused while you plan</span>' : u?.type === 'rock' && !u.launched ? u.boosterTeam === 'player' ? `Right-click a planet to target it<br><span>Empty space: manual aim / ${w.unlimitedMetal ? 'Free launch' : '35 metal'}</span>` : 'Send a booster to earn your shot<br><span>Escort it · Attach · Aim · Launch</span>' : u?.type === 'booster' ? u.attachedRockId ? burning ? 'Booster firing · automatic separation after burn<br><span>The ship will await your next order</span>' : 'Attached and waiting for your order<br><span>Aim rock, then right-click a target / Detach to leave</span>' : 'Right-click a rock to fit a booster<br><span>Stays attached · Detach manually</span>' : 'Select a unit · Right-click for an order<br><span>Enemy: attack / friendly unit: escort or defend</span>';
     this.updateContextHint?.();
+    this.updateTutorial();
   }
   showOutcome() {
     this.outcomeShown = true; const win = this.world.outcome === 'victory';

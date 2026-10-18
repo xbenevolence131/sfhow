@@ -13,7 +13,7 @@ const position = (kind, team = 'player') => page.evaluate(({ kind, team }) => {
 }, { kind, team });
 try {
   await page.goto(process.env.ORBITAL_URL || new URL('../dist/index.html', import.meta.url).href);
-  await page.getByRole('button', { name: "Let's explore" }).click();
+  await page.getByRole('button', { name: "Explore freely" }).click();
   assert.equal(await page.evaluate(() => orbital.paused), true);
   await page.locator('[data-build="ship"]').click();
   assert.equal(await page.evaluate(() => orbital.world.metal.player), 180);

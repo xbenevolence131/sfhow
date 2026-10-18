@@ -9,12 +9,12 @@ const click = selector => page.locator(selector).click({ delay: 220 });
 try {
   await page.goto(new URL('../dist/index.html', import.meta.url).href);
   assert.equal(await page.locator('#modal-title').innerText(),'Welcome to ORBITAL');
-  assert.equal(await page.locator('#modal-action').innerText(),"Let's explore");
+  assert.equal(await page.locator('#modal-action').innerText(),'Start tutorial');
   await mkdir('test-results',{recursive:true});
   await page.screenshot({path:'test-results/orbital-welcome.png'});
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:'test-results/orbital-welcome-mobile.png'});
-  await click('#modal-action');
+  await click('#modal-secondary');
   assert.equal(await page.evaluate(()=>orbital.modalOpen()),false);
   assert.equal(await page.evaluate(()=>orbital.paused),true);
   assert.equal(await page.evaluate(()=>orbital.world.time),0);
@@ -28,7 +28,7 @@ try {
   await page.setViewportSize({width:1440,height:960});
   await page.reload();
   assert.equal(await page.locator('#modal-title').innerText(),'Welcome to ORBITAL');
-  await click('#modal-action');
+  await click('#modal-secondary');
   await click('[data-speed="5"]');
   await click('#new-game');
   const t = await page.evaluate(() => orbital.world.time);

@@ -14,6 +14,8 @@ Run `npm run build` after source changes to refresh the standalone copy. Buildin
 
 ## Controls
 
+Choose **Start tutorial** on the welcome screen for guided Rock Garden instructions, or **Explore freely** to begin without guidance. The tutorial advances with your actions, highlights the relevant object/control, and can be skipped without resetting the game. Run `node tests/tutorial-browser.mjs` to verify the complete guided launch/interception flow.
+
 Navigation and scrollable scenario details/tuning form the left column. Playback controls and optional shared-playtest recording form aligned panels on the right; the recording indicator dims when paused.
 
 Opening or refreshing the game shows **Welcome to ORBITAL**. Choose **Let's explore** to dismiss it; Rock Garden stays paused, with no second dialog. The outlined navigation area at the upper left contains the **Scenario** dropdown for arranged missions and **New game** for Scenarios, Skirmish, and Sandbox. Choosing a scenario or starting/restarting a game still shows its briefing.
