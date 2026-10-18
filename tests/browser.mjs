@@ -104,7 +104,10 @@ try {
   await page.getByRole('button', { name: 'Enter the system' }).click();
   assert.equal(await page.evaluate(() => orbital.world.time), 0);
   assert.equal(await page.evaluate(() => orbital.world.progress.launched), false);
-  await page.locator('#scenario').selectOption('neighbors');
+  await page.locator('#new-game').click();
+  await page.locator('[data-mode="scenario"]').click();
+  await page.locator('#setup-scenario').selectOption('neighbors');
+  await page.locator('#start-game').click();
   await page.getByRole('button', { name: 'Enter the system' }).click();
   const s = await position('ship'); await page.mouse.click(s.x, s.y);
   const enemy = await page.evaluate(() => orbital.renderer.screen(orbital.world.planets.find(p => p.team === 'enemy')));

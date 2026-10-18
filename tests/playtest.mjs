@@ -32,6 +32,19 @@ try {
     assert.equal(await page.evaluate(() => orbital.world.scenario), scenario);
     await page.locator('#modal-action').click();
   }
+  await page.locator('#new-game').click();
+  await page.locator('[data-mode="skirmish"]').click();
+  for (const selector of ['#setup-system', '#setup-budget']) {
+    await page.locator(selector).click();
+    for (let i = 0; i < 3; i++) {
+      const current = await get('/snapshot');
+      assert.equal(await page.locator(selector).evaluate(e => e.matches(':open')), true, 'Recording must leave setup popups open');
+      const frame = JSON.parse(await readFile(current.snapshotPath, 'utf8'));
+      assert.ok(frame.ui.modal.includes('How do you want to play?'));
+    }
+    await page.keyboard.press('Enter');
+  }
+  await page.locator('#cancel-new-game').click();
   const drone = await page.evaluate(() => orbital.renderer.screen(orbital.world.units.find(u => u.type === 'drone')));
   await page.mouse.click(drone.x, drone.y);
   await Promise.all([page.locator('#order-stop').click({ delay: 350 }), get('/snapshot')]);

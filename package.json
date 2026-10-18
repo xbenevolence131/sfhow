@@ -9,6 +9,7 @@
     "test": "node --test tests/*.test.mjs",
     "test:browser": "node tests/browser.mjs",
     "test:controls": "node tests/controls.mjs",
+    "test:modes": "node tests/modes-browser.mjs",
     "test:playtest": "node tests/playtest.mjs",
     "playtest": "node scripts/playtest.mjs",
     "playtest:inspect": "node scripts/inspect-playtest.mjs"

@@ -40,6 +40,7 @@ export function announce(w, text, detail = '', major = false) {
 }
 export function fleet(w, team) { return w.units.filter(u => u.team === team && u.type !== 'rock' && u.hp > 0); }
 export function spawn(w, type, team, host, free = false) {
+  free ||= !!w.unlimitedMetal && team === 'player';
   if (!host || host.team !== team || host.hp <= 0) return { error: 'Select a friendly colony to deploy.' };
   if (fleet(w, team).length >= CAP) return { error: 'Fleet limit reached: 12 units.' };
   if (!free && w.metal[team] < COST[type]) return { error: `You need ${COST[type]} metal.` };
@@ -98,6 +99,7 @@ export function setOrder(w, id, order, team = 'player') {
   return true;
 }
 export function launchRock(w, id, impulse, team = 'player', free = false) {
+  free ||= !!w.unlimitedMetal && team === 'player';
   const r = entity(w, id);
   if (!r || r.type !== 'rock' || r.launched) return { error: 'Choose an unlaunched asteroid in the belt.' };
   const booster = entity(w, r.boosterId);
@@ -462,6 +464,8 @@ export function step(w, dt = DT) {
   for (const p of w.planets) if (p.hp > 0 && p.team !== 'neutral') w.metal[p.team] = Math.min(999, w.metal[p.team] + .4 * dt);
   combat(w, dt); updateBoosters(w, 0, true); ai(w);
   w.effects = w.effects.filter(e => w.time - e.born < e.life);
+  // Sandbox keeps simulating after colony loss; destruction and costs still apply.
+  if (w.mode === 'sandbox') return;
   const home = w.planets.find(p => p.team === 'player');
   if (home.hp <= 0) w.outcome = 'defeat';
   else if (w.scenario === 'neighbors' && w.planets.find(p => p.team === 'enemy').hp <= 0) w.outcome = 'victory';

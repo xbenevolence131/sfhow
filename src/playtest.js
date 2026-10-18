@@ -8,7 +8,7 @@ export function attachPlaytestRecorder(game) {
   const clone = value => value === undefined ? null : structuredClone(value);
   const selected = () => game.world.units.find(u => u.id === game.ui.selectedId && u.hp > 0) || game.world.planets.find(p => p.id === game.ui.selectedId) || null;
   const controls = () => ({
-    scenario: game.world.scenario, scenarioRun, time: game.world.time, paused: game.paused, speed: game.speed,
+    scenario: game.world.scenario, mode: game.world.mode, setup: clone(game.world.setup), scenarioRun, time: game.world.time, paused: game.paused, speed: game.speed,
     selectedId: game.ui.selectedId, hoverId: game.ui.hoverId, pending: clone(game.ui.pending), order: clone(selected()?.order),
     metal: clone(game.world.metal), units: game.world.units.filter(u => u.hp > 0).length,
     modal: game.modalOpen(), outcome: game.world.outcome,
@@ -114,7 +114,7 @@ export function attachPlaytestRecorder(game) {
       ui: { selection: document.getElementById('selection').innerText,
         alerts: document.getElementById('alerts').innerText,
         toast: document.getElementById('toast').classList.contains('visible') ? document.getElementById('toast').innerText : '',
-        modal: game.modalOpen() ? document.getElementById('modal').innerText : '',
+        modal: !document.getElementById('new-game-modal').classList.contains('hidden') ? document.getElementById('new-game-modal').innerText : game.modalOpen() ? document.getElementById('modal').innerText : '',
         plan: game.ui.pending ? document.getElementById('plan').innerText : '' },
     };
   };

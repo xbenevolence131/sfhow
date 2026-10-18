@@ -13,7 +13,7 @@ function planet(id, name, orbit, phase, radius, team, color, hp = 240) {
   return Object.assign(p, planetAt(p, 0));
 }
 export function createScenario(key = 'garden') {
-  const w = { scenario: key, time: 0, serial: 0, eventId: 0, units: [], planets: [], effects: [], events: [],
+  const w = { scenario: key, mode: 'scenario', setup: { mode: 'scenario', scenario: key }, time: 0, serial: 0, eventId: 0, units: [], planets: [], effects: [], events: [],
     metal: { player: key === 'garden' ? 240 : 160, enemy: key === 'hold' ? 180 : 160 },
     progress: { prepared: false, launched: false, intercepted: false, impact: false }, outcome: null, continueSandbox: false, duration: 240,
     ai: { buildAt: key === 'hold' ? 120 : 48, attackAt: key === 'hold' ? 100 : 65, rockAt: key === 'hold' ? 12 : 95 } };
@@ -31,6 +31,29 @@ export function createScenario(key = 'garden') {
     spawn(w, 'booster', 'enemy', enemy, true);
     if (key === 'neighbors') { spawn(w, 'ship', 'enemy', enemy, true); spawn(w, 'drone', 'enemy', enemy, true); }
   }
+  for (let i = 0; i < 15; i++) addRock(w, i / 15 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`);
+  return w;
+}
+
+// Open games reuse the proven system and flight rules, with their own objectives.
+export function createGame(options = {}) {
+  const mode = ['skirmish', 'sandbox'].includes(options.mode) ? options.mode : 'scenario';
+  if (mode === 'scenario') return createScenario(SCENARIOS[options.scenario] ? options.scenario : 'garden');
+  const setup = { mode, system: options.system === 'two' ? 'two' : 'three',
+    budget: [160, 240, 400].includes(Number(options.budget)) ? Number(options.budget) : 160,
+    enemies: mode === 'skirmish' || options.enemies === true,
+    unlimited: mode === 'sandbox' && options.unlimited === true };
+  const w = createScenario('neighbors');
+  w.mode = mode; w.setup = setup; w.unlimitedMetal = setup.unlimited;
+  w.metal = { player: setup.budget, enemy: setup.budget };
+  if (setup.system === 'two') w.planets = w.planets.filter(p => p.id !== 'ochre');
+  if (!setup.enemies) {
+    w.units = w.units.filter(u => u.team !== 'enemy');
+    const rival = w.planets.find(p => p.team === 'enemy');
+    rival.team = 'neutral'; rival.hp = rival.maxHp = 500;
+  }
+  // Seed belt velocities against the actual chosen planets.
+  w.units = w.units.filter(u => u.type !== 'rock');
   for (let i = 0; i < 15; i++) addRock(w, i / 15 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`);
   return w;
 }

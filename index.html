@@ -11,18 +11,20 @@
 <body>
   <canvas id="space" aria-label="Orbital system. Select units with a click. Right-click to plan an order. Drag an asteroid to plan a launch." tabindex="0"></canvas>
   <header>
-    <a class="wordmark" href="#" aria-label="ORBITAL, fit system"><span class="orbit-logo">✧</span> ORBITAL</a>
-    <div class="time-controls" aria-label="Simulation speed">
-      <button id="pause" title="Pause or resume (Space)" aria-label="Resume simulation">▶</button>
-      <button data-speed="1" class="active">1×</button><button data-speed="5">5×</button><button data-speed="20">20×</button>
-      <span id="clock">00:00</span>
+    <div class="game-navigation">
+      <a class="wordmark" href="#" aria-label="ORBITAL, fit system"><span class="orbit-logo">&#10023;</span> ORBITAL</a>
+      <span class="tagline">A LITTLE PLANETARY WARFARE</span>
+      <div class="navigation-row"><button id="new-game">New game</button><span id="current-mode" class="eyebrow">SCENARIO</span><button id="restart" title="Restart current game" aria-label="Restart current game">&#8635;</button></div>
+      <div id="scenario-picker"><label class="eyebrow" for="scenario">SCENARIO</label><select id="scenario" aria-label="Scenario"><option value="garden">01 / Rock Garden</option><option value="hold">02 / Hold the Orbit</option><option value="neighbors">03 / Neighbors</option></select></div>
+      <span id="open-game-name" class="hidden"></span>
     </div>
-    <div class="top-right"><span class="metal-icon">◇</span><strong id="metal">160</strong><span class="muted">metal</span><button id="help" title="Controls and field guide" aria-label="Field guide">?</button></div>
+    <div class="mission-summary"><span id="objective-label" class="eyebrow">YOUR OBJECTIVE</span><p id="objective"></p><div id="top-threat" class="hidden" role="status"></div></div>
+    <div class="header-status">
+      <div class="top-right"><span class="metal-icon">&#9671;</span><strong id="metal">160</strong><span class="muted">metal</span><button id="help" title="Controls and field guide" aria-label="Field guide">?</button></div>
+      <div class="time-controls" aria-label="Simulation speed"><button id="pause" title="Pause or resume (Space)" aria-label="Resume simulation">&#9654;</button><button data-speed="1" class="active">1&#215;</button><button data-speed="5">5&#215;</button><button data-speed="20">20&#215;</button><span id="clock">00:00</span></div>
+    </div>
   </header>
   <aside class="mission">
-    <span class="eyebrow">A LITTLE PLANETARY WARFARE</span>
-    <div class="scenario-row"><select id="scenario" aria-label="Scenario"><option value="garden">01 / Rock Garden</option><option value="hold">02 / Hold the Orbit</option><option value="neighbors">03 / Neighbors</option></select><button id="restart" title="Restart scenario" aria-label="Restart scenario">↻</button></div>
-    <p id="objective"></p>
     <div id="colonies"></div>
     <div id="lesson"><div id="garden-lesson"><div id="lesson-prepare"></div><div id="lesson-launch"></div><div id="lesson-intercept"></div><button id="practice">↗ Send practice rock</button></div><span id="income-hint" class="hidden">+0.4 metal / second from your colony</span></div>
   </aside>
@@ -55,6 +57,23 @@
   </footer>
   <div id="plan" class="plan hidden" aria-live="polite"><div><span class="eyebrow" id="plan-kind">PLANNED MANEUVER</span><p id="plan-summary"></p><small id="plan-note">Flight prediction · weapons may change the outcome</small></div><div class="plan-actions"><button id="confirm" class="primary">Confirm <kbd>↵</kbd></button><button id="cancel">Cancel <kbd>Esc</kbd></button></div></div>
   <div id="modal" class="modal"><section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title"><span class="eyebrow" id="modal-kicker"></span><h1 id="modal-title"></h1><div id="modal-body"></div><button id="modal-action" class="primary"></button><button id="modal-secondary" class="hidden"></button></section></div>
+  <div id="new-game-modal" class="modal hidden"><section class="modal-card new-game-card" role="dialog" aria-modal="true" aria-labelledby="new-game-title">
+    <span class="eyebrow">A NEW ORBIT</span><h1 id="new-game-title">How do you want to play?</h1>
+    <div class="mode-choices" role="group" aria-label="Game mode">
+      <button type="button" data-mode="scenario" aria-pressed="true"><b>Scenarios</b><small>Short, arranged challenges</small></button>
+      <button type="button" data-mode="skirmish" aria-pressed="false"><b>Skirmish</b><small>An open match against the AI</small></button>
+      <button type="button" data-mode="sandbox" aria-pressed="false"><b>Sandbox</b><small>A playground without objectives</small></button>
+    </div>
+    <p id="setup-description"></p>
+    <div id="setup-scenarios" class="setup-field"><label for="setup-scenario">Scenario</label><select id="setup-scenario"><option value="garden">Rock Garden</option><option value="hold">Hold the Orbit</option><option value="neighbors">Neighbors</option></select></div>
+    <div id="setup-open" class="hidden">
+      <div class="setup-field"><label for="setup-system">System</label><select id="setup-system"><option value="three">Three planets / a neutral inner world</option><option value="two">Two planets / across the gravity well</option></select></div>
+      <div class="setup-field"><label for="setup-budget">Starting metal</label><select id="setup-budget"><option value="160">160 / modest</option><option value="240">240 / comfortable</option><option value="400">400 / generous</option></select></div>
+      <div id="setup-sandbox" class="hidden"><label><input id="setup-enemies" type="checkbox"> Include an AI opponent</label><label><input id="setup-unlimited" type="checkbox" checked> Unlimited metal for you</label><small>Booster preparation, travel, damage, and the 12-unit fleet limit still apply. The AI uses a normal budget.</small></div>
+    </div>
+    <p class="note">Starts paused. Starting a new game replaces the current run.</p>
+    <div class="new-game-actions"><button id="start-game" class="primary">Start scenario</button><button id="cancel-new-game">Back to current game</button></div>
+  </section></div>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

@@ -1,0 +1,86 @@
+﻿import { chromium } from '@playwright/test';
+import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
+const browser = await chromium.launch({ executablePath: process.env.ORBITAL_BROWSER || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
+const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
+const errors = [];
+page.on('pageerror', error => errors.push(error.message));
+const click = selector => page.locator(selector).click({ delay: 220 });
+try {
+  await page.goto(new URL('../dist/index.html', import.meta.url).href);
+  await click('#modal-action');
+  await click('[data-speed="5"]');
+  await click('#new-game');
+  const t = await page.evaluate(() => orbital.world.time);
+  await page.waitForTimeout(300);
+  assert.equal(await page.evaluate(() => orbital.world.time), t);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(() => orbital.paused), false);
+  await click('#pause');
+  // A cancelled chooser preserves a planned order and the current world.
+  await page.evaluate(() => { const ship = orbital.world.units.find(u => u.type === 'ship'); orbital.plan({ id: ship.id, order: { kind: 'move', x: 500, y: 100 } }); });
+  await click('#new-game'); await click('[data-mode="sandbox"]');
+  await click('#cancel-new-game');
+  assert.equal(await page.evaluate(() => orbital.ui.pending.order.kind), 'move');
+  assert.equal(await page.evaluate(() => orbital.paused), true);
+  await click('#cancel');
+  await click('#new-game'); await click('[data-mode="sandbox"]');
+  await page.locator('#setup-system').selectOption('two');
+  await page.locator('#setup-unlimited').check(); await page.locator('#setup-enemies').uncheck();
+  await mkdir('test-results', { recursive: true });
+  await page.screenshot({ path: 'test-results/orbital-new-game.png' });
+  const stable = await page.evaluate(() => { window.modeControls = [...document.querySelectorAll('button,select,input')]; for(let i=0;i<50;i++) orbital.updateUI(); return modeControls.every(n=>n.isConnected); });
+  assert.ok(stable);
+  await click('#start-game'); await click('#modal-action');
+  assert.deepEqual(await page.evaluate(() => ({ mode: orbital.world.mode, planets: orbital.world.planets.length, enemy: orbital.world.units.some(u=>u.team==='enemy'), paused: orbital.paused })), { mode: 'sandbox', planets: 2, enemy: false, paused: true });
+  assert.equal(await page.locator('#metal').innerText(), '\u221e');
+  assert.equal(await page.locator('#scenario').isVisible(), false);
+  await page.evaluate(() => { orbital.world.metal.player=0; orbital.updateUI(); });
+  await click('[data-build="ship"]');
+  assert.equal(await page.evaluate(() => orbital.world.units.filter(u=>u.type==='ship').length), 2);
+  assert.equal(await page.evaluate(() => orbital.world.metal.player), 0);
+  await click('#restart'); await click('#modal-action');
+  assert.equal(await page.evaluate(() => orbital.world.mode), 'sandbox');
+  assert.equal(await page.evaluate(() => orbital.world.planets.length), 2);
+  await click('#new-game'); await click('[data-mode="skirmish"]');
+  await page.locator('#setup-system').selectOption('three'); await page.locator('#setup-budget').selectOption('400');
+  await click('#start-game'); await click('#modal-action');
+  assert.deepEqual(await page.evaluate(() => orbital.world.metal), { player:400, enemy:400 });
+  assert.equal(await page.evaluate(() => orbital.world.unlimitedMetal), false);
+  await click('[data-build="ship"]');
+  assert.equal(await page.evaluate(() => orbital.world.metal.player),340);
+  await page.evaluate(() => { orbital.world.outcome='victory'; orbital.showOutcome(); window.previousWorld=orbital.world; });
+  await click('#modal-secondary');
+  assert.equal(await page.evaluate(() => orbital.world === previousWorld),true);
+  assert.equal(await page.evaluate(() => orbital.world.mode),'sandbox');
+  assert.equal(await page.evaluate(() => orbital.world.outcome),null);
+  await click('#new-game'); await click('[data-mode="scenario"]');
+  await page.locator('#setup-scenario').selectOption('hold'); await click('#start-game'); await click('#modal-action');
+  assert.equal(await page.evaluate(() => orbital.world.scenario),'hold');
+  assert.equal(await page.locator('#scenario').isVisible(),true);
+  await page.evaluate(() => { orbital.world.rockThreats={fixture:{ targetId:'verdant',name:'VERDANT',time:orbital.world.time+42 }}; orbital.updateUI(); });
+  assert.ok((await page.locator('#top-threat').innerText()).includes('42s'));
+  await page.screenshot({ path: 'test-results/orbital-top-strip.png' });
+  assert.equal(await page.evaluate(() => modeControls.every(n=>n.isConnected)),true);
+  for (const width of [900, 720, 390]) {
+    await page.setViewportSize({ width, height:844 });
+    const layout = await page.evaluate(() => {
+      const ids=['new-game','restart','scenario','objective','metal','pause','clock'];
+      const boxes=ids.map(id=>({id,...Object.fromEntries(['x','y','width','height','right','bottom'].map(k=>[k,document.getElementById(id).getBoundingClientRect()[k]]))}));
+      return {width:innerWidth,boxes};
+    });
+    for (const box of layout.boxes) { assert.ok(box.x>=0 && box.right<=width, `${width}: ${box.id} fits horizontally`); }
+    const boxes=layout.boxes;
+    for(let i=0;i<boxes.length;i++) for(let j=i+1;j<boxes.length;j++) {
+      const a=boxes[i],b=boxes[j];
+      assert.ok(a.right<=b.x || b.right<=a.x || a.bottom<=b.y || b.bottom<=a.y, `${width}: ${a.id} must not overlap ${b.id}`);
+    }
+  }
+  await page.screenshot({ path: 'test-results/orbital-top-strip-mobile.png' });
+  await click('#new-game'); await click('[data-mode="sandbox"]');
+  await page.screenshot({ path: 'test-results/orbital-new-game-mobile.png' });
+  await click('#start-game'); await click('#modal-action');
+  assert.equal(await page.evaluate(() => orbital.world.mode),'sandbox');
+  assert.deepEqual(errors,[]);
+  console.log('Mode/browser checks passed: chooser pause/cancel, stable controls, sandbox free deployment, restart settings, skirmish costs, keep exploring, scenario navigation, threat summary and responsive header.');
+} finally { await browser.close(); }

@@ -1,10 +1,12 @@
 # ORBITAL session handoff
 
-Saved at the end of the October 17, 2026 evening session (October 18 UTC).
+Updated October 18, 2026 after the game-mode and top-strip revision.
 
 ## Resume here
 
-The user ended the session and requested notes and a local archive. Stop implementation for tonight. The playable game is already committed in local Git on `main`; initial gameplay checkpoint: `1bc0f20`. No remote is wanted. This handoff is the current summary; older entries in PLAYTEST_NOTES.md include superseded mechanics.
+The October 17 session was archived in local Git on `main`: gameplay checkpoint `1bc0f20`, notes checkpoint `262476d`. No remote is wanted. The user returned October 18 and approved implementing New game modes and a clearer top strip. That revision is now in the working tree and standalone build. This handoff is the current summary; older entries in PLAYTEST_NOTES.md include superseded mechanics.
+
+Latest delivered revision: New game offers Scenarios, Skirmish, and Sandbox. Open games support two/three planets and 160/240/400 starting metal. Sandbox can include enemies and unlimited player metal; no win/loss screens, but damage and fleet limits remain. Skirmish uses the existing opponent and normal costs. The top strip holds navigation/mode, objective/threats, and resources/time. Keep exploring continues a won run as a sandbox. The chooser preserves current orders if canceled; restart keeps setup choices. Simulation tests (28), gameplay browser checks, mode/browser checks, and the 39-control audit passed. The recorder now includes mode/setup and the New game dialog in snapshots; the headed recording regression passed, including new setup dropdowns during capture.
 
 **Next authorized task: improve the opponent AI.** The user approved reactive colony defense, booster escorts, hunting exposed player boosters, and choosing when to commit fleets. Existing AI was inspected, but no AI changes have been implemented or tested. Do not claim the upgrade is done. Existing scheduled enemy production, booster expeditions, escorts, and colony raids still work.
 

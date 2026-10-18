@@ -1,5 +1,13 @@
 # ORBITAL playtest notes
 
+## October 18: game modes and top strip
+
+The player found the scenario selector unclear and wanted to distinguish arranged missions from open play, while using the empty top-center space for useful information. After discussion, explicitly approved trying all the proposed changes.
+
+Implemented New game with Scenarios, Skirmish, and Sandbox. Skirmish offers two/three planets and equal starting metal budgets; Sandbox offers optional enemies and unlimited player resources. The existing opponent is used; the separately approved reactive AI upgrade remains pending. Sandbox preserves damage, booster requirements, and fleet limits but suppresses victory/defeat screens. Keep exploring continues the same live system after victory. Restart retains setup settings. Canceling the chooser preserves the run and any pending order.
+
+The top strip now has navigation and the labeled Scenario selector/current mode on the left, objective and immediate threat summary in the center, and metal/time controls on the right. Controls remain permanently mounted. Validation passed: 28 simulation tests, full gameplay browser checks, the 39-control audit, new mode/navigation/responsive tests, and the headed shared-recorder regression including native setup dropdowns. Reviewed desktop/mobile screenshots. Standalone build updated; refresh starts a fresh run. The user's open window was not reset.
+
 Current end-of-session summary: [HANDOFF.md](HANDOFF.md). It records the latest rules, prior verification, preserved playtest evidence, and next task. Reactive opponent improvements were approved but remain unimplemented; work stopped when the player ended the evening. Older descriptions below are chronological and may be superseded.
 
 These observations come from the first play session on October 17, 2026. Approved fixes are marked below; remaining proposals are a backlog for later discussion.
