@@ -316,3 +316,15 @@ User requested finite asteroid metal: small/medium/large now hold 40/80/160 meta
 - All 97 simulation tests plus tutorial, rock aiming, and >90-second launch browser checks passed. Difficult auto-aim remains synchronous: one sampled unreachable shot rose from about 650ms to 972ms. No blanket claim of zero performance cost.
 - Miners remain docked at depletion; disappearance can mean miner or host rock destruction. No live observation of the user's lost miners. Rate remains 0.2 metal/s pending an explicit tuning decision.
 - User authorized commit and push of this accumulated batch.
+
+## Latest playtest wrap-up — 2026-10-18
+
+Release status: the feature batch is pushed as `df9cd4e`; upgrade prices were then halved and pushed as `9c109bc`. Older local-only status and upgrade-price entries above are historical.
+
+- Player describes the result as an abstract *The Expanse* warfare game: watching committed trajectories unfold, timing attacks and defending vulnerable units is the appeal. First successful solar slingshot was a highlight. Prefers 1x speed and current visual scale.
+- Stronger gravity remains approved: default G=1 now equals old G=2. Their tentative "maybe 1.5" discussion did not authorize another retune; .75 on the new slider would be halfway between the old and new defaults.
+- Main unresolved playability concern is rendezvous inside the system: miners/boosters can take long, looping intercept routes. Not just an outer-belt problem. Inspected steering uses linear rock lead capped at 24 seconds and local avoidance; exact rail rendezvous and better velocity matching are proposals only. Needs a reproducible measured case.
+- Failed asteroid auto-aim was explicitly reclassified by the player as a search limitation, not a confirmed bug. Current horizon is 120 seconds. Optional 150-second search was discussed only; avoid reporting it as shipped. Waiting for alignment may be enjoyable, but failure text must not imply proven impossibility.
+- Reported unit selection, firing and loss confusion during commentary was not observed directly. A miner does not disappear on ore depletion. Recording status was not verified.
+- Replacing casualties left too little money to try Super units. Shipped half-price upgrades: ship 25, platform 32.5, drone 10; both factions pay the same. Build, focused upgrade tests and upgrade/mining browser flow passed. Rate .2/s and reserves 40/80/160 stay unchanged pending further balance feedback.
+- No additional feature work approved by this wrap-up. Keep future ideas separate from actual shipped changes, and keep progress updates brief and specific.
