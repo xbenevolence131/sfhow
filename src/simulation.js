@@ -28,9 +28,9 @@ export const COST = { ship: 60, platform: 80, drone: 25, booster: 50, miner: 25,
 export const MINING_RATE = .2;
 export const MINING_DOCK_TIME = 4;
 export const UPGRADES = Object.freeze({
-  ship: { cost: 50, maxHp: 145, speed: 26, thrust: 8, range: 130, damage: 12, cooldown: 1.8 },
-  platform: { cost: 65, maxHp: 300, range: 170, damage: 16, cooldown: 1.5 },
-  drone: { cost: 20, speed: 42, thrust: 13, damage: 70, defenseRadius: 240 },
+  ship: { cost: 25, maxHp: 145, speed: 26, thrust: 8, range: 130, damage: 12, cooldown: 1.8 },
+  platform: { cost: 32.5, maxHp: 300, range: 170, damage: 16, cooldown: 1.5 },
+  drone: { cost: 10, speed: 42, thrust: 13, damage: 70, defenseRadius: 240 },
 });
 export function superColor(color = '#80d6cf') {
   const rgb=(color.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i)||['','80','d6','cf']).slice(1).map(c=>parseInt(c,16));

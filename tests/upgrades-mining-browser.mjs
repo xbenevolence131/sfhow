@@ -14,7 +14,7 @@ try{
     await page.locator('#order-upgrade').click();assert.match(await page.locator('#selected-meta').innerText(),/SUPER/);
     assert.equal(await page.locator('#unit-upgrade').isVisible(),false);
   }
-  assert.equal(await page.evaluate(()=>orbital.world.metal.player),265);
+  assert.equal(await page.evaluate(()=>orbital.world.metal.player),332.5);
   await page.evaluate(()=>orbital.select(orbital.world.planets.find(p=>p.team==='player').id));
   await page.locator('[data-build="miner"]').click();
   const target=await page.evaluate(()=>{const g=orbital,m=g.world.units.find(u=>u.type==='miner'&&u.team==='player'),r=g.world.units.filter(u=>u.innerRock).sort((a,b)=>Math.hypot(a.x-m.x,a.y-m.y)-Math.hypot(b.x-m.x,b.y-m.y))[0];g.select(m.id);g.renderer.camera.x=r.x;g.renderer.camera.y=r.y;return {id:r.id,...g.renderer.screen(r)};});
