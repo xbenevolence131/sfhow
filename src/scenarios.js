@@ -79,6 +79,7 @@ export function createGame(options = {}) {
   if (setup.system === 'two') w.planets = w.planets.filter(p => p.id !== 'ochre');
   if(mode==='skirmish') {
     for(const p of w.planets) {
+      if(p.team!=='neutral')p.hp=p.maxHp=300;
       const old={x:p.x,y:p.y,vx:p.vx,vy:p.vy};
       p.referenceOrbit=p.orbit;
       p.orbit*=1+(layoutRandom()*2-1)*SKIRMISH_ORBIT_JITTER;

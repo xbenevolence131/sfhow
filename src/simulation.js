@@ -25,8 +25,26 @@ export const ATTACH_TIME = 6;
 export const REARM_TIME = 8;
 export const BURN_TIME = 4;
 export const COST = { ship: 60, platform: 80, drone: 25, booster: 50, miner: 25, rock: 35 };
-export const MINING_RATE = .2;
+export const MINING_RATE = .4;
 export const MINING_DOCK_TIME = 4;
+export const REPAIR_RATE = 1;
+export const REPAIR_DELAY = 10;
+export const REPAIR_DISTANCE = 100; // From the home planet's surface.
+export function shipRepairStatus(w, u) {
+  if(u?.type!=='ship' || u.hp<=0 || u.hp>=u.maxHp)return null;
+  const home=entity(w,u.hostId);
+  if(!home || home.hp<=0 || home.type!=='planet' || home.team!==u.team)return {kind:'unavailable'};
+  if(distance(u,home)>home.radius+REPAIR_DISTANCE)return {kind:'away'};
+  const remaining=Math.max(0,REPAIR_DELAY-(w.time-(u.lastDamageAt??0)));
+  return remaining>1e-8?{kind:'waiting',remaining}:{kind:'repairing'};
+}
+function repairShips(w, dt) {
+  for(const u of w.units) {
+    if(shipRepairStatus(w,u)?.kind!=='repairing')continue;
+    const elapsed=Math.min(dt,Math.max(0,w.time-(u.lastDamageAt??0)-REPAIR_DELAY));
+    u.hp=Math.min(u.maxHp,u.hp+REPAIR_RATE*elapsed);
+  }
+}
 export const UPGRADES = Object.freeze({
   ship: { cost: 25, maxHp: 145, speed: 26, thrust: 8, range: 130, damage: 12, cooldown: 1.8 },
   platform: { cost: 32.5, maxHp: 300, range: 170, damage: 16, cooldown: 1.5 },
@@ -141,7 +159,7 @@ export function spawn(w, type, team, host, free = false) {
   const unit = { id: `u${serial}`, name: `${type.toUpperCase()} ${String(serial).padStart(2, '0')}`, type, team,
     ...TYPES[type], maxHp: TYPES[type].hp, x, y,
     vx: host.vx - Math.sin(phase) * orbit * omega, vy: host.vy + Math.cos(phase) * orbit * omega,
-    hostId: host.id, color: host.color, tier: 1, phase: phase - w.time * omega, orbit, omega,
+    hostId: host.id, color: host.color, tier: 1, lastDamageAt: w.time, phase: phase - w.time * omega, orbit, omega,
     order: { kind: 'defend', targetId: host.id }, fireTimer: 0.4 + (serial % 4) * 0.3, launched: true,
     loaded: type === 'booster', attachProgress: 0, rearmProgress: 0 };
   w.units.push(unit);
@@ -301,6 +319,21 @@ function defenseTarget(u, w, anchor) {
   }
   return best;
 }
+function firingLead(u, target, range) {
+  // Earliest entry into weapon reach, not contact with the target's centre.
+  // Short constant-velocity lookahead is cheap and refreshed each physics step.
+  const dx=target.x-u.x,dy=target.y-u.y,vx=target.vx||0,vy=target.vy||0;
+  const a=vx*vx+vy*vy-u.speed*u.speed;
+  const b=2*(dx*vx+dy*vy-range*u.speed),c=dx*dx+dy*dy-range*range;
+  if(c<=0)return 0;
+  let time=Infinity;
+  if(Math.abs(a)<1e-8){if(b<0)time=-c/b;}
+  else {
+    const discriminant=b*b-4*a*c;
+    if(discriminant>=0)for(const root of [(-b-Math.sqrt(discriminant))/(2*a),(-b+Math.sqrt(discriminant))/(2*a)])if(root>=0)time=Math.min(time,root);
+  }
+  return Math.min(12,Number.isFinite(time)?time:Math.max(0,-(dx*vx+dy*vy)/(vx*vx+vy*vy||1)));
+}
 function steering(u, w, g) {
   u.ramTargetId = null;
   let target = u.order?.targetId ? entity(w, u.order.targetId) : null;
@@ -328,9 +361,13 @@ function steering(u, w, g) {
   if (!target || target.hp <= 0) target = { x: u.order?.x ?? u.x, y: u.order?.y ?? u.y, vx: 0, vy: 0 };
   const circleTarget = u.type === 'ship' && kind === 'attack' && hostile(u, target) && ['ship', 'booster', 'miner', 'drone', 'platform'].includes(target.type);
   const rawDist = distance(u, target);
-  const lead = clamp((rawDist - standoff) / u.speed, 0, 24);
+  const interceptRock=u.type==='ship' && target.type==='rock' && ['attack','defend'].includes(kind) && combatTarget(u,target,w);
+  if(interceptRock)standoff=u.range*.85;
+  const holdFirePosition=interceptRock && rawDist<=u.range*.95;
+  const lead = interceptRock?firingLead(u,target,standoff):clamp((rawDist - standoff) / u.speed, 0, 24);
   let tx = target.x + (target.vx || 0) * lead, ty = target.y + (target.vy || 0) * lead;
   if (target.type === 'planet') { const future = planetAt(target, w.time + lead); tx = future.x; ty = future.y; }
+  if(holdFirePosition){tx=u.x;ty=u.y;standoff=0;}
   // A gentle tangent waypoint avoids steering through the star.
   const lx = tx - u.x, ly = ty - u.y, len2 = lx * lx + ly * ly;
   const t = clamp(-(u.x * lx + u.y * ly) / (len2 || 1), 0, 1);
@@ -343,8 +380,9 @@ function steering(u, w, g) {
   }
   let dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy) || 1;
   const gap = d - standoff;
-  const desired = u.ramTargetId && !avoidingStar ? u.speed : clamp(gap * .65, -u.speed * .4, u.speed);
-  const follow = clamp(1 - Math.max(0, gap) / 70, 0, 1);
+  const desired = u.ramTargetId && !avoidingStar ? u.speed : clamp(gap * .65, interceptRock?0:-u.speed * .4, u.speed);
+  // Combat ships brake to fire; they must not inherit a fast rock's velocity.
+  const follow = interceptRock?0:clamp(1 - Math.max(0, gap) / 70, 0, 1);
   let vx = dx / d * desired + (target.vx || 0) * follow;
   let vy = dy / d * desired + (target.vy || 0) * follow;
   if (circleTarget && !avoidingStar) {
@@ -485,6 +523,7 @@ function ramContact(w, drone, target, x, y, when, forecast) {
   drone.hp=0;drone.x=x;drone.y=y;
   drone.impact={x,y,time:when,targetId:target.id,name:target.name,kind:'ram'};
   target.hp=Math.max(0,target.hp-drone.damage);
+  target.lastDamageAt=when;
   if(target.hp<=0)target.impact={x:target.x,y:target.y,time:when,targetId:drone.id,name:'Drone interception',kind:'intercept'};
   if(forecast)return;
   w.effects.push({type:'ram',x,y,team:drone.team,color:drone.color,born:w.time,life:2});
@@ -700,6 +739,7 @@ function combat(w, dt) {
     const target = options[0];
     if (!target) continue;
     target.hp = Math.max(0, target.hp - u.damage);
+    target.lastDamageAt=w.time;
     if (w.lesson?.phase === 'combat' && w.lesson.attackerId === u.id && w.lesson.targetId === target.id && u.order.kind === 'attack') w.lesson.attackHit = true;
     u.fireTimer = u.cooldown;
     w.effects.push({ type: 'shot', x: u.x, y: u.y, tx: target.x, ty: target.y, team: u.team, color: u.color, tier: u.tier, born: w.time, life: .45 });
@@ -922,7 +962,7 @@ export function step(w, dt = DT) {
   scanRockThreats(w);
   advanceMotion(w, dt);
   for (const p of w.planets) if (p.hp > 0 && p.team !== 'neutral') w.metal[p.team] = Math.min(999, w.metal[p.team] + .4 * dt);
-  combat(w, dt); updateBoosters(w, 0, true); updateMiners(w,0,true); ai(w);
+  combat(w, dt); repairShips(w,dt); updateBoosters(w, 0, true); updateMiners(w,0,true); ai(w);
   w.effects = w.effects.filter(e => w.time - e.born < e.life);
   // Sandbox keeps simulating after colony loss; destruction and costs still apply.
   if (w.mode === 'sandbox' || w.scenario === 'playground') return;

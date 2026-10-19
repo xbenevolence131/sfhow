@@ -22,7 +22,7 @@ try{
   assert.match(await page.locator('#plan-note').innerText(),/treasury/);
   await page.locator('#confirm').click();await page.locator('#autopause').uncheck();await page.locator('[data-speed="20"]').click();
   await page.waitForFunction(()=>orbital.world.units.some(u=>u.type==='miner'&&u.team==='player'&&u.miningRockId),null,{timeout:45000});
-  await page.evaluate(()=>{orbital.paused=true;orbital.updateUI();});assert.match(await page.locator('#selected-meta').innerText(),/Mining.*0.2/);
+  await page.evaluate(()=>{orbital.paused=true;orbital.updateUI();});assert.match(await page.locator('#selected-meta').innerText(),/Mining.*0.4/);
   const money=await page.evaluate(()=>orbital.world.metal.player);assert.ok(money>240);
   assert.match(await page.locator('#selected-meta').innerText(),/Metal remaining:/);
   await page.evaluate(()=>{const m=orbital.world.units.find(u=>u.type==='miner'&&u.team==='player');orbital.world.units.find(r=>r.id===m.miningRockId).metalRemaining=.02;orbital.setSpeed(5);});

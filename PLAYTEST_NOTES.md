@@ -328,3 +328,21 @@ Release status: the feature batch is pushed as `df9cd4e`; upgrade prices were th
 - Reported unit selection, firing and loss confusion during commentary was not observed directly. A miner does not disappear on ore depletion. Recording status was not verified.
 - Replacing casualties left too little money to try Super units. Shipped half-price upgrades: ship 25, platform 32.5, drone 10; both factions pay the same. Build, focused upgrade tests and upgrade/mining browser flow passed. Rate .2/s and reserves 40/80/160 stay unchanged pending further balance feedback.
 - No additional feature work approved by this wrap-up. Keep future ideas separate from actual shipped changes, and keep progress updates brief and specific.
+
+## Follow-up: preserving damaged ships
+
+Player found persistent combat damage made ships feel disposable and prevented economic growth. Approved slow, free home regeneration instead of a new shield ship or income increase. Implemented combat-ship repair at 1 HP/s, within 100 units of own home surface, after 10 undamaged seconds, symmetric for both teams. Damage restarts cooldown; dead/foreign home and destroyed ships cannot recover. UI makes recovery visible. All 101 simulation tests and dedicated browser repair checks passed; standalone rebuilt, local/uncommitted.
+
+Random-event brainstorming only: ore-rich passing asteroid to contest with miners and escorts; derelict salvage for a metal windfall; small meteor shower to test multiple-target defense. Favor opportunities while resources feel tight. No new events implemented. A passing asteroid mining event would require changing current idle-rock-only mining eligibility.
+
+Validation caveat: the full tutorial browser test stalled twice at stage 9 -> 10, launching the staged practice rock around sim time 170; no damage on the new defensive fleet yet. All simulation and dedicated repair browser checks pass. The broader tutorial issue remains unverified in origin and unresolved; avoid stating all browser tests passed.
+
+## Combat interception refinement
+
+Player clarified combat ships were taking roundabout routes toward rocks already approaching them. Approved changing their interception rules. Implemented a short, continually updated earliest-firing-range estimate instead of centre-to-centre pursuit; ships brake within range and do not inherit the rock's velocity. Both explicit attacks and automatic defense use it, symmetrically for both sides. Existing obstacle avoidance/thrust preserved; escaping rocks still pursued. No miner/booster rendezvous changes. All 105 simulation tests passed plus real right-click/confirm/browser firing check. Build updated, uncommitted. The earlier broader tutorial validation caveat remains open.
+
+## Economy and buildup experiment
+
+Player wins short attrition games but stays broke despite several miners: launch/replacement spending prevents building toward upgrades. They want an early survival/investment phase followed by a larger confrontation, without an artificial invulnerability timer. Approved combined tuning: mining .2→.4 metal/s and Skirmish colony HP240→300 for both factions. Mining-rate increase is global; extra colony HP is Skirmish-only to preserve arranged lessons. Ore amounts stay40/80/160, so payback becomes62.5 mining seconds but deposits empty sooner. Colony income and all prices stay unchanged. All105 simulation tests/build passed. Needs live balance feedback: does the extra income actually produce retained reserves/upgrades, and do tougher colonies buy useful time instead of merely dragging out losses? No new commit/push yet.
+
+Follow-up after play: player committed two rocks and a full fleet against a tough platform and approved committing/pushing this checkpoint. Economy feels slightly better, but still no practical opportunity to upgrade. Explicitly likes the **12-unit cap**; retain it. This is feedback for future tuning, not permission to change income/prices again immediately. Defense laser and artillery-ship ideas were discussed but not implemented.

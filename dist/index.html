@@ -216,8 +216,26 @@ const ATTACH_TIME = 6;
 const REARM_TIME = 8;
 const BURN_TIME = 4;
 const COST = { ship: 60, platform: 80, drone: 25, booster: 50, miner: 25, rock: 35 };
-const MINING_RATE = .2;
+const MINING_RATE = .4;
 const MINING_DOCK_TIME = 4;
+const REPAIR_RATE = 1;
+const REPAIR_DELAY = 10;
+const REPAIR_DISTANCE = 100; // From the home planet's surface.
+function shipRepairStatus(w, u) {
+  if(u?.type!=='ship' || u.hp<=0 || u.hp>=u.maxHp)return null;
+  const home=entity(w,u.hostId);
+  if(!home || home.hp<=0 || home.type!=='planet' || home.team!==u.team)return {kind:'unavailable'};
+  if(distance(u,home)>home.radius+REPAIR_DISTANCE)return {kind:'away'};
+  const remaining=Math.max(0,REPAIR_DELAY-(w.time-(u.lastDamageAt??0)));
+  return remaining>1e-8?{kind:'waiting',remaining}:{kind:'repairing'};
+}
+function repairShips(w, dt) {
+  for(const u of w.units) {
+    if(shipRepairStatus(w,u)?.kind!=='repairing')continue;
+    const elapsed=Math.min(dt,Math.max(0,w.time-(u.lastDamageAt??0)-REPAIR_DELAY));
+    u.hp=Math.min(u.maxHp,u.hp+REPAIR_RATE*elapsed);
+  }
+}
 const UPGRADES = Object.freeze({
   ship: { cost: 25, maxHp: 145, speed: 26, thrust: 8, range: 130, damage: 12, cooldown: 1.8 },
   platform: { cost: 32.5, maxHp: 300, range: 170, damage: 16, cooldown: 1.5 },
@@ -332,7 +350,7 @@ function spawn(w, type, team, host, free = false) {
   const unit = { id: `u${serial}`, name: `${type.toUpperCase()} ${String(serial).padStart(2, '0')}`, type, team,
     ...TYPES[type], maxHp: TYPES[type].hp, x, y,
     vx: host.vx - Math.sin(phase) * orbit * omega, vy: host.vy + Math.cos(phase) * orbit * omega,
-    hostId: host.id, color: host.color, tier: 1, phase: phase - w.time * omega, orbit, omega,
+    hostId: host.id, color: host.color, tier: 1, lastDamageAt: w.time, phase: phase - w.time * omega, orbit, omega,
     order: { kind: 'defend', targetId: host.id }, fireTimer: 0.4 + (serial % 4) * 0.3, launched: true,
     loaded: type === 'booster', attachProgress: 0, rearmProgress: 0 };
   w.units.push(unit);
@@ -492,6 +510,21 @@ function defenseTarget(u, w, anchor) {
   }
   return best;
 }
+function firingLead(u, target, range) {
+  // Earliest entry into weapon reach, not contact with the target's centre.
+  // Short constant-velocity lookahead is cheap and refreshed each physics step.
+  const dx=target.x-u.x,dy=target.y-u.y,vx=target.vx||0,vy=target.vy||0;
+  const a=vx*vx+vy*vy-u.speed*u.speed;
+  const b=2*(dx*vx+dy*vy-range*u.speed),c=dx*dx+dy*dy-range*range;
+  if(c<=0)return 0;
+  let time=Infinity;
+  if(Math.abs(a)<1e-8){if(b<0)time=-c/b;}
+  else {
+    const discriminant=b*b-4*a*c;
+    if(discriminant>=0)for(const root of [(-b-Math.sqrt(discriminant))/(2*a),(-b+Math.sqrt(discriminant))/(2*a)])if(root>=0)time=Math.min(time,root);
+  }
+  return Math.min(12,Number.isFinite(time)?time:Math.max(0,-(dx*vx+dy*vy)/(vx*vx+vy*vy||1)));
+}
 function steering(u, w, g) {
   u.ramTargetId = null;
   let target = u.order?.targetId ? entity(w, u.order.targetId) : null;
@@ -519,9 +552,13 @@ function steering(u, w, g) {
   if (!target || target.hp <= 0) target = { x: u.order?.x ?? u.x, y: u.order?.y ?? u.y, vx: 0, vy: 0 };
   const circleTarget = u.type === 'ship' && kind === 'attack' && hostile(u, target) && ['ship', 'booster', 'miner', 'drone', 'platform'].includes(target.type);
   const rawDist = distance(u, target);
-  const lead = clamp((rawDist - standoff) / u.speed, 0, 24);
+  const interceptRock=u.type==='ship' && target.type==='rock' && ['attack','defend'].includes(kind) && combatTarget(u,target,w);
+  if(interceptRock)standoff=u.range*.85;
+  const holdFirePosition=interceptRock && rawDist<=u.range*.95;
+  const lead = interceptRock?firingLead(u,target,standoff):clamp((rawDist - standoff) / u.speed, 0, 24);
   let tx = target.x + (target.vx || 0) * lead, ty = target.y + (target.vy || 0) * lead;
   if (target.type === 'planet') { const future = planetAt(target, w.time + lead); tx = future.x; ty = future.y; }
+  if(holdFirePosition){tx=u.x;ty=u.y;standoff=0;}
   // A gentle tangent waypoint avoids steering through the star.
   const lx = tx - u.x, ly = ty - u.y, len2 = lx * lx + ly * ly;
   const t = clamp(-(u.x * lx + u.y * ly) / (len2 || 1), 0, 1);
@@ -534,8 +571,9 @@ function steering(u, w, g) {
   }
   let dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy) || 1;
   const gap = d - standoff;
-  const desired = u.ramTargetId && !avoidingStar ? u.speed : clamp(gap * .65, -u.speed * .4, u.speed);
-  const follow = clamp(1 - Math.max(0, gap) / 70, 0, 1);
+  const desired = u.ramTargetId && !avoidingStar ? u.speed : clamp(gap * .65, interceptRock?0:-u.speed * .4, u.speed);
+  // Combat ships brake to fire; they must not inherit a fast rock's velocity.
+  const follow = interceptRock?0:clamp(1 - Math.max(0, gap) / 70, 0, 1);
   let vx = dx / d * desired + (target.vx || 0) * follow;
   let vy = dy / d * desired + (target.vy || 0) * follow;
   if (circleTarget && !avoidingStar) {
@@ -676,6 +714,7 @@ function ramContact(w, drone, target, x, y, when, forecast) {
   drone.hp=0;drone.x=x;drone.y=y;
   drone.impact={x,y,time:when,targetId:target.id,name:target.name,kind:'ram'};
   target.hp=Math.max(0,target.hp-drone.damage);
+  target.lastDamageAt=when;
   if(target.hp<=0)target.impact={x:target.x,y:target.y,time:when,targetId:drone.id,name:'Drone interception',kind:'intercept'};
   if(forecast)return;
   w.effects.push({type:'ram',x,y,team:drone.team,color:drone.color,born:w.time,life:2});
@@ -891,6 +930,7 @@ function combat(w, dt) {
     const target = options[0];
     if (!target) continue;
     target.hp = Math.max(0, target.hp - u.damage);
+    target.lastDamageAt=w.time;
     if (w.lesson?.phase === 'combat' && w.lesson.attackerId === u.id && w.lesson.targetId === target.id && u.order.kind === 'attack') w.lesson.attackHit = true;
     u.fireTimer = u.cooldown;
     w.effects.push({ type: 'shot', x: u.x, y: u.y, tx: target.x, ty: target.y, team: u.team, color: u.color, tier: u.tier, born: w.time, life: .45 });
@@ -1113,7 +1153,7 @@ function step(w, dt = DT) {
   scanRockThreats(w);
   advanceMotion(w, dt);
   for (const p of w.planets) if (p.hp > 0 && p.team !== 'neutral') w.metal[p.team] = Math.min(999, w.metal[p.team] + .4 * dt);
-  combat(w, dt); updateBoosters(w, 0, true); updateMiners(w,0,true); ai(w);
+  combat(w, dt); repairShips(w,dt); updateBoosters(w, 0, true); updateMiners(w,0,true); ai(w);
   w.effects = w.effects.filter(e => w.time - e.born < e.life);
   // Sandbox keeps simulating after colony loss; destruction and costs still apply.
   if (w.mode === 'sandbox' || w.scenario === 'playground') return;
@@ -1279,6 +1319,7 @@ function createGame(options = {}) {
   if (setup.system === 'two') w.planets = w.planets.filter(p => p.id !== 'ochre');
   if(mode==='skirmish') {
     for(const p of w.planets) {
+      if(p.team!=='neutral')p.hp=p.maxHp=300;
       const old={x:p.x,y:p.y,vx:p.vx,vy:p.vy};
       p.referenceOrbit=p.orbit;
       p.orbit*=1+(layoutRandom()*2-1)*SKIRMISH_ORBIT_JITTER;
@@ -2360,7 +2401,7 @@ class Game {
   closeModal() { $('modal').classList.add('hidden'); this.canvas.focus(); this.updateUI(); }
   help() {
     this.showModal('FIELD GUIDE', 'Small orders. Wide orbits.',
-      '<ul><li><b>Left-click</b> to select. Click it again or empty space to clear selection. <b>Right-click</b> to plan an order; <b>Enter</b> confirms, <b>Esc</b> cancels.</li><li><b>Prepare a rock:</b> untouched rocks follow stable belt orbits until launched or struck. Select it and choose Send booster, or select a booster ship and right-click the rock. Attachment takes 6 seconds after arrival.</li><li><b>Launch:</b> select an equipped rock and right-click a planet to calculate a shot toward its future position. Right-click empty space for manual aim; confirm for 35 metal (free with unlimited metal). Drag aiming also works. The booster fires for 4 seconds, then detaches automatically and awaits orders. Choose Return home to reload in 8 seconds at no extra cost. You can detach manually before launching.</li><li><b>Context orders:</b> a combat ship attacks enemies, escorts friendly mobile units, and defends friendly planets or platforms. A booster attaches to free rocks and returns to a friendly colony to reload. Hover for the action hint.</li><li><b>Right-click</b> a friendly planet or platform with a ship or drone to defend it. Drones ram rocks and hostile units in their assigned local area, sacrificing themselves for 45 damage. Platforms keep firing reusable guns.</li><li><b>Space</b> pauses. <b>1 / 2 / 3</b> select 1× / 5× / 20×. Scroll to zoom; drag empty space to pan; <b>F</b> fits the system.</li></ul><p>Booster ships cost 50 metal and are unarmed. Select your colony to deploy. Income is 0.4 metal / second; fleet limit 12. Launched rocks damage any planet, including your own. Defenses intercept your rocks when they threaten home. Ship weapons do not fire on friendly ships or colonies.</p><p><b>Mining:</b> miners cost 25 metal, are unarmed, and share the fleet limit. Right-click an idle asteroid, confirm, and dock for 4 seconds. Each miner earns 0.2 metal per second directly into your treasury. One miner per asteroid. Right-click to leave; launching the asteroid releases the miner. A destroyed asteroid destroys its docked miner. Select a warship and right-click the miner to escort it.</p><p><b>Upgrades:</b> each ship, platform or drone can become Super once, using the selected-unit panel. Review the stats and price before buying: ship 25, platform 32.5, drone 10 metal. Super units and shots use a darker faction color and units carry a double-chevron marker. Existing damage is preserved proportionally. No research tree.</p><p><b>Rock collisions:</b> small, medium, and large rocks have masses 1, 2, and 4 and colony damage 35, 65, and 100. All fall equally under gravity. Glancing hits deflect; hard hits shatter both rocks and any attached boosters, leaving harmless debris. Collision tuning adjusts rebound and rock strength, pauses time, and redraws both paths. Violet paths show other rocks after contact. Restart keeps tuning.</p><p><b>Gravity:</b> adjust G, shared planet mass, or sun mass in the left-hand controls. Changes pause time and redraw paths. G and sun mass set planetary orbital speed; radii and current positions stay fixed. Planet mass changes its pull on units, not its own orbital speed. Free-flying units keep their velocities. Reset restores defaults; restarting retains tuning, while New game starts at defaults.</p><p class="note">Teal launch segments show powered flight; gold shows coasting. Ship paths end when attachment completes. Predictions normally cover 90 seconds; difficult targeted rock shots try up to 120 seconds. Weapons and future enemy decisions can change the outcome.</p>',
+      '<ul><li><b>Left-click</b> to select. Click it again or empty space to clear selection. <b>Right-click</b> to plan an order; <b>Enter</b> confirms, <b>Esc</b> cancels.</li><li><b>Prepare a rock:</b> untouched rocks follow stable belt orbits until launched or struck. Select it and choose Send booster, or select a booster ship and right-click the rock. Attachment takes 6 seconds after arrival.</li><li><b>Launch:</b> select an equipped rock and right-click a planet to calculate a shot toward its future position. Right-click empty space for manual aim; confirm for 35 metal (free with unlimited metal). Drag aiming also works. The booster fires for 4 seconds, then detaches automatically and awaits orders. Choose Return home to reload in 8 seconds at no extra cost. You can detach manually before launching.</li><li><b>Context orders:</b> a combat ship attacks enemies, escorts friendly mobile units, and defends friendly planets or platforms. A booster attaches to free rocks and returns to a friendly colony to reload. Hover for the action hint.</li><li><b>Right-click</b> a friendly planet or platform with a ship or drone to defend it. Drones ram rocks and hostile units in their assigned local area, sacrificing themselves for 45 damage. Platforms keep firing reusable guns.</li><li><b>Space</b> pauses. <b>1 / 2 / 3</b> select 1× / 5× / 20×. Scroll to zoom; drag empty space to pan; <b>F</b> fits the system.</li></ul><p>Booster ships cost 50 metal and are unarmed. Select your colony to deploy. Income is 0.4 metal / second; fleet limit 12. Launched rocks damage any planet, including your own. Defenses intercept your rocks when they threaten home. Ship weapons do not fire on friendly ships or colonies.</p><p><b>Repairs:</b> combat ships recover 1 health per second for free within 100 units of their own home planet surface, after 10 seconds without taking damage. Both sides can repair; leaving home pauses recovery. Destroyed ships cannot recover.</p><p><b>Mining:</b> miners cost 25 metal, are unarmed, and share the fleet limit. Right-click an idle asteroid, confirm, and dock for 4 seconds. Each miner earns 0.4 metal per second directly into your treasury. One miner per asteroid. Right-click to leave; launching the asteroid releases the miner. A destroyed asteroid destroys its docked miner. Select a warship and right-click the miner to escort it.</p><p><b>Upgrades:</b> each ship, platform or drone can become Super once, using the selected-unit panel. Review the stats and price before buying: ship 25, platform 32.5, drone 10 metal. Super units and shots use a darker faction color and units carry a double-chevron marker. Existing damage is preserved proportionally. No research tree.</p><p><b>Rock collisions:</b> small, medium, and large rocks have masses 1, 2, and 4 and colony damage 35, 65, and 100. All fall equally under gravity. Glancing hits deflect; hard hits shatter both rocks and any attached boosters, leaving harmless debris. Collision tuning adjusts rebound and rock strength, pauses time, and redraws both paths. Violet paths show other rocks after contact. Restart keeps tuning.</p><p><b>Gravity:</b> adjust G, shared planet mass, or sun mass in the left-hand controls. Changes pause time and redraw paths. G and sun mass set planetary orbital speed; radii and current positions stay fixed. Planet mass changes its pull on units, not its own orbital speed. Free-flying units keep their velocities. Reset restores defaults; restarting retains tuning, while New game starts at defaults.</p><p class="note">Teal launch segments show powered flight; gold shows coasting. Ship paths end when attachment completes. Predictions normally cover 90 seconds; difficult targeted rock shots try up to 120 seconds. Weapons and future enemy decisions can change the outcome.</p>',
       'Back to the system', () => this.closeModal());
   }
   toast(message) { $('toast').textContent = message; $('toast').classList.add('visible'); this.toastUntil = performance.now() + 6000; }
@@ -2506,6 +2547,7 @@ class Game {
         status = u.type === 'platform' ? `Local defense · ${u.range} u weapon range` : `${titleCase(u.order?.kind || 'idle')}${target ? ` → ${target.name}` : ''}<br>${u.type === 'drone' ? `Rams rocks and hostile ships / ${u.damage} damage<br>Consumed on contact / defends within ${u.defenseRadius||180} u` : forecast?.eta ? `Arrival / weapons range in ~${Math.ceil(forecast.eta)}s` : 'Right-click to plan a new order'}`;
         if(u.type==='ship' && u.order?.kind==='defend' && target && target.type!=='planet')status=`Escort / ${target.name}<br>Following unit / engaging nearby threats`;
         if (u.type === 'ship' && u.order?.kind === 'attack' && target && ['ship', 'booster', 'miner', 'drone', 'platform'].includes(target.type)) status = `Attack / ${target.name}<br>${distance(u, target) <= u.range ? 'Circling target / firing whenever ready' : 'Intercepting / circle and fire on arrival'}`;
+        if (u.type === 'ship' && u.order?.kind === 'attack' && target?.type === 'rock') status = `Attack / ${target.name}<br>${distance(u,target)<=u.range*.95?'Braking to fire / holding weapon range':'Intercepting / seeking firing range'}`;
       }
     }
     if(u?.type==='miner'){const rock=entity(w,u.miningRockId||u.order?.targetId);if(rock?.type==='rock')status+=`<br>Metal remaining: ${Math.max(0,rock.metalRemaining||0).toFixed(1)} / ${rock.metalCapacity||0}`;}
@@ -2517,6 +2559,8 @@ class Game {
       const contact=this.ui.predictions.get(u.id)?.collisions?.[0];
       if(contact)status+=`<br>${contact.kind==='smash'?'Shatters':'Deflects'} in ${contact.time.toFixed(1)}s / both paths shown`;
     }
+    const repair=shipRepairStatus(w,u);
+    if(repair)status+=`<br>${repair.kind==='repairing'?`Repairing at home / +${REPAIR_RATE} health per second`:repair.kind==='waiting'?`Home repairs in ${Math.ceil(repair.remaining)}s without damage`:repair.kind==='away'?'Return home for free repairs':'Home repairs unavailable'}`;
     const upgrade=UPGRADES[u?.type];
     if(upgrade && u)status+=`<br>${u.tier===2?'SUPER':'BASIC'} / ${u.damage} damage / ${u.type==='drone'?`${u.speed} speed`:`${u.range} range / shot every ${u.cooldown}s`}`;
     setText('selected-name', u?.name || 'THE SYSTEM IS YOURS');

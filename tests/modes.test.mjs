@@ -45,6 +45,7 @@ test('skirmish configuration is repeatable, balanced in budget, and keeps victor
     assert.equal(w.planets.length, system === 'two' ? 2 : 3);
     assert.deepEqual(w.metal, { player: 400, enemy: 400 });
     assert.equal(w.unlimitedMetal, false);
+    assert.ok(w.planets.filter(p=>p.team!=='neutral').every(p=>p.hp===300 && p.maxHp===300));
     assert.ok(fleet(w, 'enemy').length > 0);
     assert.deepEqual(createGame(w.setup), w);
     spawn(w, 'ship', 'player', w.planets[0]);
