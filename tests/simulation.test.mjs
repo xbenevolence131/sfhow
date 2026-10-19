@@ -180,8 +180,9 @@ test('Hold the Orbit can be won and loss/restart are clean', () => {
 test('Neighbors is winnable by defending early and then committing a fleet', () => {
   const w = createScenario('neighbors');
   const home = w.planets[0]; spawn(w, 'ship', 'player', home); spawn(w, 'ship', 'player', home);
-  // Commit during the new orbital approach window, after the early defense.
-  advance(w, 40);
+  // Direct enemy pursuit now punishes the old 40-second rush. Defend through
+  // the first minute before committing; this uses ordinary units and budgets.
+  advance(w, 60);
   for (const u of w.units.filter(u => u.type === 'ship' && u.team === 'player')) setOrder(w, u.id, { kind: 'attack', targetId: 'cinder' });
   advance(w, 300); assert.equal(w.outcome, 'victory');
 });

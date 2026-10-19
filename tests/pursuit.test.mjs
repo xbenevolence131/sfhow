@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame } from '../src/scenarios.js';
-import { DT, distance, setOrder, advanceMotion, predict, step } from '../src/simulation.js';
+import { DT, distance, setOrder, setGravity, advanceMotion, predict, step } from '../src/simulation.js';
 
 function pursuitFixture(type = 'booster', moving = true) {
   const w = createGame({ mode: 'sandbox', enemies: true });
@@ -16,7 +16,7 @@ function pursuitFixture(type = 'booster', moving = true) {
   return { w, ship, target };
 }
 
-test('attack circles a moving booster in range while firing at every available cooldown', () => {
+test('attack tracks a moving booster in range while firing at every available cooldown', () => {
   const { w, ship, target } = pursuitFixture();
   let angle = Math.atan2(ship.y - target.y, ship.x - target.x), turn = 0, inRange = 0, min = Infinity, max = 0;
   const frames = 40 / DT;
@@ -27,7 +27,7 @@ test('attack circles a moving booster in range while firing at every available c
     const d = distance(ship,target); min=Math.min(min,d);max=Math.max(max,d);
     if(d <= ship.range) inRange++;
   }
-  assert.ok(Math.abs(turn) > Math.PI * 1.5, `must visibly circle, actual turn ${turn}`);
+  assert.ok(Math.abs(turn) < .5, `must track without circling, actual turn ${turn}`);
   assert.ok(inRange / frames > .95, `must stay in firing range: ${inRange/frames}`);
   assert.ok(min > ship.radius + target.radius, `must not pass through target: ${min}`);
   assert.ok(max < ship.range, `must not drift ahead out of range: ${max}`);
@@ -62,7 +62,7 @@ test('unit attack keeps priority over closer enemies and ends when target dies o
   advanceMotion(w); assert.equal(ship.order.kind,'stop');
 });
 
-test('circling also follows moving combat ships, drones, and prescribed-orbit platforms', () => {
+test('tracking also follows moving combat ships, drones, and prescribed-orbit platforms', () => {
   for(const type of ['ship','drone','platform']) {
     const {w,ship,target}=pursuitFixture(type);
     if(type==='platform') {
@@ -80,12 +80,12 @@ test('circling also follows moving combat ships, drones, and prescribed-orbit pl
       turn+=Math.atan2(Math.sin(next-angle),Math.cos(next-angle));angle=next;
     }
     assert.ok(inRange/(40/DT)>.8,`${type}: in range ${inRange/(40/DT)}`);
-    assert.ok(Math.abs(turn)>Math.PI,`${type}: turn ${turn}`);
+
     assert.ok(clearance>0,`${type}: must clear planets, actual ${clearance}`);
   }
 });
 
-test('enemy ships use the same circling rules', () => {
+test('enemy ships use the same direct tracking rules', () => {
   const { w, ship, target } = pursuitFixture();
   ship.team='enemy';target.team='player';
   let turn=0,angle=Math.atan2(ship.y-target.y,ship.x-target.x);
@@ -94,5 +94,38 @@ test('enemy ships use the same circling rules', () => {
     const next=Math.atan2(ship.y-target.y,ship.x-target.x);
     turn+=Math.atan2(Math.sin(next-angle),Math.cos(next-angle));angle=next;
   }
-  assert.ok(Math.abs(turn)>Math.PI);assert.ok(distance(ship,target)<ship.range);
+  assert.ok(Math.abs(turn)<.5);assert.ok(distance(ship,target)<ship.range);
+});
+
+test('clear stationary approaches stay direct and brake inside range for both factions',()=>{
+  for(const team of ['player','enemy']){
+    const {w,ship,target}=pursuitFixture('booster',false);setGravity(w,{g:0});
+    ship.team=team;target.team=team==='player'?'enemy':'player';
+    ship.x=250;ship.vx=ship.vy=0;
+    const preview=predict(w,[ship.id],null,30).get(ship.id);
+    assert.ok(preview.eta>0&&preview.eta<20,'ETA reports entry into gun range, not a docking distance');
+    let maxSideways=0;
+    for(let i=0;i<30/DT;i++){step(w);maxSideways=Math.max(maxSideways,Math.abs(ship.y-350));}
+    assert.ok(maxSideways<1e-7);assert.ok(distance(ship,target)<ship.range);
+    assert.ok(distance(ship,target)>ship.range*.7,'brakes without diving onto the target');
+    assert.ok(Math.hypot(ship.vx,ship.vy)<.1);assert.ok(target.hp<10000);
+  }
+});
+
+test('incoming units enter the guns without the fighter retreating to maintain distance',()=>{
+  for(const kind of ['attack','defend']){
+    const {w,ship,target}=pursuitFixture();setGravity(w,{g:0});
+    Object.assign(ship,{x:400,y:350,vx:0,vy:0});
+    Object.assign(target,{x:590,y:350,vx:-19,vy:0,order:{kind:'move',x:0,y:350}});
+    if(kind==='defend'){
+      const home=w.planets.find(p=>p.id===ship.hostId);
+      Object.assign(home,{x:400,y:270,orbit:Math.hypot(400,270),phase:Math.atan2(270,400),omega:0});
+      setOrder(w,ship.id,{kind:'defend',targetId:home.id});
+    }
+    for(let i=0;i<5/DT&&target.hp===10000;i++){
+      step(w);assert.ok(ship.x>=400-1e-7,'do not back away from incoming enemy');
+      assert.ok(Math.abs(ship.y-350)<1e-7,'no forced sideways motion');
+    }
+    assert.ok(target.hp<10000,`${kind} must open fire within five seconds`);
+  }
 });

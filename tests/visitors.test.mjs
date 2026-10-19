@@ -34,14 +34,14 @@ test('varied visitor trajectories cross obliquely and avoid the sun under real g
 
 test('both factions detect and fire on neutral visitors threatening their colonies',()=>{
   for(const team of ['player','enemy']){
-    const w=createGame({mode:'skirmish',visitorSeed:1});w.ai.disabled=true;w.visitors.nextAt=Infinity;
+    const w=createGame({mode:'skirmish',layoutSeed:17,visitorSeed:1});w.ai.disabled=true;w.visitors.nextAt=Infinity;
     const home=w.planets.find(p=>p.team===team);
     const platform=w.units.find(u=>u.type==='platform' && u.team===team);
     w.units=[platform];
-    const rock=addRock(w,0);Object.assign(rock,{visitor:true,arrivedAt:0,launched:true,x:home.x+80,y:home.y,vx:home.vx-10,vy:home.vy});delete rock.beltOrbit;
-    platform.phase=0;platform.fireTimer=0;
-    scanRockThreats(w);assert.equal(w.rockThreats[rock.id]?.targetId,home.id);
-    for(let i=0;i<20;i++)step(w,DT);
-    assert.ok(rock.hp<rock.maxHp,`${team} defenses fire at neutral threat`);
+    const rock=addRock(w,0);Object.assign(rock,{visitor:true,arrivedAt:0,launched:true,x:home.x+125,y:home.y,vx:home.vx-10,vy:home.vy});delete rock.beltOrbit;
+    platform.phase=0;platform.x=home.x+platform.orbit;platform.y=home.y;platform.fireTimer=0;
+    scanRockThreats(w);assert.ok([home.id,platform.id].includes(w.rockThreats[rock.id]?.targetId));
+    step(w,DT);
+    assert.equal(rock.hp,rock.maxHp-platform.damage,`${team} fires before physical contact`);
   }
 });

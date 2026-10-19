@@ -105,9 +105,9 @@ export function advanceTutorial(w) {
     const first=w.units.find(u=>u.id===lesson.firstRockId), home=w.planets.find(p=>p.team==='player');
     if(first?.impact?.targetId===home.id) {
       lesson.firstImpact=true;
-      if(!lesson.grant){w.metal.player+=190;lesson.grant=true;}
+      if(!lesson.grant){w.metal.player+=210;lesson.grant=true;}
       prepareTutorialAttack(w);
-      announce(w,'Colony hit / build defenses','Your colony took real damage. +190 metal: build a platform, two drones, and a combat ship before testing another attack.');
+      announce(w,'Colony hit / build defenses','Your colony took real damage. +210 metal: build a platform, two drones, and a combat ship before testing another attack.');
     } else {
       lesson.firstRockId=null;
       announce(w,'Try the first attack again','The rock did not reach Verdant. Send another practice rock to continue.');

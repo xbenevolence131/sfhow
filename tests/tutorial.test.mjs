@@ -20,7 +20,7 @@ test('tutorial starts undefended; the first real impact grants a single build bu
   tick(w,60);
   assert.equal(w.lesson.phase,'fortify');assert.equal(w.lesson.firstImpact,true);
   assert.equal(w.planets[0].hp,175);assert.equal(w.outcome,null);
-  assert.ok(w.metal.player>=initial+190);assert.equal(w.lesson.grant,true);
+  assert.ok(w.metal.player>=initial+210);assert.equal(w.lesson.grant,true);
   assert.equal(entity(w,w.lesson.rockId).boosterTeam,'enemy');
   assert.equal(enemyLaunch(w,true),false,'AI waits for the explicit second launch');
   const granted=w.metal.player;advanceTutorial(w);assert.equal(w.metal.player,granted);

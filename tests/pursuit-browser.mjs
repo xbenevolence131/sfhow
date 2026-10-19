@@ -9,7 +9,7 @@ try {
   const positions=await page.evaluate(()=>{
     orbital.load('neighbors',{mode:'skirmish'});orbital.closeModal();
     const w=orbital.world;
-    w.ai={buildAt:Infinity,attackAt:Infinity,rockAt:Infinity,launchAt:Infinity};
+    w.ai.disabled=true;w.visitors.nextAt=Infinity;
     const ship=w.units.find(u=>u.type==='ship'&&u.team==='player');
     const target=w.units.find(u=>u.type==='booster'&&u.team==='enemy');
     w.units=[ship,target];
@@ -30,15 +30,15 @@ try {
   await page.mouse.click(positions.ship.x,positions.ship.y);
   await page.mouse.click(positions.target.x,positions.target.y,{button:'right'});
   assert.equal(await page.evaluate(()=>orbital.ui.pending.order.targetId),await page.evaluate(()=>fight.target.id));
-  assert.ok((await page.locator('#plan-note').innerText()).includes('circle'));
+  assert.ok((await page.locator('#plan-note').innerText()).includes('track'));
   await page.locator('#confirm').click({delay:250});
-  assert.ok((await page.locator('#selected-meta').innerText()).includes('Circling'));
+  assert.ok((await page.locator('#selected-meta').innerText()).includes('Tracking'));
   await page.locator('[data-speed="5"]').click();
   await page.waitForFunction(()=>fight.target.hp<=0&&fight.ship.order.kind==='stop',null,{timeout:15000});
   await page.locator('#pause').click();
   const result=await page.evaluate(()=>({turn:fight.turn,inRange:fight.rangeSamples/fight.total,hp:fight.target.hp,shipHp:fight.ship.hp,order:fight.ship.order.kind}));
-  assert.ok(Math.abs(result.turn)>2,'must visibly arc around booster before destroying it');
+  assert.ok(Math.abs(result.turn)<.5,'must track booster without forced circling');
   assert.ok(result.inRange>.95);assert.equal(result.hp,0);assert.equal(result.order,'stop');
   assert.deepEqual(errors,[]);
-  console.log('Pursuit browser check passed: click target, preview, confirm, visible circling, sustained fire, target destroyed, then stop.',JSON.stringify(result));
+  console.log('Pursuit browser check passed: click target, preview, confirm, direct tracking, sustained fire, target destroyed, then stop.',JSON.stringify(result));
 }finally{await browser.close();}

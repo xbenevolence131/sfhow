@@ -299,7 +299,7 @@ class Game {
       const enemy=entity(w,lesson.targetId), attacker=entity(w,lesson.attackerId);
       if(attacker?.order?.kind==='attack' && attacker.order.targetId===enemy?.id) {
         title='Destroy the enemy booster'; target=enemy?.id; highlight=this.paused?'pause':null;
-        copy='Attack confirmed. Unpause to watch your ship approach, circle, and fire automatically. Destroy this booster to continue. Your surviving defenses keep guarding home.';
+        copy='Attack confirmed. Unpause to watch your ship approach, track, and fire automatically. Destroy this booster to continue. Your surviving defenses keep guarding home.';
       } else if(pending?.order?.kind==='attack' && pending.order.targetId===enemy?.id) {
         title='Confirm the attack'; highlight='confirm'; copy='Review the pursuit path, then Confirm or press Enter. Your ship will stay on this target until it is destroyed or you change its order.';
       } else if(selected?.type==='ship' && selected.team==='player') {
@@ -318,11 +318,11 @@ class Game {
         copy='Your platform, two drones, and ship are ready. Click Launch practice attack, then unpause. This is the same kind of rock that hit before: watch your new defenses stop it.';
         target=lesson.rockId;
       } else if(selected?.id!=='verdant') {
-        target='verdant'; action='LEFT-CLICK'; copy='The first rock damaged your undefended colony. You received 190 metal. Left-click Verdant to build defenses and a combat ship before trying another attack.';
+        target='verdant'; action='LEFT-CLICK'; copy='The first rock damaged your undefended colony. You received 210 metal. Left-click Verdant to build defenses and a combat ship before trying another attack.';
       } else {
         const type=defenses.platforms<1?'platform':defenses.drones<2?'drone':'ship';
         document.querySelector(`[data-build="${type}"]`).classList.add('tutorial-focus');
-        copy=`Build one Platform (80 metal), two Drones (25 each), and one Ship (60). Built: ${Math.min(1,defenses.platforms)}/1 platform, ${Math.min(2,defenses.drones)}/2 drones, ${Math.min(1,defenses.ships)}/1 ship. Platforms fire reusable guns; drones ram and sacrifice themselves. Keep the ship home for this test.`;
+        copy=`Build one Platform (100 metal), two Drones (25 each), and one Ship (60). Built: ${Math.min(1,defenses.platforms)}/1 platform, ${Math.min(2,defenses.drones)}/2 drones, ${Math.min(1,defenses.ships)}/1 ship. Platforms fire reusable guns; drones ram and sacrifice themselves. Keep the ship home for this test.`;
         if(w.metal.player<COST[type]) {copy+=' Unpause to earn the missing metal.';highlight=this.paused?'pause':null;}
       }
     } else if(lesson?.phase==='defense' || lesson?.phase==='retry') {
@@ -553,7 +553,7 @@ class Game {
         const target = entity(w, u.order?.targetId);
         status = u.type === 'platform' ? `Local defense · ${u.range} u weapon range` : `${titleCase(u.order?.kind || 'idle')}${target ? ` → ${target.name}` : ''}<br>${u.type === 'drone' ? `Rams rocks and hostile ships / ${u.damage} damage<br>Consumed on contact / defends within ${u.defenseRadius||180} u` : forecast?.eta ? `Arrival / weapons range in ~${Math.ceil(forecast.eta)}s` : 'Right-click to plan a new order'}`;
         if(u.type==='ship' && u.order?.kind==='defend' && target && target.type!=='planet')status=`Escort / ${target.name}<br>Following unit / engaging nearby threats`;
-        if (u.type === 'ship' && u.order?.kind === 'attack' && target && ['ship', 'booster', 'miner', 'drone', 'platform'].includes(target.type)) status = `Attack / ${target.name}<br>${distance(u, target) <= u.range ? 'Circling target / firing whenever ready' : 'Intercepting / circle and fire on arrival'}`;
+        if (u.type === 'ship' && u.order?.kind === 'attack' && target && ['ship', 'booster', 'miner', 'drone', 'platform'].includes(target.type)) status = `Attack / ${target.name}<br>${distance(u, target) <= u.range ? 'Tracking target / firing whenever ready' : 'Closing into weapon range'}`;
         if (u.type === 'ship' && u.order?.kind === 'attack' && target?.type === 'rock') status = `Attack / ${target.name}<br>${distance(u,target)<=u.range*.95?'Braking to fire / holding weapon range':'Intercepting / seeking firing range'}`;
       }
     }
@@ -607,10 +607,10 @@ class Game {
       let detail = f?.attachment ? `Attached and waiting in ~${Math.ceil(f.attachment.time)}s` : f?.impact ? `Impact: ${f.impact.name} in ${Math.ceil(f.impact.time)}s` : f?.eta ? `Arrival / range in ~${Math.ceil(f.eta)}s` : `${pending.aim?.horizon||90}-second flight preview`;
       if(pending.order?.kind==='mine' && f?.attachment)detail=`Dock and start mining in ~${Math.ceil(f.attachment.time)}s`;
       if (pending.impulse && f && !f.impact && Number.isFinite(f.closest)) detail = `Closest approach: ${Math.max(0, f.closest).toFixed(0)} u in ${Math.ceil(f.closestTime)}s`;
-      if (pending.impulse && entity(w, f?.impact?.targetId)?.team === 'player') detail = `WARNING: YOUR COLONY — ${detail}`;
+      if (pending.impulse && entity(w, f?.impact?.targetId)?.team === 'player') detail = `WARNING: YOUR ${entity(w,f.impact.targetId).type==='platform'?'PLATFORM':'COLONY'} — ${detail}`;
       if (pending.aim && !pending.aim.verified) detail = `NO VERIFIED SHOT / ${pending.aim.reason} ${detail}`;
       $('plan-summary').textContent = `${target ? `${target.name} · ` : ''}${detail}`;
-      $('plan-note').textContent = pending.impulse ? '4s powered burn, then coast · booster detaches automatically' : pending.order.kind === 'fit' ? 'Attach for 6s after arrival · stay attached until you launch or detach' : pending.order.kind === 'attack' && target && ['ship', 'booster', 'miner', 'drone', 'platform'].includes(target.type) ? 'Intercept, then circle in weapon range / keep firing at this target' : 'Moving targets are pursued · weapons can change the outcome';
+      $('plan-note').textContent = pending.impulse ? '4s powered burn, then coast · booster detaches automatically' : pending.order.kind === 'fit' ? 'Attach for 6s after arrival · stay attached until you launch or detach' : pending.order.kind === 'attack' && target && ['ship', 'booster', 'miner', 'drone', 'platform'].includes(target.type) ? 'Close into weapon range, then track and fire at this target' : 'Moving targets are pursued · weapons can change the outcome';
       if(pending.order?.kind==='mine')$('plan-note').textContent=`Dock for ${MINING_DOCK_TIME}s, then +${MINING_RATE} metal per second directly to your treasury`;
       const departing = entity(w, pending.id);
       if (pending.order && departing?.attachedRockId) $('plan-note').textContent = entity(w, departing.attachedRockId)?.burn?.remaining > 0 ? 'Finish the burn, then detach and follow this order / Escape cancels' : 'Detach from the rock, then follow this order / Escape cancels';

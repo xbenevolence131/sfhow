@@ -78,7 +78,7 @@ try {
   await page.mouse.click(home.x,home.y);
   const beforeMetal=await page.evaluate(()=>orbital.world.metal.player);
   for(const type of ['platform','drone','drone','ship']) await page.locator(`[data-build="${type}"]`).click();
-  assert.equal(Math.round(beforeMetal-await page.evaluate(()=>orbital.world.metal.player)),190);
+  assert.equal(Math.round(beforeMetal-await page.evaluate(()=>orbital.world.metal.player)),210);
   await stage(9);
   await page.screenshot({path:'test-results/orbital-tutorial-reinforce.png'});
   await page.locator('#tutorial-attack').click(); await stage(10);
