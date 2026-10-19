@@ -55,9 +55,12 @@ export function attachInput(game) {
     }
     canvas.setPointerCapture(e.pointerId);
     if (e.button === 1 || !target) { drag = { kind: 'pan', start: p, last: p, moved: false, clear: e.button === 0 && !target }; canvas.style.cursor = 'grabbing'; return; }
-    const wasSelected = game.ui.selectedId === target.id;
-    game.select(target.id);
-    drag = { kind: target.type === 'rock' && !target.launched && target.boosterTeam === 'player' ? 'rock' : 'select', id: target.id, start: p, moved: false, clear: wasSelected };
+    // Attached pairs share one map selection. Right-click targeting stays raw,
+    // so combat ships can still attack the booster itself.
+    const selected = entity(game.world, target.attachedRockId) || target;
+    const wasSelected = game.ui.selectedId === selected.id;
+    game.select(selected.id);
+    drag = { kind: selected.type === 'rock' && !selected.launched && selected.boosterTeam === 'player' ? 'rock' : 'select', id: selected.id, start: p, moved: false, clear: wasSelected };
   });
   canvas.addEventListener('pointermove', e => {
     const p = point(e); pointer = p;

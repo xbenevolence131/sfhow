@@ -38,7 +38,7 @@ test('free launch starts a real burn and defenses intercept incoming rocks', () 
   const hp=p.hp;assert.equal(launchRock(w,r.id,{x:-1,y:0}).error,undefined);
   assert.equal(w.metal.player,0);assert.equal(r.burn.remaining,4);
   for(let i=0;i<15/DT&&r.hp>0;i++)step(w);
-  assert.equal(r.hp,0);assert.equal(r.impact,undefined,'defenders must shoot it down, not a collision');
+  assert.equal(r.hp,0);assert.ok(!r.impact || r.impact.kind==='intercept','defenders must intercept it before planetary impact');
   assert.equal(p.hp,hp);assert.ok(w.events.some(e=>e.text==='Asteroid intercepted'));
 });
 

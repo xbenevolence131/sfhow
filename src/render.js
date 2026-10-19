@@ -76,10 +76,6 @@ export class Renderer {
     for (const s of this.stars) { c.globalAlpha = s.alpha; c.fillStyle = '#b9ccd8'; c.fillRect(s.x * this.width, s.y * this.height, s.r, s.r); } c.globalAlpha = 1;
     const center = this.screen({ x: 0, y: 0 });
     for (const p of w.planets) this.circle(center.x, center.y, p.orbit * z, '#304351');
-    if (w.practiceDock) {
-      const p = this.screen(w.practiceDock); this.circle(p.x, p.y, 8, '#ee918455', null, [2, 3]);
-      this.text('PRACTICE DOCK', p.x + 14, p.y + 3, '#9c827e', 8);
-    }
     for (const r of this.belt) {
       const a = r.angle + w.time * .0058, p = this.screen({ x: Math.cos(a) * r.orbit, y: Math.sin(a) * r.orbit });
       c.fillStyle = '#67727b'; c.globalAlpha = .5; c.fillRect(p.x, p.y, r.size, r.size);
@@ -91,6 +87,13 @@ export class Renderer {
     this.text('SOL', center.x, center.y + starRadius + 20, '#8c846d', 9, 'center');
     const selected = entity(w, ui.selectedId);
     if (ui.ranges) {
+      const droneHosts=new Set();
+      for(const u of w.units)if(u.hp>0 && u.type==='drone' && (u.team==='player' || u.id===ui.selectedId)) {
+        const host=entity(w,u.order?.targetId)||entity(w,u.hostId);
+        if(!host || droneHosts.has(host.id))continue;
+        droneHosts.add(host.id);const p=this.screen(host);
+        this.circle(p.x,p.y,180*z,objectColor(u)+'44',null,[2,7]);
+      }
       for (const u of w.units) if (u.hp > 0 && u.range && (u.team === 'player' || u.id === ui.selectedId)) {
         const s = this.screen(u); this.circle(s.x, s.y, u.range * z, objectColor(u) + '22', null, [3, 5]);
       }
@@ -115,7 +118,16 @@ export class Renderer {
     }
     for (const u of w.units) {
       if (u.hp <= 0) continue;
-      const s = this.screen(u); if (s.x < -30 || s.x > this.width + 30 || s.y < -30 || s.y > this.height + 30) continue;
+      const s = this.screen(u);
+      if (s.x < -30 || s.x > this.width + 30 || s.y < -30 || s.y > this.height + 30) {
+        if(u.visitor){
+          const x=Math.max(18,Math.min(this.width-18,s.x)),y=Math.max(65,Math.min(this.height-175,s.y));
+          this.circle(x,y,5,'#a3acb1');
+          this.text(u.name,x+(x>this.width/2?-12:12),y+4,'#a3acb1',8,x>this.width/2?'right':'left');
+        }
+        continue;
+      }
+      if(u.visitor)this.text(u.name,s.x+13,s.y-10,'#a3acb1',8);
       const color = objectColor(u); c.save(); c.translate(s.x, s.y); c.strokeStyle = color; c.fillStyle = color; c.lineWidth = 1.3;
       const size = Math.max(u.type === 'rock' ? u.size==='small'?4:u.size==='large'?8:5.5 : u.type === 'drone' ? 3.2 : 5.5, u.radius * z);
       if (u.type === 'ship') {
@@ -130,7 +142,8 @@ export class Renderer {
         this.circle(0, 0, size, color); this.circle(0, 0, 2, null, color);
         c.beginPath(); c.moveTo(-size - 4, 0); c.lineTo(-size + 3, 0); c.moveTo(size - 3, 0); c.lineTo(size + 4, 0); c.moveTo(0, -size - 4); c.lineTo(0, -size + 3); c.moveTo(0, size - 3); c.lineTo(0, size + 4); c.stroke();
       } else if (u.type === 'drone') {
-        c.rotate(w.time * .2 + u.phase); c.beginPath(); c.moveTo(0, -size); c.lineTo(size, 0); c.lineTo(0, size); c.lineTo(-size, 0); c.closePath(); c.stroke();
+        c.rotate(u.ramTargetId?Math.atan2(u.vy,u.vx)+Math.PI/2:w.time*.2+u.phase); c.beginPath(); c.moveTo(0, -size); c.lineTo(size, 0); c.lineTo(0, size); c.lineTo(-size, 0); c.closePath();
+        if(u.ramTargetId){c.fill();c.beginPath();c.moveTo(0,size+3);c.lineTo(0,size+10);c.stroke();}else c.stroke();
       } else {
         c.fillStyle = u.launched ? (u.team === 'enemy' ? '#956e68' : '#8c8a78') : '#666f78'; c.beginPath();
         for (let i = 0; i < 7; i++) { const angle = i / 7 * Math.PI * 2, r = size * (i % 2 ? .85 : 1.1); i ? c.lineTo(Math.cos(angle) * r, Math.sin(angle) * r) : c.moveTo(Math.cos(angle) * r, Math.sin(angle) * r); } c.closePath(); c.fill(); c.stroke();
@@ -157,6 +170,7 @@ export class Renderer {
       if (e.type === 'shot') { const t = this.screen({ x: e.tx, y: e.ty }); c.strokeStyle = objectColor(e); c.lineWidth = 1; c.beginPath(); c.moveTo(s.x, s.y); c.lineTo(t.x, t.y); c.stroke(); }
       else {
         const color = COLORS[e.team] || '#f2ce87'; this.circle(s.x, s.y, (8 + 23 * age) * z, color);
+        if(e.type==='ram')this.text('RAM / -45',s.x+10,s.y-12,e.color||color,8);
         for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; this.circle(s.x + Math.cos(a) * age * 32 * z, s.y + Math.sin(a) * age * 32 * z, 1.5, null, color); }
       } c.restore();
     }

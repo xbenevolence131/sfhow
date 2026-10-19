@@ -3,7 +3,7 @@ import { createGame, SCENARIOS } from './scenarios.js';
 import { Renderer } from './render.js';
 import { attachInput } from './input.js';
 import { attachPlaytestRecorder } from './playtest.js';
-import { beginTutorial, skipTutorial, advanceTutorial, tutorialDefenses, prepareTutorialAttack, launchTutorialAttack } from './tutorial.js';
+import { beginTutorial, skipTutorial, advanceTutorial, tutorialDefenses, prepareTutorialAttack, launchTutorialAttack, sendTutorialPractice } from './tutorial.js';
 const $ = id => document.getElementById(id);
 const setText = (id, value) => { const node = $(id); if (node.textContent !== value) node.textContent = value; };
 const time = seconds => `${String(Math.floor(Math.max(0, seconds) / 60)).padStart(2, '0')}:${String(Math.floor(Math.max(0, seconds) % 60)).padStart(2, '0')}`;
@@ -23,6 +23,12 @@ class Game {
   }
   modalOpen() { return !$('modal').classList.contains('hidden') || !$('new-game-modal').classList.contains('hidden'); }
   bindUI() {
+    $('tutorial-start').onclick = () => {
+      if (!this.tutorial || !this.world.lesson) return;
+      this.world.lesson.controlsComplete = true;
+      this.paused = true; this.accumulator = 0;
+      this.cancel(); this.select(null); this.updateUI();
+    };
     $('tutorial-skip').onclick = () => { this.tutorial = null; skipTutorial(this.world); this.updateUI(); };
     $('tutorial-attack').onclick = () => {
       const result=launchTutorialAttack(this.world);
@@ -89,8 +95,8 @@ class Game {
         return;
       }
       if (action === 'aim') {
-        this.select(selected.attachedRockId);
-        this.toast('Right-click a planet to target it, or empty space to aim manually. Then confirm.');
+        this.select(selected.type === 'rock' ? selected.boosterId : selected.attachedRockId);
+        this.toast(selected.type === 'rock' ? 'Controlling booster. Right-click home or a destination to detach and travel. Confirm the order.' : 'Controlling rock. Right-click a planet to target it, or empty space to aim manually. Then confirm.');
         return;
       }
       if (action === 'fit-rock' && selected.type === 'rock') {
@@ -107,9 +113,10 @@ class Game {
     };
     $('lesson').onclick = e => {
       if (!e.target.closest('#practice')) return;
-      const result = sendPracticeRock(this.world);
+      const result = this.world.lesson ? sendTutorialPractice(this.world) : sendPracticeRock(this.world);
       if (result.error) { this.toast(result.error); return; }
       this.previewDirty = true; this.processEvents(); this.updateUI();
+      if(this.world.lesson) { this.toast('Practice rock launched. Unpause to watch the impact on your undefended colony.'); return; }
       this.toast(this.paused ? 'Practice booster dispatched. Press Space to unpause; it must reach a rock and attach before launch.' : 'Practice booster dispatched. It will attach a booster before launching an incoming rock.');
     };
     window.addEventListener('resize', () => this.renderer.resize());
@@ -177,7 +184,7 @@ class Game {
     this.ui.hoverId = null; this.ui.pending = null; this.ui.predictions = new Map(); this.ui.baseline = null; this.previewDirty = true;
     this.toastUntil = 0; $('toast').classList.remove('visible'); this.renderer.fit(); $('scenario').value = key;
     const open = this.world.mode !== 'scenario', sandbox = this.world.mode === 'sandbox';
-    const briefing = open ? `<p>${sandbox ? 'An open playground. Explore trajectories, deploy fleets, and take your time. There are no victory or defeat screens.' : 'Protect Verdant and destroy Cinder. Both sides pay the same prices and earn metal from their colony. There is no time limit.'}</p><p>${this.world.planets.length} planets. ${this.world.setup.enemies ? 'An AI rival occupies Cinder.' : 'No enemy fleet; the other worlds are uninhabited targets.'} ${this.world.unlimitedMetal ? 'Your deployments and launches are free.' : `Starting budget: ${this.world.setup.budget} metal.`}</p><p>Rocks still need booster ships. Prepare, preview, and launch. New game lets you choose another mode at any time.</p>` : SCENARIOS[key].body;
+    const briefing = open ? `<p>${sandbox ? 'An open playground. Explore trajectories, deploy fleets, and take your time. There are no victory or defeat screens.' : 'Protect Verdant and destroy Cinder. Both sides pay the same prices and earn metal from their colony. Occasional natural asteroids cross the system; watch for warnings. There is no time limit.'}</p><p>${this.world.planets.length} planets. ${this.world.setup.enemies ? 'An AI rival occupies Cinder.' : 'No enemy fleet; the other worlds are uninhabited targets.'} ${this.world.unlimitedMetal ? 'Your deployments and launches are free.' : `Starting budget: ${this.world.setup.budget} metal.`}</p><p>Rocks still need booster ships. Prepare, preview, and launch. New game lets you choose another mode at any time.</p>` : SCENARIOS[key].body;
     if(welcome)this.showWelcome();
     else this.showModal(open ? 'OPEN SYSTEM' : SCENARIOS[key].kicker, open ? titleCase(this.world.mode) : SCENARIOS[key].name, briefing, 'Enter the system', () => {
       this.closeModal(); this.toast('The system is paused. Plan an order, or press Space to let time flow.');
@@ -185,7 +192,7 @@ class Game {
     this.updateUI();
   }
   showWelcome() {
-    this.showModal('A LITTLE PLANETARY WARFARE', 'Welcome to ORBITAL',
+    this.showModal('ORBITAL WARFARE', 'Welcome to Stones from Heaven',
       '<p>Prepare asteroids, bend trajectories around moving worlds, and protect your colony. Make a small decision, preview its path, and watch the consequences unfold.</p><ul class="welcome-directions"><li><b>Scenario</b><br>Use the dropdown at the upper left to choose a ready-made challenge or playground.</li><li><b>New game</b><br>Explore Scenarios, Skirmish, and Sandbox with different starting options.</li></ul><p class="note">Rock Garden is ready behind this welcome. Take your time: the system starts paused.</p>',
       'Start tutorial',()=>{ this.tutorial = { stage: '' }; beginTutorial(this.world); this.ui.selectedId = null; this.closeModal(); },
       'Explore freely',()=>{this.closeModal();$('scenario').focus();});
@@ -196,6 +203,7 @@ class Game {
     document.querySelectorAll('.tutorial-focus').forEach(el => el.classList.remove('tutorial-focus'));
     this.ui.tutorialId = null;
     this.ui.tutorialAction = '';
+    $('tutorial-start').classList.add('hidden');
     $('tutorial-attack').classList.add('hidden'); $('tutorial-reset').classList.add('hidden');
     if (!active) return;
     const selected = entity(w, this.ui.selectedId), pending = this.ui.pending;
@@ -206,14 +214,71 @@ class Game {
     const burning = w.units.find(u => u.hp > 0 && u.type === 'rock' && u.team === 'player' && u.burn?.remaining > 0);
     let stage, title, copy, highlight, target, action='WATCH';
     const lesson=w.lesson;
-    if (lesson?.phase==='complete') {
-      stage=11; title='You know the essentials'; copy='You launched a rock, destroyed its enemy launcher, deployed reinforcements, and stopped a stronger attack. Keep exploring, or choose another scenario.'; highlight='scenario';
+    if (!lesson?.controlsComplete) {
+      stage=-1; title='Select, then act'; highlight='selection';
+      copy='Left-click an object to select it; click it again or click empty space to clear selection. Right-click a target or empty space to preview the selected object\'s default action, then Confirm to give the order. The magenta-outlined panel at the bottom right shows details and extra actions for the selected unit. Try selecting a few objects while paused, then click Start flying.';
+      $('tutorial-start').classList.remove('hidden');
+    } else if (lesson?.phase==='complete') {
+      stage=15; title='You know the essentials'; copy='You launched and reloaded, built defenses, intercepted an attack, destroyed a launcher, and overcame a defended colony. Keep exploring, or choose another scenario.'; highlight='scenario';
+    } else if(lesson?.phase==='assault') {
+      const enemy=entity(w,lesson.assaultTargetId);
+      const units=fleet(w,'player'), boosters=units.filter(u=>u.type==='booster'), ships=units.filter(u=>u.type==='ship');
+      const equipped=w.units.filter(u=>u.hp>0 && u.type==='rock' && !u.launched && u.boosterTeam==='player');
+      const launched=lesson.assaultLaunches || 0;
+      if(!launched && (boosters.length<2 || ships.length<3)) {
+        stage=12;title='Build your assault fleet';
+        copy=`Ochre now has two platforms and three ramming drones. You received 500 metal. Build up to two boosters and three ships: ${boosters.length}/2 boosters, ${ships.length}/3 ships. Save metal for 35-metal launches.`;
+        if(selected?.id!=='verdant'){target='verdant';action='LEFT-CLICK';copy+=' Select Verdant to build.';}
+        else {
+          const type=boosters.length<2?'booster':'ship';
+          document.querySelector(`[data-build="${type}"]`).classList.add('tutorial-focus');
+          copy+=type==='booster'?' Build another Booster (50 metal).':' Build another Ship (60 metal).';
+          if(w.metal.player<COST[type]){copy+=' Unpause to earn more metal.';highlight=this.paused?'pause':null;}
+        }
+      } else if(!launched && equipped.length<2) {
+        stage=13;title='Prepare two rocks';
+        copy=`Ready: ${equipped.length}/2 rocks. Send your two loaded boosters to different free asteroids. Preparing both before firing lets you launch a volley while paused.`;
+        if(pending?.order){highlight='confirm';copy+=' Confirm the order, then unpause to travel.';}
+        else if(selected?.type==='booster' && selected.team==='player' && !selected.attachedRockId && !['fit','rearm'].includes(selected.order.kind)) {
+          if(!selected.loaded){target='verdant';action='RIGHT-CLICK';copy+=' This booster is spent: right-click Verdant to return and refuel.';}
+          else {
+            const reserved=new Set(boosters.filter(u=>u.order.kind==='fit').map(u=>u.order.targetId));
+            const rock=w.units.filter(u=>u.hp>0 && u.type==='rock' && !u.launched && !u.boosterTeam && !reserved.has(u.id)).sort((a,b)=>distance(selected,a)-distance(selected,b))[0];
+            target=rock?.id;action='RIGHT-CLICK';copy+=' Right-click the marked free rock.';
+          }
+        } else {
+          const available=boosters.find(u=>!u.attachedRockId && !['fit','rearm'].includes(u.order.kind));
+          const traveling=boosters.find(u=>['fit','rearm'].includes(u.order.kind));
+          target=(available||traveling)?.id;action=available?'LEFT-CLICK':'WATCH';
+          if(available)copy+=' Select the marked booster.';
+          else {copy+=' Unpause while the boosters travel, attach, or reload.';highlight=this.paused?'pause':null;}
+        }
+      } else {
+        stage=14;title='Overwhelm Ochre';
+        const attacking=ships.filter(u=>u.order.kind==='attack').length;
+        copy=`Ochre: ${Math.ceil(enemy?.hp || 0)}/240 integrity. Rocks launched: ${launched}. Ships attacking: ${attacking}. Launch several rocks close together and send ships alongside them. Drones are consumed; platforms need time between shots.`;
+        if(pending?.aim && !pending.aim.verified){highlight='cancel';copy+=' This shot has no verified route. Cancel, let the system move for a few seconds, then try Ochre again or aim manually.';}
+        else if(pending){highlight='confirm';copy+=' Confirm this order, then plan the next while paused.';}
+        else if(selected?.type==='rock' && equipped.some(r=>r.id===selected.id)) {
+          target=enemy?.id;action='RIGHT-CLICK';copy+=' Right-click Ochre to aim. Check the arrival time; confirm, then aim the second rock before resuming.';
+        } else if(selected?.type==='ship' && selected.team==='player') {
+          const next=selected.order.kind==='attack'?ships.find(u=>u.order.kind!=='attack'):null;
+          if(next){target=next.id;action='LEFT-CLICK';copy+=' This ship has its attack order. Select the next marked ship and give it an attack order too.';}
+          else {target=enemy?.id;action=selected.order.kind==='attack'?'WATCH':'RIGHT-CLICK';copy+=' Right-click Ochre to bombard it, or target a defense platform to clear the way. Unpause once your fleet has its orders.';if(this.paused && selected.order.kind==='attack')highlight='pause';}
+        } else if(equipped.length) {
+          target=equipped[0].id;action='LEFT-CLICK';copy+=' Select the marked equipped rock to aim your next shot.';
+        } else {
+          const idle=ships.find(u=>u.order.kind!=='attack');target=idle?.id||enemy?.id;action=idle?'LEFT-CLICK':'WATCH';
+          copy+=' Return spent boosters home, reload, and prepare more rocks if needed. Keep building ships or boosters at Verdant if you lose them.';
+          if(this.paused)highlight='pause';
+        }
+      }
     } else if(lesson?.phase==='combat') {
-      stage=7;
+      stage=11;
       const enemy=entity(w,lesson.targetId), attacker=entity(w,lesson.attackerId);
       if(attacker?.order?.kind==='attack' && attacker.order.targetId===enemy?.id) {
         title='Destroy the enemy booster'; target=enemy?.id; highlight=this.paused?'pause':null;
-        copy='Attack confirmed. Unpause to watch your ship approach, circle, and fire automatically. Destroy this booster to continue. Platforms and drones keep guarding home.';
+        copy='Attack confirmed. Unpause to watch your ship approach, circle, and fire automatically. Destroy this booster to continue. Your surviving defenses keep guarding home.';
       } else if(pending?.order?.kind==='attack' && pending.order.targetId===enemy?.id) {
         title='Confirm the attack'; highlight='confirm'; copy='Review the pursuit path, then Confirm or press Enter. Your ship will stay on this target until it is destroyed or you change its order.';
       } else if(selected?.type==='ship' && selected.team==='player') {
@@ -221,28 +286,28 @@ class Game {
       } else {
         const ship=w.units.find(u=>u.hp>0 && u.type==='ship' && u.team==='player');
         title=ship?'Select a combat ship':'Deploy a combat ship'; target=ship?.id || 'verdant'; action='LEFT-CLICK';
-        copy=ship?'The first rock was intercepted. Left-click the marked friendly ship. Next, attack the enemy booster that launched it. If that booster was already lost, a replacement waits at the practice dock.':'Select Verdant, then build a Ship in the bottom dock to continue the attack lesson.';
+        copy=ship?'Your new defenses stopped the second rock. Left-click your combat ship, then attack the marked enemy booster. A replacement is provided if the original launcher was lost.':'Select Verdant, then build a Ship in the bottom dock to continue the attack lesson.';
       }
     } else if(lesson?.phase==='fortify') {
-      const defenses=tutorialDefenses(w), ready=defenses.platforms>=1 && defenses.drones>=2;
-      stage=ready?9:8; title=ready?'Test your reinforced defenses':'Reinforce Verdant';
+      const defenses=tutorialDefenses(w), ready=defenses.platforms>=1 && defenses.drones>=2 && defenses.ships>=1;
+      stage=ready?9:8; title=ready?'Test your new defenses':'Build defenses at Verdant';
       $('tutorial-reset').classList.remove('hidden');
       if(ready) {
         $('tutorial-attack').classList.remove('hidden'); highlight='tutorial-attack';
-        copy='Your new platform and two drones are ready. Click Launch practice attack, then unpause. The staged asteroid has 140 integrity: watch the extra defenders help break it up.';
+        copy='Your platform, two drones, and ship are ready. Click Launch practice attack, then unpause. This is the same kind of rock that hit before: watch your new defenses stop it.';
         target=lesson.rockId;
       } else if(selected?.id!=='verdant') {
-        target='verdant'; action='LEFT-CLICK'; copy='A fresh asteroid and enemy booster are staged outside your colony. You received 130 metal. Left-click Verdant to deploy more defenses.';
+        target='verdant'; action='LEFT-CLICK'; copy='The first rock damaged your undefended colony. You received 190 metal. Left-click Verdant to build defenses and a combat ship before trying another attack.';
       } else {
-        const type=defenses.platforms<1?'platform':'drone';
+        const type=defenses.platforms<1?'platform':defenses.drones<2?'drone':'ship';
         document.querySelector(`[data-build="${type}"]`).classList.add('tutorial-focus');
-        copy=`Build one new Platform (80 metal) and two Drones (25 each). Added so far: ${Math.min(1,defenses.platforms)}/1 platform, ${Math.min(2,defenses.drones)}/2 drones. These units defend their home automatically.`;
+        copy=`Build one Platform (80 metal), two Drones (25 each), and one Ship (60). Built: ${Math.min(1,defenses.platforms)}/1 platform, ${Math.min(2,defenses.drones)}/2 drones, ${Math.min(1,defenses.ships)}/1 ship. Platforms fire reusable guns; drones ram and sacrifice themselves. Keep the ship home for this test.`;
         if(w.metal.player<COST[type]) {copy+=' Unpause to earn the missing metal.';highlight=this.paused?'pause':null;}
       }
     } else if(lesson?.phase==='defense' || lesson?.phase==='retry') {
       stage=10; title=lesson.phase==='retry'?'Try the defense test again':'Watch the interception';
       target=entity(w,lesson.rockId)?.id; highlight=this.paused?'pause':'ranges';
-      copy='Unpause and watch your platform and drones engage. The rock takes ordinary weapon damage; your new units add more firepower.';
+      copy='Unpause and watch your platform and drones engage. Platforms shoot; drones fly out and sacrifice themselves on contact. Watch the rock lose integrity.';
       if(lesson.phase==='retry') {
         $('tutorial-reset').classList.remove('hidden');highlight='tutorial-reset';
         copy='That rock was not intercepted. Keep your defenders at Verdant and prepare another attack. Your surviving reinforcements still count.';
@@ -250,13 +315,30 @@ class Game {
     } else if (w.progress.launched) {
       if (burning) {
         stage=4; title='Let your rock fly'; target=burning.id; highlight=this.paused ? 'pause' : null;
-        copy=this.paused ? 'Launch confirmed. Press Space or Play to fire the booster. Watch the four-second burn and automatic separation before trying an incoming attack.' : 'Your booster is accelerating the rock. After four seconds it detaches, leaving the rock to coast under gravity.';
+        copy=this.paused ? 'Launch confirmed. Press Space or Play to fire the booster. Watch the four-second burn and automatic separation before returning your booster home to refuel.' : 'Your booster is accelerating the rock. After four seconds it detaches, leaving the rock to coast under gravity.';
+      } else if (!lesson.refuelled) {
+        stage=5;
+        const returning=entity(w,lesson.returnBoosterId);
+        if(!returning) {
+          title='Replace your lost booster'; target='verdant'; action='LEFT-CLICK';
+          copy='The launch booster was lost. Select Verdant and build a replacement Booster, then send it home to complete refuelling.';
+          if(selected?.id==='verdant')document.querySelector('[data-build="booster"]').classList.add('tutorial-focus');
+        } else if(returning.order.kind==='rearm' || returning.departureOrder?.kind==='rearm') {
+          title=returning.rearmProgress>0?'Refuelling at Verdant':'Return to refuel'; target=returning.id; highlight=this.paused?'pause':null;
+          copy=returning.rearmProgress>0?`Refuelling: ${Math.ceil(REARM_TIME-returning.rearmProgress)} seconds remaining. Keep time running. Reloading is free; the next lesson opens when the booster is ready.`:'Order confirmed. Unpause to fly home. The booster automatically refuels for eight seconds after arriving at Verdant.';
+        } else if(pending?.id===returning.id && pending.order?.kind==='rearm') {
+          title='Confirm the return home'; highlight='confirm'; copy='Confirm or press Enter, then unpause. Your booster will return to Verdant and refuel automatically. Escape cancels the preview.';
+        } else if(selected?.id===returning.id) {
+          title='Send your booster home'; target='verdant'; action='RIGHT-CLICK'; copy='Right-click Verdant inside the magenta circle to preview Return and reload. Then confirm the order.';
+        } else {
+          title='Select your spent booster'; target=returning.id; action='LEFT-CLICK'; copy='The burn is finished and your booster has detached. Left-click the marked booster, then right-click Verdant to send it home for refuelling.';
+        }
       } else if (practice) {
-        stage=6; title='Watch your defenses'; copy='The practice booster must attach before it launches. Your platform and drones fire automatically. If it is stopped before launching, send another practice rock.'; highlight=this.paused ? 'pause' : 'ranges';
+        stage=7; title='Watch the colony impact'; copy='Your colony has no defenses yet. Watch this incoming rock hit Verdant and reduce its integrity. Next you will build defenses and repeat the test.'; highlight=this.paused ? 'pause' : 'ranges';
         target=w.units.find(u=>u.hp>0 && u.practice && u.type==='rock')?.id || w.units.find(u=>u.hp>0 && u.practice && u.order?.kind==='fit')?.id;
         if(this.paused) copy+=' Press Space to let time flow. Threat pause may pause fast-forward again.';
       } else {
-        stage=5; title='Try an incoming attack'; copy='Click Send practice rock below. An enemy booster will prepare a real incoming shot. Your defenders are already guarding Verdant.'; highlight='practice';
+        stage=6; title='Try an incoming attack'; copy='Click Send practice rock below. An enemy booster will fire a real incoming shot. Your colony is undefended: this first hit shows why defenses matter.'; highlight='practice';
       }
     } else if (attached) {
       if (pending?.impulse) {
@@ -288,7 +370,7 @@ class Game {
     } else {
       stage=0; title=booster ? 'Select your booster' : 'Prepare a booster'; copy=booster ? 'Welcome to the Rock Garden tutorial. Left-click the booster ship inside the magenta circle near Verdant. Left-click selects; right-click gives an order. Time starts paused.' : 'Select Verdant and deploy a booster, or select your spent booster and right-click Verdant to reload. You can also restart for a fresh tutorial.'; target=booster?.id; action='LEFT-CLICK';
     }
-    setText('tutorial-step', stage===11 ? 'TUTORIAL COMPLETE' : `TUTORIAL / ${stage+1} OF 11`);
+    setText('tutorial-step', stage===-1 ? 'TUTORIAL / STEP 0' : stage===15 ? 'TUTORIAL COMPLETE' : `TUTORIAL / ${stage+1} OF 15`);
     setText('tutorial-title',title); setText('tutorial-copy',copy);
     if(highlight)$(highlight)?.classList.add('tutorial-focus');
     this.ui.tutorialId=target || null;
@@ -305,7 +387,7 @@ class Game {
   closeModal() { $('modal').classList.add('hidden'); this.canvas.focus(); this.updateUI(); }
   help() {
     this.showModal('FIELD GUIDE', 'Small orders. Wide orbits.',
-      '<ul><li><b>Left-click</b> to select. Click it again or empty space to clear selection. <b>Right-click</b> to plan an order; <b>Enter</b> confirms, <b>Esc</b> cancels.</li><li><b>Prepare a rock:</b> untouched rocks follow stable belt orbits until launched or struck. Select it and choose Send booster, or select a booster ship and right-click the rock. Attachment takes 6 seconds after arrival.</li><li><b>Launch:</b> select an equipped rock and right-click a planet to calculate a shot toward its future position. Right-click empty space for manual aim; confirm for 35 metal (free with unlimited metal). Drag aiming also works. The booster fires for 4 seconds, then detaches automatically and awaits orders. Choose Return home to reload in 8 seconds at no extra cost. You can detach manually before launching.</li><li><b>Context orders:</b> a combat ship attacks enemies, escorts friendly mobile units, and defends friendly planets or platforms. A booster attaches to free rocks and returns to a friendly colony to reload. Hover for the action hint.</li><li><b>Right-click</b> a friendly planet or platform with a ship or drone to defend it. Drones protect their assigned local area.</li><li><b>Space</b> pauses. <b>1 / 2 / 3</b> select 1× / 5× / 20×. Scroll to zoom; drag empty space to pan; <b>F</b> fits the system.</li></ul><p>Booster ships cost 50 metal and are unarmed. Select your colony to deploy. Income is 0.4 metal / second; fleet limit 12. Launched rocks damage any planet, including your own. Defenses intercept your rocks when they threaten home. Ship weapons do not fire on friendly ships or colonies.</p><p><b>Rock collisions:</b> small, medium, and large rocks have masses 1, 2, and 4 and colony damage 35, 65, and 100. All fall equally under gravity. Glancing hits deflect; hard hits shatter both rocks and any attached boosters, leaving harmless debris. Collision tuning adjusts rebound and rock strength, pauses time, and redraws both paths. Violet paths show other rocks after contact. Restart keeps tuning.</p><p><b>Gravity:</b> adjust G, shared planet mass, or sun mass in the left-hand controls. Changes pause time and redraw paths. G and sun mass set planetary orbital speed; radii and current positions stay fixed. Planet mass changes its pull on units, not its own orbital speed. Free-flying units keep their velocities. Reset restores defaults; restarting retains tuning, while New game starts at defaults.</p><p class="note">Teal launch segments show powered flight; gold shows coasting. Ship paths end when attachment completes. Predictions cover 90 seconds. Weapons and future enemy decisions can change the outcome.</p>',
+      '<ul><li><b>Left-click</b> to select. Click it again or empty space to clear selection. <b>Right-click</b> to plan an order; <b>Enter</b> confirms, <b>Esc</b> cancels.</li><li><b>Prepare a rock:</b> untouched rocks follow stable belt orbits until launched or struck. Select it and choose Send booster, or select a booster ship and right-click the rock. Attachment takes 6 seconds after arrival.</li><li><b>Launch:</b> select an equipped rock and right-click a planet to calculate a shot toward its future position. Right-click empty space for manual aim; confirm for 35 metal (free with unlimited metal). Drag aiming also works. The booster fires for 4 seconds, then detaches automatically and awaits orders. Choose Return home to reload in 8 seconds at no extra cost. You can detach manually before launching.</li><li><b>Context orders:</b> a combat ship attacks enemies, escorts friendly mobile units, and defends friendly planets or platforms. A booster attaches to free rocks and returns to a friendly colony to reload. Hover for the action hint.</li><li><b>Right-click</b> a friendly planet or platform with a ship or drone to defend it. Drones ram rocks and hostile units in their assigned local area, sacrificing themselves for 45 damage. Platforms keep firing reusable guns.</li><li><b>Space</b> pauses. <b>1 / 2 / 3</b> select 1× / 5× / 20×. Scroll to zoom; drag empty space to pan; <b>F</b> fits the system.</li></ul><p>Booster ships cost 50 metal and are unarmed. Select your colony to deploy. Income is 0.4 metal / second; fleet limit 12. Launched rocks damage any planet, including your own. Defenses intercept your rocks when they threaten home. Ship weapons do not fire on friendly ships or colonies.</p><p><b>Rock collisions:</b> small, medium, and large rocks have masses 1, 2, and 4 and colony damage 35, 65, and 100. All fall equally under gravity. Glancing hits deflect; hard hits shatter both rocks and any attached boosters, leaving harmless debris. Collision tuning adjusts rebound and rock strength, pauses time, and redraws both paths. Violet paths show other rocks after contact. Restart keeps tuning.</p><p><b>Gravity:</b> adjust G, shared planet mass, or sun mass in the left-hand controls. Changes pause time and redraw paths. G and sun mass set planetary orbital speed; radii and current positions stay fixed. Planet mass changes its pull on units, not its own orbital speed. Free-flying units keep their velocities. Reset restores defaults; restarting retains tuning, while New game starts at defaults.</p><p class="note">Teal launch segments show powered flight; gold shows coasting. Ship paths end when attachment completes. Predictions cover 90 seconds. Weapons and future enemy decisions can change the outcome.</p>',
       'Back to the system', () => this.closeModal());
   }
   toast(message) { $('toast').textContent = message; $('toast').classList.add('visible'); this.toastUntil = performance.now() + 6000; }
@@ -350,14 +432,14 @@ class Game {
     if (host?.type !== 'planet') { this.toast('Select Verdant to deploy near its colony.'); return; }
     const result = spawn(this.world, type, 'player', host);
     if (result.error) this.toast(result.error);
-    else { if(this.world.lesson?.phase==='fortify')this.world.lesson.builtIds.push(result.id); this.toast(`${titleCase(type)} deployed at ${host.name}. Defending its local orbit.`); this.previewDirty = true; }
+    else { if(type==='booster' && this.world.lesson && !entity(this.world,this.world.lesson.returnBoosterId) && this.world.progress.launched)this.world.lesson.returnBoosterId=result.id; if(this.world.lesson?.phase==='fortify')this.world.lesson.builtIds.push(result.id); this.toast(`${titleCase(type)} deployed at ${host.name}. Defending its local orbit.`); this.previewDirty = true; }
     this.updateUI();
   }
   refreshPredictions() {
     const w = this.world, ids = new Set();
     const selected = entity(w, this.ui.selectedId);
     if (selected && selected.type !== 'planet') ids.add(selected.id);
-    for (const u of w.units) if (u.hp > 0 && ((u.team === 'enemy' && (u.type === 'rock' || u.order?.kind === 'attack')) || entity(w, w.rockThreats?.[u.id]?.targetId)?.team === 'player' || (this.ui.allPaths && (u.type !== 'rock' || u.launched)))) ids.add(u.id);
+    for (const u of w.units) if (u.hp > 0 && (u.visitor || (u.team === 'enemy' && (u.type === 'rock' || u.order?.kind === 'attack')) || entity(w, w.rockThreats?.[u.id]?.targetId)?.team === 'player' || (this.ui.allPaths && (u.type !== 'rock' || u.launched)))) ids.add(u.id);
     this.ui.predictions = predict(w, [...ids], this.ui.pending);
     this.ui.baseline = this.ui.pending?.impulse ? predict(w, [this.ui.pending.id]).get(this.ui.pending.id) : null;
     this.previewDirty = false; this.lastPreview = performance.now();
@@ -398,6 +480,7 @@ class Game {
     setText('open-game-name', `${w.planets.length} planets / ${w.planets.some(p => p.team === 'enemy') ? 'AI opponent' : 'quiet system'}`);
     setText('objective-label', w.mode === 'sandbox' ? 'YOUR PLAYGROUND' : 'YOUR OBJECTIVE');
     setText('objective', w.mode === 'sandbox' ? 'Explore trajectories. Build a fleet. Make your own experiments.' : w.scenario === 'hold' ? `Keep Verdant alive / ${time(w.duration - w.time)} remaining` : SCENARIOS[w.scenario].objective);
+    if(w.lesson?.phase==='assault')setText('objective','Overwhelm Ochre: coordinate rocks and ships. Destroy its colony.');
     setText('income-hint', playground ? 'Free launches / defenders only engage fired rocks' : w.unlimitedMetal ? 'Unlimited metal / fleet limit 12' : '+0.4 metal / second from your colony');
     $('colonies').innerHTML = w.planets.filter(p => p.team !== 'neutral').map(p => `<div style="--colony-color:${p.color}" class="colony ${p.team === 'enemy' ? 'enemy' : ''}"><div><span>${p.name}${p.team === 'player' ? ' / HOME' : playground ? ' / TARGET' : ' / RIVAL'}</span><span>${Math.ceil(p.hp / p.maxHp * 100)}%</span></div><span class="bar"><i style="width:${p.hp / p.maxHp * 100}%"></i></span></div>`).join('');
     const count = fleet(w, 'player').length;
@@ -413,7 +496,7 @@ class Game {
     $('paused-label').classList.toggle('hidden', !this.paused || !!this.ui.pending || this.modalOpen());
     // Interactive elements live in index.html; refresh only text/state around them.
     $('garden-lesson').classList.toggle('hidden', w.scenario !== 'garden' || w.mode !== 'scenario');
-    $('practice').classList.toggle('hidden', !!w.lesson && w.lesson.phase!=='basics');
+    $('practice').classList.toggle('hidden', !!w.lesson && (w.lesson.phase!=='basics' || !w.lesson.refuelled));
     $('income-hint').classList.toggle('hidden', w.scenario === 'garden' && w.mode === 'scenario');
     if (w.scenario === 'garden' && w.mode === 'scenario') {
       for (const [id, done, label] of [
@@ -436,11 +519,11 @@ class Game {
       }
       else if (u.type === 'booster') {
         const target = entity(w, u.order?.targetId);
-        status = target?.burn?.remaining > 0 && u.attachedRockId ? `Firing · ${Math.ceil(target.burn.remaining)}s left<br>Automatic detach after burn · then await orders` : u.attachedRockId ? `Attached to ${target?.name || 'rock'} · ${u.loaded ? 'ready to launch' : 'charge spent'}<br>${u.loaded ? 'Aim rock to launch · Detach to leave' : 'Detach manually · Return home to rearm'}` : u.order.kind === 'fit' ? `${u.attachProgress > 0 ? `Attaching · ${Math.ceil(ATTACH_TIME - u.attachProgress)}s left` : `En route → ${target?.name || 'rock'}`}<br>Unarmed · one booster loaded` : u.order.kind === 'rearm' ? `${u.rearmProgress > 0 ? `Rearming · ${Math.ceil(REARM_TIME - u.rearmProgress)}s left` : 'Returning home to rearm'}<br>Unarmed · automatic reload at colony` : `${u.loaded ? 'One booster loaded · ready' : (playground ? 'Charge spent / reset range for more' : 'Charge spent · awaiting orders')}<br>${u.loaded ? 'Right-click a free rock to attach' : (playground ? 'Reset restores rocks and attached boosters' : 'Choose Return home to reload')}`;
+        status = target?.burn?.remaining > 0 && u.attachedRockId ? `Firing · ${Math.ceil(target.burn.remaining)}s left<br>${u.departureOrder ? 'Departure queued after burn' : 'Right-click a destination to queue departure'}` : u.attachedRockId ? `Attached to ${target?.name || 'rock'} · ${u.loaded ? 'ready to launch' : 'charge spent'}<br>${u.loaded ? 'Select rock to aim / Right-click to detach and travel' : 'Right-click home to detach and rearm'}` : u.order.kind === 'fit' ? `${u.attachProgress > 0 ? `Attaching · ${Math.ceil(ATTACH_TIME - u.attachProgress)}s left` : `En route → ${target?.name || 'rock'}`}<br>Unarmed · one booster loaded` : u.order.kind === 'rearm' ? `${u.rearmProgress > 0 ? `Rearming · ${Math.ceil(REARM_TIME - u.rearmProgress)}s left` : 'Returning home to rearm'}<br>Unarmed · automatic reload at colony` : `${u.loaded ? 'One booster loaded · ready' : (playground ? 'Charge spent / reset range for more' : 'Charge spent · awaiting orders')}<br>${u.loaded ? 'Right-click a free rock to attach' : (playground ? 'Reset restores rocks and attached boosters' : 'Choose Return home to reload')}`;
       }
       else {
         const target = entity(w, u.order?.targetId);
-        status = u.type === 'platform' ? `Local defense · ${u.range} u weapon range` : `${titleCase(u.order?.kind || 'idle')}${target ? ` → ${target.name}` : ''}<br>${u.type === 'drone' ? 'Intercepts rocks & drones · returns to host' : forecast?.eta ? `Arrival / weapons range in ~${Math.ceil(forecast.eta)}s` : 'Right-click to plan a new order'}`;
+        status = u.type === 'platform' ? `Local defense · ${u.range} u weapon range` : `${titleCase(u.order?.kind || 'idle')}${target ? ` → ${target.name}` : ''}<br>${u.type === 'drone' ? 'Rams rocks and hostile ships / 45 damage<br>Consumed on contact / defends within 180 u' : forecast?.eta ? `Arrival / weapons range in ~${Math.ceil(forecast.eta)}s` : 'Right-click to plan a new order'}`;
         if (u.type === 'ship' && u.order?.kind === 'attack' && target && ['ship', 'booster', 'drone', 'platform'].includes(target.type)) status = `Attack / ${target.name}<br>${distance(u, target) <= u.range ? 'Circling target / firing whenever ready' : 'Intercepting / circle and fire on arrival'}`;
       }
     }
@@ -458,7 +541,8 @@ class Game {
     const mobileFriendly = u?.team === 'player' && ['ship', 'drone', 'booster'].includes(u.type) && !u.attachedRockId;
     const burning = !!entity(w, attachedBooster?.attachedRockId)?.burn?.remaining;
     $('order-detach').classList.toggle('hidden', !(attachedBooster?.team === 'player' && attachedBooster.attachedRockId) || burning);
-    $('order-aim').classList.toggle('hidden', !(u?.type === 'booster' && u.team === 'player' && u.attachedRockId && u.loaded));
+    $('order-aim').classList.toggle('hidden', !attachedBooster?.attachedRockId);
+    setText('order-aim', u?.type === 'rock' ? 'Select booster' : 'Select rock');
     $('order-fit').classList.toggle('hidden', !(u?.type === 'rock' && !u.launched && !u.boosterTeam));
     $('order-fit').disabled = !fleet(w, 'player').some(b => b.type === 'booster' && b.loaded && !b.attachedRockId && b.order.kind !== 'fit');
     $('order-defend').classList.toggle('hidden', !mobileFriendly);
@@ -479,15 +563,17 @@ class Game {
       if (pending.aim && !pending.aim.verified) detail = `NO VERIFIED SHOT / ${pending.aim.reason} ${detail}`;
       $('plan-summary').textContent = `${target ? `${target.name} · ` : ''}${detail}`;
       $('plan-note').textContent = pending.impulse ? '4s powered burn, then coast · booster detaches automatically' : pending.order.kind === 'fit' ? 'Attach for 6s after arrival · stay attached until you launch or detach' : pending.order.kind === 'attack' && target && ['ship', 'booster', 'drone', 'platform'].includes(target.type) ? 'Intercept, then circle in weapon range / keep firing at this target' : 'Moving targets are pursued · weapons can change the outcome';
+      const departing = entity(w, pending.id);
+      if (pending.order && departing?.attachedRockId) $('plan-note').textContent = entity(w, departing.attachedRockId)?.burn?.remaining > 0 ? 'Finish the burn, then detach and follow this order / Escape cancels' : 'Detach from the rock, then follow this order / Escape cancels';
       if (pending.aim) $('plan-note').textContent = pending.aim.verified ? 'Targeting its future position / confirm to launch, or right-click to revise' : 'Choose another target, aim manually in empty space, or cancel and wait';
       $('confirm').disabled = (!!pending.impulse && !w.unlimitedMetal && w.metal.player < COST.rock) || !!(pending.aim && !pending.aim.verified);
     }
-    const threats = w.units.filter(u => u.hp > 0 && ((u.team === 'enemy' && (u.type === 'rock' || ['attack', 'fit'].includes(u.order?.kind))) || (u.type === 'rock' && u.launched && entity(w, w.rockThreats?.[u.id]?.targetId)?.team === 'player')));
+    const threats = w.units.filter(u => u.hp > 0 && (u.visitor || (u.team === 'enemy' && (u.type === 'rock' || ['attack', 'fit'].includes(u.order?.kind))) || (u.type === 'rock' && u.launched && entity(w, w.rockThreats?.[u.id]?.targetId)?.team === 'player')));
     threats.sort((a, b) => (w.rockThreats?.[a.id]?.time ?? Infinity) - (w.rockThreats?.[b.id]?.time ?? Infinity));
     let alerts = threats.filter(u => u.type === 'rock').slice(0, 3).map(r => {
       const f = this.ui.predictions.get(r.id);
       const impact = f?.impact || (w.rockThreats?.[r.id] ? { ...w.rockThreats[r.id], time: w.rockThreats[r.id].time - w.time } : null);
-      return `<div class="alert">↘ ${r.name} / ${r.team === 'player' ? 'FRIENDLY ROCK — DANGER' : r.launched ? 'INCOMING' : 'ARMED'}<small>${!r.launched ? 'Booster attached · destroy it before launch' : impact ? `Predicted ${impact.name} impact in ${Math.ceil(Math.max(0, impact.time))}s` : r.burn?.remaining > 0 ? `Powered burn · ${Math.ceil(r.burn.remaining)}s left` : 'Ballistic approach · defenses engaging in range'}</small></div>`;
+      return `<div class="alert">↘ ${r.name} / ${r.visitor ? 'NATURAL ASTEROID' : r.team === 'player' ? 'FRIENDLY ROCK — DANGER' : r.launched ? 'INCOMING' : 'ARMED'}<small>${!r.launched ? 'Booster attached · destroy it before launch' : impact ? `Predicted ${impact.name} impact in ${Math.ceil(Math.max(0, impact.time))}s` : r.burn?.remaining > 0 ? `Powered burn · ${Math.ceil(r.burn.remaining)}s left` : r.visitor ? (r.beltArrivalAt>w.time ? `Reaches belt in ~${Math.ceil(r.beltArrivalAt-w.time)}s` : 'Crossing the system / no colony impact predicted') : 'Ballistic approach · defenses engaging in range'}</small></div>`;
     });
     for (const b of threats.filter(u => u.type === 'booster').slice(0, 2)) alerts.push(`<div class="alert">▣ ENEMY BOOSTER<small>${b.attachProgress > 0 ? `Attaching · ${Math.ceil(ATTACH_TIME - b.attachProgress)}s left` : `Heading to ${entity(w, b.order.targetId)?.name || 'the belt'}`} · intercept to stop launch</small></div>`);
     const attackingShips = threats.filter(u => u.type === 'ship');
@@ -501,14 +587,14 @@ class Game {
     const topThreat = incoming ? `INCOMING ROCK / ${Math.ceil(incoming.time - w.time)}s to ${incoming.name}` : major?.text || '';
     setText('top-threat', topThreat); $('top-threat').classList.toggle('hidden', !topThreat);
     $('alerts').innerHTML = alerts.slice(0, 4).join('');
-    $('hint').innerHTML = this.ui.pending ? 'Enter to commit · Esc to cancel<br><span>Time is paused while you plan</span>' : u?.type === 'rock' && !u.launched ? u.boosterTeam === 'player' ? `Right-click a planet to target it<br><span>Empty space: manual aim / ${w.unlimitedMetal ? 'Free launch' : '35 metal'}</span>` : 'Send a booster to earn your shot<br><span>Escort it · Attach · Aim · Launch</span>' : u?.type === 'booster' ? u.attachedRockId ? burning ? 'Booster firing · automatic separation after burn<br><span>The ship will await your next order</span>' : 'Attached and waiting for your order<br><span>Aim rock, then right-click a target / Detach to leave</span>' : 'Right-click a rock to fit a booster<br><span>Stays attached · Detach manually</span>' : 'Select a unit · Right-click for an order<br><span>Enemy: attack / friendly unit: escort or defend</span>';
+    $('hint').innerHTML = this.ui.pending ? 'Enter to commit · Esc to cancel<br><span>Time is paused while you plan</span>' : u?.type === 'rock' && !u.launched ? u.boosterTeam === 'player' ? `Right-click a planet to target it<br><span>Empty space: manual aim / ${w.unlimitedMetal ? 'Free launch' : '35 metal'}</span>` : 'Send a booster to earn your shot<br><span>Escort it · Attach · Aim · Launch</span>' : u?.type === 'booster' ? u.attachedRockId ? burning ? 'Booster firing · automatic separation after burn<br><span>Right-click to queue travel after the burn</span>' : 'Attached and waiting for your order<br><span>Select rock to aim / Right-click to detach and travel</span>' : 'Right-click a rock to fit a booster<br><span>Stays attached · Detach manually</span>' : 'Select a unit · Right-click for an order<br><span>Enemy: attack / friendly unit: escort or defend</span>';
     this.updateContextHint?.();
     this.updateTutorial();
   }
   showOutcome() {
     this.outcomeShown = true; const win = this.world.outcome === 'victory';
     const training = this.world.scenario === 'garden';
-    const body = win ? training ? this.world.lesson ? '<p>You launched an asteroid, destroyed an enemy booster, and reinforced Verdant with a platform and two drones.</p><p>Your defenses stopped the final attack. Keep experimenting, or try another scenario.</p>' : '<p>A launch of your own, an incoming rock turned to harmless dust. You have the essentials.</p><p>Keep experimenting, or try a colony under siege.</p>' : this.world.scenario === 'hold' ? '<p>Four minutes in the gravity well. Your colony is still here.</p><p>Your defenses held the orbit.</p>' : '<p>Cinder has fallen silent. Verdant has a future among these little worlds.</p>' : '<p>Your colony has lost its integrity. Try holding your defenses closer to home, or intercept the incoming rocks earlier.</p>';
+    const body = win ? training ? this.world.lesson ? '<p>Ochre colony destroyed: 0 integrity. Tutorial complete.</p><p>You learned to launch and reload, protect Verdant, hunt enemy boosters, and overcome a fortified colony. Keep experimenting, or try another scenario.</p>' : '<p>Ochre colony destroyed: 0 integrity.</p><p>Keep experimenting, or try a colony under siege.</p>' : this.world.scenario === 'hold' ? '<p>Four minutes in the gravity well. Your colony is still here.</p><p>Your defenses held the orbit.</p>' : '<p>Cinder has fallen silent. Verdant has a future among these little worlds.</p>' : '<p>Your colony has lost its integrity. Try holding your defenses closer to home, or intercept the incoming rocks earlier.</p>';
     this.showModal(win ? 'ENCOUNTER COMPLETE' : 'COLONY LOST', win ? training ? 'A little orbital intuition.' : 'The orbit is yours.' : 'Every orbit is another try.', body,
       'Restart game', () => this.load(this.world.scenario, this.world.setup), win ? 'Keep exploring' : 'Review system', () => {
         if (win) { this.world.continueSandbox = true; this.world.mode = 'sandbox'; this.world.outcome = null; this.world.setup = { mode: 'sandbox', system: this.world.planets.length === 3 ? 'three' : 'two', enemies: this.world.planets.some(p => p.team === 'enemy'), budget: 160, unlimited: false, gravity: { ...this.world.gravity }, collisions: { ...this.world.collisions } }; this.closeModal(); }

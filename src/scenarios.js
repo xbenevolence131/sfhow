@@ -2,7 +2,7 @@ import { planetAt, orbitalRate, setGravity, spawn, addRock, BELT_INNER, BELT_WID
 export const SCENARIOS = {
   playground: { name: 'Slingshot Playground', kicker: '04 / A LIVE-FIRE PLAYGROUND', objective: 'Test trajectories and planetary defenses. Every rock is ready to launch.',
     body: '<p>Twelve belt rocks already have <b>friendly boosters attached</b>. Launches are free. <b>Verdant is your home</b>; Cinder and Ochre are enemy targets.</p><ul><li><b>Aim:</b> select a rock and right-click a planet, or empty space for manual aim. Review and confirm.</li><li><b>Observe:</b> every planet has a ship, a platform, and two drones. Verdant\'s defenders are yours; enemy defenders match their planet\'s color.</li><li><b>Experiment:</b> try different approaches, coordinate several launches, or adjust the gravity sliders.</li><li><b>Reset range:</b> instantly restore rocks and defenses while keeping your gravity settings.</li></ul><p>The defenders intercept nearby threats but never build units or launch attacks. No victory screen or time limit. Spent boosters detach after firing; reset when you want fresh ammunition.</p>' },
-  garden: { name: 'Rock Garden', kicker: '01 / AN ORBITAL PLAYGROUND', objective: 'Fit a booster. Launch a rock. Intercept a practice attack.',
+  garden: { name: 'Rock Garden', kicker: '01 / AN ORBITAL PLAYGROUND', objective: 'Learn to launch and defend. Finish by reducing Ochre to zero integrity.',
     body: '<p>Your colony, <b>Verdant</b>, has a booster ship ready to go. Earn your shot by reaching an asteroid.</p><ul><li><b>1.</b> Select a belt rock and choose <b>Send booster</b>. Confirm and unpause.</li><li><b>2.</b> The ship matches velocity and attaches a booster over <b>6 seconds</b>.</li><li><b>3.</b> Select the equipped rock, right-click a planet to target it or empty space to aim, then review and confirm your launch.</li><li><b>4.</b> Send a practice rock to watch an enemy booster prepare an attack.</li></ul><p>Booster ships wait attached. Launch starts a 4-second burn, followed by automatic detachment. Then choose Return home to reload. Ochre is an uninhabited target. Launched rocks can damage Verdant too; check the preview before firing.</p>' },
   hold: { name: 'Hold the Orbit', kicker: '02 / A SMALL SIEGE', objective: 'Keep Verdant alive for 4 minutes. Incoming launches are announced.',
     body: '<p>Hold your colony for <b>four simulation minutes</b>. A platform, a ship, two drones, and a booster ship are ready.</p><ul><li><b>Watch.</b> Enemy booster expeditions prepare incoming rocks.</li><li><b>Disrupt.</b> Hunt the booster before it attaches, or destroy its equipped rock.</li><li><b>Defend.</b> Keep enough forces home to intercept launched rocks and enemy ships.</li></ul><p>New threats pause fast-forward. Both sides must fly a booster to an asteroid before launching it.</p>' },
@@ -10,6 +10,8 @@ export const SCENARIOS = {
     body: '<p>Protect <b>Verdant</b> and destroy the rival colony on <b>Cinder</b>. The asteroid belt is contested territory.</p><ul><li><b>Booster ships</b> fly to rocks, attach, and wait for your launch or detach order.</li><li><b>Combat ships</b> escort your boosters, intercept enemy expeditions, or bombard Cinder.</li><li><b>Platforms & drones</b> defend against attacks that get through.</li><li><b>Equipped rocks</b> can be aimed and launched for 35 metal.</li></ul><p>Select a combat ship and right-click a friendly booster to escort it. Your neighbor uses the same preparation, flight, and resource rules.</p>' },
 };
 function planet(id, name, orbit, phase, radius, team, color, hp = 240) {
+  // Spread all planetary lanes proportionally; outer lane is 80% of the belt.
+  orbit *= BELT_INNER * .8 / 690;
   const p = { id, name, type: 'planet', orbit, phase, radius, team, color, omega: orbitalRate(orbit),
     hp, maxHp: hp };
   return Object.assign(p, planetAt(p, 0));
@@ -63,9 +65,11 @@ export function createGame(options = {}) {
   const setup = { mode, system: options.system === 'two' ? 'two' : 'three',
     budget: [160, 240, 400].includes(Number(options.budget)) ? Number(options.budget) : 160,
     enemies: mode === 'skirmish' || options.enemies === true,
-    unlimited: mode === 'sandbox' && options.unlimited === true, gravity: normalizeGravity(options.gravity), collisions: normalizeCollisions(options.collisions) };
+    unlimited: mode === 'sandbox' && options.unlimited === true, gravity: normalizeGravity(options.gravity), collisions: normalizeCollisions(options.collisions),
+    visitorSeed: Number.isInteger(options.visitorSeed) ? options.visitorSeed >>> 0 : Math.floor(Math.random()*4294967296) };
   const w = createScenario('neighbors', setup.gravity, setup.collisions);
   w.mode = mode; w.setup = setup; w.unlimitedMetal = setup.unlimited;
+  if(mode==='skirmish')w.visitors={seed:setup.visitorSeed,nextAt:40,count:0};
   w.metal = { player: setup.budget, enemy: setup.budget };
   if (setup.system === 'two') w.planets = w.planets.filter(p => p.id !== 'ochre');
   if (!setup.enemies) {

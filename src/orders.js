@@ -18,10 +18,9 @@ export function contextualOrder(w, selectedId, target, point) {
   }
   if (u.type === 'planet') return unavailable('Choose a unit to deploy at your colony');
   if (u.type === 'platform') return unavailable('Platform defends its local orbit');
-  if (u.attachedRockId) return unavailable(entity(w, u.attachedRockId)?.burn?.remaining > 0 ? 'Burning / automatic detach after launch' : 'Use Aim rock or Detach first');
   if (target?.hp <= 0) return unavailable('Target has been destroyed');
   if (target?.id === u.id) return unavailable('Choose another target or empty space');
-  const order = (label, kind) => ({ label, pending: { id: u.id, order: target ? { kind, targetId: target.id } : { kind, ...point } } });
+  const order = (label, kind) => ({ label: u.attachedRockId ? `${entity(w, u.attachedRockId)?.burn?.remaining > 0 ? 'After burn' : 'Detach'} / ${label}` : label, pending: { id: u.id, order: target ? { kind, targetId: target.id } : { kind, ...point } } });
   const friendly = target?.team === u.team;
   const anchor = friendly && ['planet', 'platform'].includes(target.type);
   if (u.type === 'drone') return anchor ? order('Defend', 'defend') : unavailable('Drones defend friendly planets or platforms');

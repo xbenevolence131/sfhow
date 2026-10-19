@@ -35,7 +35,7 @@ test('cursor hint and right-click share valid orders for each unit/target pairin
     assert.ok(contextualOrder(w,u.id,target,point).error);
   }
   attach(rock,unit('booster'));
-  assert.ok(contextualOrder(w,unit('booster').id,home,point).error,'attached ship must detach before travel');
+  assert.equal(contextualOrder(w,unit('booster').id,home,point).pending.order.kind, 'rearm');
 });
 
 test('equipped rocks target planets or manually aim with a capped additional impulse', () => {

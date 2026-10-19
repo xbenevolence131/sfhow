@@ -9,8 +9,8 @@ test('G scales both attractors; masses scale their own pull with equal planetary
   const twice=gravity(600,100,planets,{...GRAVITY_DEFAULTS,g:2});
   assert.ok(Math.abs(twice.x-base.x*2)<1e-12);assert.ok(Math.abs(twice.y-base.y*2)<1e-12);
   const sun=gravity(100,0,[],{g:2,sunMass:5000,planetMass:0});
-  assert.equal(sun.x,-3);assert.equal(Math.abs(sun.y),0);
-  assert.equal(gravity(200,0,[],{g:2,sunMass:5000,planetMass:0}).x,-.75);
+  assert.equal(sun.x,-6);assert.equal(Math.abs(sun.y),0);
+  assert.equal(gravity(200,0,[],{g:2,sunMass:5000,planetMass:0}).x,-1.5);
   const a=gravity(100,0,[{x:0,y:0,radius:13}],{g:1,sunMass:0,planetMass:2800});
   const b=gravity(100,0,[{x:0,y:0,radius:21}],{g:1,sunMass:0,planetMass:2800});
   assert.deepEqual(a,b,'different visible radii must not imply different planet masses');
@@ -81,7 +81,7 @@ test('retuning moving planets preserves position and phase through stop and resu
   for(let i=0;i<200;i++)advanceMotion(w);
   w.planets.forEach((p,i)=>{assert.equal(Math.hypot(p.vx,p.vy),0);assert.ok(distance(p,stopped[i])<1e-9);});
   setGravity(w,{sunMass:5400});const resumed=structuredClone(w.planets);advanceMotion(w);
-  w.planets.forEach((p,i)=>{assert.ok(distance(p,resumed[i])>0);assert.ok(distance(p,resumed[i])<1);});
+  w.planets.forEach((p,i)=>{assert.ok(distance(p,resumed[i])>0);assert.ok(distance(p,resumed[i])<=Math.hypot(p.vx,p.vy)*DT+1e-9);});
 });
 
 test('custom gravity is shared by forecasts and moving-planet launch aiming', () => {
@@ -114,20 +114,22 @@ test('slider extrema stay finite and fixed-step grouping remains deterministic',
 });
 
 
-test('default gravity is 75 percent of the preceding baseline, with matching initial speeds', () => {
+test('default gravity doubles the preceding baseline, with matching initial speeds and unchanged scale', () => {
   assert.equal(GRAVITY_DEFAULTS.g,1);
-  assert.equal(GRAVITY_BASE,3);
+  assert.equal(GRAVITY_BASE,6);
   const p={x:400,y:0,radius:18};
-  assert.equal(gravity(100,0,[],GRAVITY_DEFAULTS).x,-1.62);
-  assert.equal(gravity(300,0,[p],{...GRAVITY_DEFAULTS,sunMass:0}).x,.84);
+  assert.equal(gravity(100,0,[],GRAVITY_DEFAULTS).x,-3.24);
+  assert.equal(gravity(300,0,[p],{...GRAVITY_DEFAULTS,sunMass:0}).x,1.68);
   const current=createGame({mode:'scenario',scenario:'garden'});
-  const previous=createGame({mode:'scenario',scenario:'garden',gravity:{g:4/3}});
+  const previous=createGame({mode:'scenario',scenario:'garden',gravity:{g:.5}});
   for(const [i,rock] of current.units.entries()) {
     if(rock.type!=='rock')continue;
     const old=previous.units[i];
-    assert.ok(Math.abs(Math.hypot(rock.vx,rock.vy)/Math.hypot(old.vx,old.vy)-Math.sqrt(.75))<1e-12);
+    assert.equal(rock.beltOrbit,old.beltOrbit);
+    assert.ok(Math.abs(Math.hypot(rock.vx,rock.vy)/Math.hypot(old.vx,old.vy)-Math.sqrt(2))<1e-12);
   }
   for(const [i,planet] of current.planets.entries()) {
-    assert.ok(Math.abs(planet.omega/previous.planets[i].omega-Math.sqrt(.75))<1e-12);
+    assert.equal(planet.orbit,previous.planets[i].orbit);
+    assert.ok(Math.abs(planet.omega/previous.planets[i].omega-Math.sqrt(2))<1e-12);
   }
 });

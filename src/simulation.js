@@ -1,7 +1,7 @@
 // All distances and masses are game units. Both forecasts and live flight use DT.
 export const DT = 1 / 20;
 // The displayed G is a normalized multiplier; 1.0 uses this tuned baseline.
-export const GRAVITY_BASE = 3;
+export const GRAVITY_BASE = 6;
 export const GRAVITY_DEFAULTS = Object.freeze({ g: 1, planetMass: 2800, sunMass: 5400 });
 export const GRAVITY_LIMITS = Object.freeze({ g: 3, planetMass: 8400, sunMass: 16200 });
 export const COLLISION_DEFAULTS = Object.freeze({ bounce: .35, strength: 18 });
@@ -28,7 +28,7 @@ export const COST = { ship: 60, platform: 80, drone: 25, booster: 50, rock: 35 }
 export const TYPES = {
   ship: { hp: 110, radius: 6, speed: 21, thrust: 6.5, range: 105, damage: 8, cooldown: 2.3 },
   platform: { hp: 230, radius: 9, speed: 0, thrust: 0, range: 135, damage: 12, cooldown: 2.1 },
-  drone: { hp: 38, radius: 4, speed: 27, thrust: 8, range: 65, damage: 6, cooldown: 1.5 },
+  drone: { hp: 38, radius: 4, speed: 32, thrust: 10, range: 0, damage: 45, cooldown: 0 },
   booster: { hp: 65, radius: 6, speed: 19, thrust: 6, range: 0, damage: 0, cooldown: 0 },
   rock: { hp: 50, radius: 8, speed: 0, thrust: 0, range: 0, damage: 65, cooldown: 0 },
 };
@@ -134,15 +134,24 @@ export function setOrder(w, id, order, team = 'player') {
   if (!u || !['ship', 'drone', 'booster'].includes(u.type) || u.team !== team) return false;
   const target = entity(w, order.targetId);
   if (u.attachedRockId) {
-    if (order.kind !== 'detach') return false;
+    if (!['detach', 'move', 'rearm', 'fit'].includes(order.kind)) return false;
+    // Validate before disarming the rock or queuing a departure.
+    if (order.kind === 'rearm' && (!target || target.team !== team || !['planet', 'dock'].includes(target.type))) return false;
+    if (order.kind === 'fit' && (!u.loaded || !target || target.type !== 'rock' || target.launched || target.boosterTeam)) return false;
+    if (order.kind === 'move' && (order.targetId ? !target : !Number.isFinite(order.x) || !Number.isFinite(order.y))) return false;
     const rock = entity(w, u.attachedRockId);
-    if (rock?.burn?.remaining > 0) return false;
+    if (rock?.burn?.remaining > 0) {
+      if (order.kind === 'detach') return false;
+      u.departureOrder = { ...order };
+      return true;
+    }
     if (rock) {
       rock.boosterId = null; rock.boosterTeam = null;
       if (!rock.launched) { rock.team = 'neutral'; rock.color = null; rock.practice = false; }
     }
     u.attachedRockId = null; u.attachOffset = null;
-    order = { kind: 'stop', x: u.x, y: u.y };
+    u.departureOrder = null;
+    if (order.kind === 'detach') order = { kind: 'stop', x: u.x, y: u.y };
   } else if (order.kind === 'detach') return false;
   if (order.kind === 'fit') {
     if (u.type !== 'booster' || !u.loaded || !target || target.type !== 'rock' || target.launched || target.boosterTeam) return false;
@@ -173,6 +182,8 @@ export function launchRock(w, id, impulse, team = 'player', free = false) {
   w.threatScanAt = 0;
   r.boosterTeam = null;
   booster.loaded = false; booster.vx = r.vx; booster.vy = r.vy;
+  if(team==='player' && w.lesson?.phase==='basics' && !w.lesson.returnBoosterId)w.lesson.returnBoosterId=booster.id;
+  if(team==='player' && w.lesson?.phase==='assault')w.lesson.assaultLaunches++;
   if (!free) w.metal[team] -= COST.rock;
   if (team === 'player') w.progress.launched = true;
   announce(w, team === 'player' ? 'Booster firing' : 'Incoming asteroid', `${BURN_TIME}s powered burn, then automatic separation. The rock will coast.`, team === 'enemy');
@@ -215,13 +226,14 @@ function defenseTarget(u, w, anchor) {
   let best, score = Infinity;
   for (const target of w.units) {
     if (target.hp <= 0 || !combatTarget(u, target, w) || distance(target, anchor) > (u.type === 'drone' ? 180 : 210)) continue;
-    if (u.type === 'drone' && !['rock', 'drone'].includes(target.type)) continue;
+    if (u.type === 'drone' && !droneCanRam(u, target, w)) continue;
     const s = distance(u, target) - (target.type === 'rock' ? 100 : 0);
     if (s < score) { score = s; best = target; }
   }
   return best;
 }
 function steering(u, w, g) {
+  u.ramTargetId = null;
   let target = u.order?.targetId ? entity(w, u.order.targetId) : null;
   let standoff = 0;
   let kind = u.order?.kind || 'stop';
@@ -229,7 +241,10 @@ function steering(u, w, g) {
     const anchor = target || entity(w, u.hostId);
     if (anchor && anchor.hp > 0) {
       target = u.type === 'booster' ? null : defenseTarget(u, w, anchor);
-      if (target) standoff = u.range * 0.55;
+      if (target) {
+        standoff = u.range * 0.55;
+        if(u.type==='drone')u.ramTargetId=target.id;
+      }
       else {
         // Keep a distinct berth around a moving colony or platform.
         const angle = u.phase + w.time * 0.012;
@@ -259,7 +274,7 @@ function steering(u, w, g) {
   }
   let dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy) || 1;
   const gap = d - standoff;
-  const desired = clamp(gap * .65, -u.speed * .4, u.speed);
+  const desired = u.ramTargetId && !avoidingStar ? u.speed : clamp(gap * .65, -u.speed * .4, u.speed);
   const follow = clamp(1 - Math.max(0, gap) / 70, 0, 1);
   let vx = dx / d * desired + (target.vx || 0) * follow;
   let vy = dy / d * desired + (target.vy || 0) * follow;
@@ -354,7 +369,46 @@ export function advanceMotion(w, dt = DT, forecast = false) {
     if (Math.hypot(u.x, u.y) > 2800) u.hp = 0;
   }
   resolveRockContacts(w, previous, oldPlanets, dt, forecast);
+  resolveDroneContacts(w, previous, dt, forecast);
   updateBoosters(w, dt, forecast);
+}
+function droneCanRam(drone, target, w) {
+  if(drone.order?.kind!=='defend' || !['rock','ship','drone','booster'].includes(target.type))return false;
+  if(target.type==='rock' && !target.launched)return false;
+  const anchor=entity(w,drone.order.targetId)||entity(w,drone.hostId);
+  return !!anchor && anchor.hp>0 && distance(anchor,target)<=180 && combatTarget(drone,target,w);
+}
+function ramContact(w, drone, target, x, y, when, forecast) {
+  drone.hp=0;drone.x=x;drone.y=y;
+  drone.impact={x,y,time:when,targetId:target.id,name:target.name,kind:'ram'};
+  target.hp=Math.max(0,target.hp-drone.damage);
+  if(target.hp<=0)target.impact={x:target.x,y:target.y,time:when,targetId:drone.id,name:'Drone interception',kind:'intercept'};
+  if(forecast)return;
+  w.effects.push({type:'ram',x,y,team:drone.team,color:drone.color,born:w.time,life:2});
+  announce(w,'Drone impact',`${drone.name} sacrificed / ${drone.damage} damage to ${target.name}.`);
+  if(target.hp<=0 && target.type==='rock') {
+    if(w.lesson?.phase==='defense' && target.id===w.lesson.rockId && drone.team==='player')w.lesson.finalIntercepted=true;
+    if(drone.team==='player' && target.team!=='player')w.progress.intercepted=true;
+    announce(w,'Asteroid intercepted','The debris is harmless.');
+  }
+}
+function resolveDroneContacts(w, previous, dt, forecast) {
+  if(w.ignoreDroneContacts)return;
+  const contacts=[];
+  for(const drone of w.units) {
+    if(drone.type!=='drone' || drone.hp<=0)continue;
+    const start=previous.get(drone.id);
+    for(const target of w.units) {
+      if(target.hp<=0 || target.type==='rock' || !droneCanRam(drone,target,w))continue;
+      const other=previous.get(target.id);if(!start || !other)continue;
+      const a={...start,vx:(drone.x-start.x)/dt,vy:(drone.y-start.y)/dt};
+      const b={...other,vx:(target.x-other.x)/dt,vy:(target.y-other.y)/dt};
+      const time=contactTime(a,b,drone.radius+target.radius,dt);
+      if(Number.isFinite(time))contacts.push({drone,target,time,x:a.x+a.vx*time,y:a.y+a.vy*time});
+    }
+  }
+  contacts.sort((a,b)=>a.time-b.time || a.drone.id.localeCompare(b.drone.id));
+  for(const hit of contacts)if(hit.drone.hp>0 && hit.target.hp>0)ramContact(w,hit.drone,hit.target,hit.x,hit.y,w.time-dt+hit.time,forecast);
 }
 // Exact time of first contact for circles moving at constant step velocities.
 function contactTime(a, b, radius, limit) {
@@ -384,6 +438,9 @@ function resolveRockContacts(w, previous, oldPlanets, dt, forecast) {
   const bodies=[{id:'star',name:'SOL',radius:STAR_RADIUS,x:0,y:0,vx:0,vy:0},
     ...w.planets.map((p,i)=>({id:p.id,name:p.name,radius:p.radius,x:oldPlanets[i].x,y:oldPlanets[i].y,vx:(p.x-oldPlanets[i].x)/dt,vy:(p.y-oldPlanets[i].y)/dt,planet:p}))];
   const settings=w.collisions||COLLISION_DEFAULTS;
+  const drones=w.units.filter(u=>!w.ignoreDroneContacts&&u.type==='drone'&&u.hp>0).map(u=>{
+    const old=previous.get(u.id);return {unit:u,...old,vx:(u.x-old.x)/dt,vy:(u.y-old.y)/dt};
+  });
   let elapsed=0;
   // The cap bounds pathological piles. Unresolved remainder is held in place,
   // never advanced through an unchecked obstacle.
@@ -392,6 +449,11 @@ function resolveRockContacts(w, previous, oldPlanets, dt, forecast) {
     const remain=dt-elapsed;
     for(let i=0;i<rocks.length;i++) {
       const a=rocks[i];if(a.hp<=0)continue;
+      for(const drone of drones) {
+        if(drone.unit.hp<=0 || !droneCanRam(drone.unit,a,w))continue;
+        const t=contactTime(a,{...drone,x:drone.x+drone.vx*elapsed,y:drone.y+drone.vy*elapsed},a.radius+drone.unit.radius,remain);
+        if(t<earliest){earliest=t;hit={a,drone};}
+      }
       for(const body of bodies) {
         if(isBeltRock(a))continue;
         const t=contactTime(a,{...body,x:body.x+body.vx*elapsed,y:body.y+body.vy*elapsed},a.radius+body.radius,remain);
@@ -408,7 +470,11 @@ function resolveRockContacts(w, previous, oldPlanets, dt, forecast) {
     for(const r of rocks)if(r.hp>0){r.x+=r.vx*travel;r.y+=r.vy*travel;}
     elapsed+=travel;
     if(!hit)break;
-    const {a,b,body}=hit, when=w.time-dt+elapsed;
+    const {a,b,body,drone}=hit, when=w.time-dt+elapsed;
+    if(drone) {
+      ramContact(w,drone.unit,a,drone.x+drone.vx*elapsed,drone.y+drone.vy*elapsed,when,forecast);
+      continue;
+    }
     if(body) {
       a.hp=0;a.impact={x:a.x,y:a.y,targetId:body.id,name:body.name,time:when};
       if(!forecast){
@@ -471,8 +537,9 @@ function updateBoosters(w, dt, forecast) {
         u.x = rock.x + u.attachOffset.x; u.y = rock.y + u.attachOffset.y;
         u.vx = rock.vx; u.vy = rock.vy;
         if (rock.launched && rock.burn?.remaining === 0) {
-          setOrder(w, u.id, { kind: 'detach' }, u.team);
-          if (!forecast && u.team === 'player') announce(w, `${u.name} detached`, 'Burn complete. Booster awaiting orders; the rock is coasting.');
+          const departure = u.departureOrder;
+          if (!setOrder(w, u.id, departure || { kind: 'detach' }, u.team)) setOrder(w, u.id, { kind: 'detach' }, u.team);
+          if (!forecast && u.team === 'player') announce(w, `${u.name} detached`, departure ? 'Burn complete. Following departure order; the rock is coasting.' : 'Burn complete. Booster awaiting orders; the rock is coasting.');
         }
       }
       continue;
@@ -501,6 +568,7 @@ function updateBoosters(w, dt, forecast) {
       u.rearmProgress = docked ? u.rearmProgress + dt : 0;
       if (u.rearmProgress >= REARM_TIME) {
         u.loaded = true; u.rearmProgress = 0; u.order = { kind: 'defend', targetId: target.id };
+        if(!forecast && w.lesson?.returnBoosterId===u.id)w.lesson.refuelled=true;
         if (!forecast && u.team === 'player') announce(w, `${u.name} rearmed`, 'One booster loaded. Ready for another asteroid.');
       }
     } else { u.attachProgress = 0; u.rearmProgress = 0; }
@@ -574,7 +642,7 @@ export function planRockTarget(w, rock, target) {
     const scale = Math.min(1, MAX_IMPULSE / (magnitude || 1));
     const pending = { id: rock.id, impulse: { x: requested.x * scale, y: requested.y * scale },
       aim: { targetId: target.id, flightTime, verified: false } };
-    const f = predict(w, [rock.id], pending).get(rock.id);
+    const f = predict(w, [rock.id], pending, 90, false).get(rock.id);
     if (f?.impact?.targetId === target.id) {
       pending.aim.verified = true; pending.aim.flightTime = f.impact.time;
       return pending;
@@ -594,7 +662,7 @@ export function enemyLaunch(w, practice = false) {
   for (const r of candidates.slice(0, 4)) {
     const impulse = aimRock(w, r, home, 60);
     if (Math.hypot(impulse.x, impulse.y) > MAX_IMPULSE) continue;
-    const test = predict(w, [r.id], { id: r.id, impulse, team: 'enemy' }, 70);
+    const test = predict(w, [r.id], { id: r.id, impulse, team: 'enemy' }, 70, false);
     // Reject a shot that would hit another planet before reaching its target.
     const flight = test.get(r.id);
     if (flight?.impact && flight.impact.targetId !== home.id) continue;
@@ -662,8 +730,42 @@ function ai(w) {
     } else w.ai.rockAt = w.time + 5;
   }
 }
+// Sparse natural visitors, independent of faction budgets and camera position.
+export function updateVisitors(w) {
+  if(w.mode!=='skirmish' || !w.visitors || w.outcome)return;
+  w.units=w.units.filter(u=>!u.visitor || u.hp>0 || w.time-u.arrivedAt<300);
+  const event=w.visitors;
+  if(w.time<event.nextAt)return;
+  const random=()=>{event.seed=(Math.imul(event.seed,1664525)+1013904223)>>>0;return event.seed/4294967296;};
+  event.nextAt=w.time+100+random()*60;
+  if(w.units.filter(u=>u.visitor && u.hp>0).length>=2)return;
+  for(let attempt=0;attempt<8;attempt++) {
+    const angle=random()*Math.PI*2, offset=(240+random()*460)*(random()<.5?-1:1), speed=18+random()*8;
+    const radius=BELT_INNER+BELT_WIDTH+430, along=Math.sqrt(radius*radius-offset*offset);
+    const radial={x:Math.cos(angle),y:Math.sin(angle)};
+    const draft=structuredClone(w);draft.units=[];
+    const rock=addRock(draft,angle,radius,`VISITOR ${String(event.count+1).padStart(2,'0')}`,random()<.7?'small':'medium');
+    Object.assign(rock,{x:radial.x*along-radial.y*offset,y:radial.y*along+radial.x*offset,
+      vx:-radial.x*speed,vy:-radial.y*speed,launched:true,visitor:true,arrivedAt:w.time});
+    delete rock.beltOrbit;delete rock.beltOmega;delete rock.beltPhase;
+    // Screen the complete gravity-driven crossing, not just a straight chord.
+    // Belt collisions and player interventions can still change the actual route.
+    const flight=predict(draft,[rock.id],null,200,false).get(rock.id);
+    const minRadius=Math.min(...flight.points.map(p=>Math.hypot(p.x,p.y)));
+    const last=flight.points.at(-1), enters=flight.points.find(p=>Math.hypot(p.x,p.y)<=BELT_INNER);
+    if(!enters || minRadius<100 || flight.impact?.targetId==='star' || (!flight.impact && Math.hypot(last.x,last.y)<radius))continue;
+    rock.beltArrivalAt=w.time+enters.t;
+    w.serial=draft.serial;w.units.push(rock);event.count++;
+    w.threatScanAt=0;
+    announce(w,'Natural asteroid approaching',`${rock.name}: oblique crossing, reaches the belt in ~${Math.ceil(enters.t)}s. Neutral rock; either colony may be threatened.`,true);
+    return rock;
+  }
+  // Extreme gravity may leave no suitable crossing. Try again later, never force a sun shot.
+  event.nextAt=w.time+30;
+}
 export function step(w, dt = DT) {
   if (w.outcome && !w.continueSandbox) return;
+  updateVisitors(w);
   scanRockThreats(w);
   advanceMotion(w, dt);
   for (const p of w.planets) if (p.hp > 0 && p.team !== 'neutral') w.metal[p.team] = Math.min(999, w.metal[p.team] + .4 * dt);
@@ -675,10 +777,14 @@ export function step(w, dt = DT) {
   if (home.hp <= 0) w.outcome = 'defeat';
   else if (w.scenario === 'neighbors' && w.planets.find(p => p.team === 'enemy').hp <= 0) w.outcome = 'victory';
   else if (w.scenario === 'hold' && w.time >= w.duration) w.outcome = 'victory';
-  else if (w.scenario === 'garden' && w.progress.launched && w.progress.intercepted && !w.continueSandbox && (!w.lesson || w.lesson.phase === 'complete')) w.outcome = 'victory';
+  // Guided completion belongs to advanceTutorial after the final assault.
+  // Free Garden also requires colony destruction, never just launch/intercept flags.
+  else if (w.scenario === 'garden' && !w.lesson && !w.continueSandbox && w.planets.find(p => p.id === 'ochre')?.hp <= 0) w.outcome = 'victory';
 }
-export function predict(world, ids, pending = null, horizon = 90) {
+export function predict(world, ids, pending = null, horizon = 90, interceptors = true) {
   const w = structuredClone(world);
+  // Aiming must allow a defended target. Displayed previews still include rams.
+  w.ignoreDroneContacts=!interceptors;
   const start = w.time;
   if (pending) {
     const u = entity(w, pending.id);

@@ -18,7 +18,7 @@ test('a clear planetary flyby bends visibly, matches its preview and remains sta
     const w = createScenario('neighbors'), planet = w.planets[0], rock = w.units.find(u => u.type === 'rock');
     if (weak) w.gravity.planetMass = 180;
     w.units = [rock];
-    Object.assign(rock, { x: planet.x - 180, y: planet.y + 75, vx: planet.vx + 18, vy: planet.vy, launched: true });
+    Object.assign(rock, { x: planet.x - 180, y: planet.y + 100, vx: planet.vx + 18, vy: planet.vy, launched: true });
     const forecast = verifyPreview ? predict(w, [rock.id], null, 40).get(rock.id) : null;
     let closest = Infinity;
     for (let n = 1; n <= Math.round(40 / dt); n++) {
@@ -135,7 +135,7 @@ test('both factions intercept their own incoming rocks but preserve safe outgoin
     w.ai = { buildAt: Infinity, attackAt: Infinity, rockAt: Infinity, launchAt: Infinity };
     w.units = w.units.filter(u => u.team === team || u.type === 'rock');
     const rock = w.units.find(u => u.type === 'rock'), platform = w.units.find(u => u.type === 'platform');
-    Object.assign(rock, { x: home.x + 110, y: home.y, vx: home.vx + (mode === 'outgoing' ? 12 : -6), vy: home.vy, team, launched: mode !== 'unlaunched', hp: 12 });
+    Object.assign(rock, { x: home.x + 110, y: home.y, vx: home.vx + (mode === 'outgoing' ? 24 : -6), vy: home.vy, team, launched: mode !== 'unlaunched', hp: 12 });
     platform.phase = -w.time * platform.omega; platform.fireTimer = 0;
     scanRockThreats(w);
     assert.equal(!!w.rockThreats[rock.id], mode === 'incoming', `${team} / ${mode}`);
@@ -214,7 +214,7 @@ test('booster waits attached, burns for four seconds, separates automatically an
   assert.equal(booster.order.kind, 'attached'); assert.equal(booster.attachedRockId, rock.id);
   assert.equal(booster.vx, rock.vx); assert.equal(booster.vy, rock.vy);
   assert.ok(Math.abs(booster.x - rock.x - booster.attachOffset.x) < 1e-8);
-  assert.equal(setOrder(w, booster.id, { kind: 'rearm', targetId: 'verdant' }), false);
+  assert.equal(setOrder(w, booster.id, { kind: 'rearm', targetId: 'missing-colony' }), false);
   const budget = w.metal.player;
   assert.ok(!launchRock(w, rock.id, { x: -5, y: 2 }).error);
   assert.equal(w.metal.player, budget - COST.rock); assert.equal(rock.boosterTeam, null);

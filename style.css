@@ -60,4 +60,8 @@ header{grid-template-columns:var(--control-width) minmax(160px,1fr) var(--contro
 
 .tutorial{border-left:2px solid var(--tutorial);padding-left:10px}.tutorial-heading{color:var(--tutorial)}#tutorial-skip{color:var(--tutorial);border-color:var(--tutorial)}#tutorial-skip:hover{background:#ff72ed20}.tutorial h2{color:var(--tutorial)}
 
-#tutorial-attack,#tutorial-reset{display:block;color:var(--tutorial);border-color:var(--tutorial);font-size:9px;margin-top:10px;padding:6px 8px}
+#tutorial-start,#tutorial-attack,#tutorial-reset{display:block;color:var(--tutorial);border-color:var(--tutorial);font-size:9px;margin-top:10px;padding:6px 8px}
+
+/* Keep the full title within the navigation column. */
+.wordmark{font-size:14px;letter-spacing:.4px;gap:8px}.wordmark .orbit-logo{flex-shrink:0}
+@media(max-width:720px){.wordmark{font-size:11px;letter-spacing:0;gap:5px}}
