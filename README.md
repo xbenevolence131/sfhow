@@ -1,5 +1,11 @@
 # Stones from Heaven: Orbital Warfare
 
+**Turn asteroids into weapons. Bend their paths around planets. Defend your little corner of space.**
+
+[![Skirmish gameplay showing the planetary system and a predicted asteroid intercept](sfhow_screenshot.png)](sfhow_screenshot.png)
+
+*Plan a shot at a moving planet, review its predicted path, then let it fly.*
+
 For the latest development checkpoint and pending work, see [HANDOFF.md](HANDOFF.md).
 
 A quiet, playable planetary warfare game. All visuals are procedural Canvas 2D; the game uses no runtime packages, external assets, accounts, or services.
