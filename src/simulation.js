@@ -25,7 +25,8 @@ export const ATTACH_TIME = 6;
 export const REARM_TIME = 8;
 export const BURN_TIME = 4;
 export const COST = { ship: 60, platform: 80, drone: 25, booster: 50, miner: 25, rock: 35 };
-export const MINING_RATE = .4;
+export const COLONY_INCOME = .8;
+export const MINING_RATE = .8;
 export const MINING_DOCK_TIME = 4;
 export const REPAIR_RATE = 1;
 export const REPAIR_DELAY = 10;
@@ -76,7 +77,7 @@ export const TYPES = {
   platform: { hp: 230, radius: 9, speed: 0, thrust: 0, range: 135, damage: 12, cooldown: 2.1 },
   drone: { hp: 38, radius: 4, speed: 32, thrust: 10, range: 0, damage: 45, cooldown: 0 },
   booster: { hp: 65, radius: 6, speed: 19, thrust: 6, range: 0, damage: 0, cooldown: 0 },
-  miner: { hp: 65, radius: 7, speed: 18, thrust: 6, range: 0, damage: 0, cooldown: 0 },
+  miner: { hp: 65, radius: 7, speed: 30, thrust: 6, range: 0, damage: 0, cooldown: 0 },
   rock: { hp: 50, radius: 8, speed: 0, thrust: 0, range: 0, damage: 65, cooldown: 0 },
 };
 export const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -961,7 +962,7 @@ export function step(w, dt = DT) {
   updateVisitors(w);
   scanRockThreats(w);
   advanceMotion(w, dt);
-  for (const p of w.planets) if (p.hp > 0 && p.team !== 'neutral') w.metal[p.team] = Math.min(999, w.metal[p.team] + .4 * dt);
+  for (const p of w.planets) if (p.hp > 0 && p.team !== 'neutral') w.metal[p.team] = Math.min(999, w.metal[p.team] + COLONY_INCOME * dt);
   combat(w, dt); repairShips(w,dt); updateBoosters(w, 0, true); updateMiners(w,0,true); ai(w);
   w.effects = w.effects.filter(e => w.time - e.born < e.life);
   // Sandbox keeps simulating after colony loss; destruction and costs still apply.

@@ -50,6 +50,6 @@ test('skirmish opponent pays the same upgrade price and restart begins basic',()
   const options={mode:'skirmish',layoutSeed:17,visitorSeed:42};const w=createGame(options);
   w.time=150;w.visitors.nextAt=Infinity;w.ai.buildAt=w.ai.attackAt=w.ai.rockAt=w.ai.launchAt=Infinity;w.metal.enemy=300;
   step(w);const u=w.units.find(u=>u.team==='enemy'&&u.tier===2);assert.ok(u);
-  assert.ok(Math.abs(w.metal.enemy-(300+.4*DT-UPGRADES[u.type].cost))<1e-8);
+  assert.ok(Math.abs(w.metal.enemy-(300+.8*DT-UPGRADES[u.type].cost))<1e-8);
   assert.ok(createGame(options).units.every(u=>u.tier!==2));
 });

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame} from '../src/scenarios.js';
-import {spawn,setOrder,predict,advanceMotion,step,DT,MINING_RATE,launchRock,entity,addRock} from '../src/simulation.js';
+import {spawn,setOrder,predict,advanceMotion,step,DT,MINING_RATE,launchRock,entity,addRock,distance} from '../src/simulation.js';
 import {contextualOrder} from '../src/orders.js';
 
 function fixture(){
@@ -16,6 +16,17 @@ function dock(w,miner,rock){
   assert.equal(miner.miningRockId,rock.id);assert.equal(rock.minerId,miner.id);
 }
 
+test('a miner launched from home catches inner and outer rocks without a long pursuit',()=>{
+  for(const inner of [true,false]){
+    const w=createGame({mode:'skirmish',layoutSeed:123,visitorSeed:42}),miner=spawn(w,'miner','player',w.planets[0]);
+    const rock=w.units.filter(u=>u.type==='rock'&&Boolean(u.innerRock)===inner).sort((a,b)=>distance(a,miner)-distance(b,miner))[0];
+    w.units=[miner,rock];assert.ok(setOrder(w,miner.id,{kind:'mine',targetId:rock.id}));
+    for(let i=0;i<60/DT&&!miner.miningRockId;i++)advanceMotion(w,DT,true);
+    assert.equal(miner.miningRockId,rock.id,inner?'inner pursuit':'outer pursuit');
+    assert.ok(miner.hp>0);assert.ok(Math.hypot(miner.vx-rock.vx,miner.vy-rock.vy)<1e-8);
+  }
+});
+
 test('miner deployment, contextual order and docking forecast match real flight without forecast income',()=>{
   const {w,rock,miner}=fixture();assert.equal(w.metal.player,135);assert.equal(miner.hp,65);
   const order=contextualOrder(w,miner.id,rock,rock);assert.equal(order.pending.order.kind,'mine');
@@ -23,7 +34,7 @@ test('miner deployment, contextual order and docking forecast match real flight 
   assert.ok(forecast.attachment);dock(w,miner,rock);
   assert.ok(Math.abs(w.time-forecast.attachment.time)<DT);
   const balance=w.metal.player;for(let i=0;i<20;i++)step(w);
-  assert.ok(Math.abs(w.metal.player-balance-(.4+MINING_RATE))<1e-7);
+  assert.ok(Math.abs(w.metal.player-balance-(.8+MINING_RATE))<1e-7);
   assert.ok(Math.abs(miner.vx-rock.vx)<1e-9);
 });
 

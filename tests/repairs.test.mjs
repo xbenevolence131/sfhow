@@ -14,7 +14,7 @@ test('both factions repair free at one HP/s only after ten undamaged seconds; Su
     const {w,ship}=fixture(team);const metal=w.metal[team];
     tick(w,10);assert.ok(Math.abs(ship.hp-50)<1e-8);assert.equal(shipRepairStatus(w,ship).kind,'repairing');
     tick(w,5);assert.ok(Math.abs(ship.hp-55)<1e-8);
-    assert.ok(Math.abs(w.metal[team]-(metal+.4*15))<1e-7,'only ordinary colony income, no repair charge');
+    assert.ok(Math.abs(w.metal[team]-(metal+.8*15))<1e-7,'only ordinary colony income, no repair charge');
     w.metal[team]=100;upgradeUnit(w,ship.id,team);ship.hp=ship.maxHp-.1;tick(w,1);assert.equal(ship.hp,145);assert.equal(shipRepairStatus(w,ship),null);
   }
 });

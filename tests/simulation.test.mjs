@@ -316,5 +316,5 @@ test('enemy launches require a real booster expedition and paid launch', () => {
   advance(w, 110);
   assert.ok(w.events.some(e => e.text === 'Enemy asteroid armed'));
   assert.ok(w.events.some(e => e.text === 'Incoming asteroid'));
-  assert.ok(w.metal.enemy < 180 + w.time * .4 - 34);
+  assert.ok(w.metal.enemy < 180 + w.time * .8 - 34);
 });
