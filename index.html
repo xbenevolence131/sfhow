@@ -76,6 +76,7 @@
         <button data-build="platform"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="11"/><circle cx="20" cy="20" r="3"/><path d="M20 3V13M20 27V37M3 20H13M27 20H37"/></svg><b>PLATFORM</b><span>80 ◇</span></button>
         <button data-build="drone" title="Ramming interceptor: sacrifices itself for 45 contact damage. Intercepts incoming rocks and hostile ships."><svg viewBox="0 0 40 40"><path d="m20 9 11 20H9Z"/><circle cx="20" cy="9" r="3"/><circle cx="9" cy="29" r="3"/><circle cx="31" cy="29" r="3"/></svg><b>DRONE</b><span>25 ◇ / RAM</span></button>
         <button data-build="booster"><svg viewBox="0 0 40 40"><path d="m16 8 4-4 4 4v24h-8ZM10 15h6v13h-6ZM24 15h6v13h-6ZM18 32v5M22 32v5"/></svg><b>BOOSTER</b><span>50 ◇</span></button>
+        <button data-build="miner" title="Unarmed asteroid miner. Dock to earn 0.2 metal per second."><svg viewBox="0 0 40 40"><path d="M10 10h20v20H10ZM4 14h6M4 26h6M30 14h6M30 26h6M16 10V5M24 10V5"/></svg><b>MINER</b><span>25 &#9671;</span></button>
         <button id="rock-tool"><svg class="rock-icon" viewBox="0 0 40 40"><path d="m13 5 15 3 8 14-7 12-16 1-9-11Z"/></svg><b>ROCK</b><span>35 ◇ / launch</span></button>
         <button id="range-reset" class="hidden"><span aria-hidden="true">&#8635;</span><b>RESET RANGE</b><span>Fresh rocks &amp; defenses</span></button>
       </div>
@@ -84,10 +85,11 @@
     <section id="selection" class="selection" aria-label="Selected object">
       <div class="selected-title"><strong id="selected-name"></strong><span id="selected-health"></span></div>
       <div id="selected-meta" class="selected-meta"></div>
+      <div id="unit-upgrade" class="unit-upgrade hidden"><small id="upgrade-details"></small><button id="order-upgrade" data-order="upgrade">Upgrade to Super</button></div>
       <div id="selected-actions" class="selected-actions"><button id="order-fit" data-order="fit-rock" class="hidden">Send booster</button><button id="order-detach" data-order="detach" class="hidden">Detach</button><button id="order-aim" data-order="aim" class="hidden">Select rock</button><button id="order-defend" data-order="defend">Defend home</button><button id="order-stop" data-order="stop">Stop</button><button id="order-home" data-order="home">Colony</button></div>
     </section>
   </footer>
-  <div id="plan" class="plan hidden" aria-live="polite"><div><span class="eyebrow" id="plan-kind">PLANNED MANEUVER</span><p id="plan-summary"></p><small id="plan-note">Flight prediction · weapons may change the outcome</small></div><div class="plan-actions"><button id="confirm" class="primary">Confirm <kbd>↵</kbd></button><button id="cancel">Cancel <kbd>Esc</kbd></button></div></div>
+  <div id="plan" class="plan hidden" aria-live="polite"><div><span class="eyebrow" id="plan-kind">PLANNED MANEUVER</span><p id="plan-summary"></p><small id="plan-note">Flight prediction · weapons may change the outcome</small></div><div id="rock-contact-controls" class="rock-contact-controls hidden"><label for="rock-contact">Contact point <output id="rock-contact-value">Centre</output></label><input id="rock-contact" type="range" min="-90" max="90" step="5" value="0" aria-label="Rock impact contact point"><div class="contact-labels"><span>Left edge</span><span>Centre</span><span>Right edge</span></div></div><div class="plan-actions"><button id="confirm" class="primary">Confirm <kbd>↵</kbd></button><button id="cancel">Cancel <kbd>Esc</kbd></button></div></div>
   <div id="modal" class="modal"><section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title"><span class="eyebrow" id="modal-kicker"></span><h1 id="modal-title"></h1><div id="modal-body"></div><button id="modal-action" class="primary"></button><button id="modal-secondary" class="hidden"></button></section></div>
   <div id="new-game-modal" class="modal hidden"><section class="modal-card new-game-card" role="dialog" aria-modal="true" aria-labelledby="new-game-title">
     <span class="eyebrow">A NEW ORBIT</span><h1 id="new-game-title">How do you want to play?</h1>

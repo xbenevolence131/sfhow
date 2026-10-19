@@ -1,11 +1,11 @@
 // All distances and masses are game units. Both forecasts and live flight use DT.
 export const DT = 1 / 20;
 // The displayed G is a normalized multiplier; 1.0 uses this tuned baseline.
-export const GRAVITY_BASE = 6;
+export const GRAVITY_BASE = 12;
 export const GRAVITY_DEFAULTS = Object.freeze({ g: 1, planetMass: 2800, sunMass: 5400 });
 export const GRAVITY_LIMITS = Object.freeze({ g: 3, planetMass: 8400, sunMass: 16200 });
 export const COLLISION_DEFAULTS = Object.freeze({ bounce: .35, strength: 18 });
-export const ROCK_SIZES = Object.freeze({ small: { radius: 5.5, mass: 1, damage: 35 }, medium: { radius: 8, mass: 2, damage: 65 }, large: { radius: 12, mass: 4, damage: 100 } });
+export const ROCK_SIZES = Object.freeze({ small: { radius: 5.5, mass: 1, damage: 35, metalCapacity: 40 }, medium: { radius: 8, mass: 2, damage: 65, metalCapacity: 80 }, large: { radius: 12, mass: 4, damage: 100, metalCapacity: 160 } });
 export function normalizeCollisions(settings = {}) {
   return { bounce: Number.isFinite(settings.bounce) ? clamp(settings.bounce, 0, 1) : COLLISION_DEFAULTS.bounce,
     strength: Number.isFinite(settings.strength) ? clamp(settings.strength, 1, 100) : COLLISION_DEFAULTS.strength };
@@ -24,12 +24,41 @@ export const CAP = 12;
 export const ATTACH_TIME = 6;
 export const REARM_TIME = 8;
 export const BURN_TIME = 4;
-export const COST = { ship: 60, platform: 80, drone: 25, booster: 50, rock: 35 };
+export const COST = { ship: 60, platform: 80, drone: 25, booster: 50, miner: 25, rock: 35 };
+export const MINING_RATE = .2;
+export const MINING_DOCK_TIME = 4;
+export const UPGRADES = Object.freeze({
+  ship: { cost: 50, maxHp: 145, speed: 26, thrust: 8, range: 130, damage: 12, cooldown: 1.8 },
+  platform: { cost: 65, maxHp: 300, range: 170, damage: 16, cooldown: 1.5 },
+  drone: { cost: 20, speed: 42, thrust: 13, damage: 70, defenseRadius: 240 },
+});
+export function superColor(color = '#80d6cf') {
+  const rgb=(color.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i)||['','80','d6','cf']).slice(1).map(c=>parseInt(c,16));
+  const low=Math.min(...rgb);
+  return '#'+rgb.map(c=>Math.max(0,Math.round(c*.9-low*.3)).toString(16).padStart(2,'0')).join('');
+}
+export function upgradeUnit(w, id, team = 'player') {
+  const u=entity(w,id),spec=UPGRADES[u?.type];
+  if(!u || u.team!==team || !spec)return {error:'Select your ship, platform or drone.'};
+  if(u.tier===2)return {error:'This unit is already Super.'};
+  if(w.outcome && !w.continueSandbox)return {error:'This encounter has ended.'};
+  const cost=w.unlimitedMetal && team==='player'?0:spec.cost;
+  if(w.metal[team]<cost)return {error:`You need ${cost} metal to upgrade.`};
+  const health=u.hp/u.maxHp,oldCooldown=u.cooldown;
+  w.metal[team]-=cost;
+  const {cost:unused,...stats}=spec;Object.assign(u,stats);
+  u.hp=health*u.maxHp;
+  if(oldCooldown>0)u.fireTimer*=u.cooldown/oldCooldown;
+  u.tier=2;u.baseColor=u.color;u.color=superColor(u.color);
+  announce(w,`${u.name} upgraded`, 'Super unit ready.');
+  return u;
+}
 export const TYPES = {
   ship: { hp: 110, radius: 6, speed: 21, thrust: 6.5, range: 105, damage: 8, cooldown: 2.3 },
   platform: { hp: 230, radius: 9, speed: 0, thrust: 0, range: 135, damage: 12, cooldown: 2.1 },
   drone: { hp: 38, radius: 4, speed: 32, thrust: 10, range: 0, damage: 45, cooldown: 0 },
   booster: { hp: 65, radius: 6, speed: 19, thrust: 6, range: 0, damage: 0, cooldown: 0 },
+  miner: { hp: 65, radius: 7, speed: 18, thrust: 6, range: 0, damage: 0, cooldown: 0 },
   rock: { hp: 50, radius: 8, speed: 0, thrust: 0, range: 0, damage: 65, cooldown: 0 },
 };
 export const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -106,12 +135,13 @@ export function spawn(w, type, team, host, free = false) {
   const serial = ++w.serial;
   const phase = serial * 2.39996;
   const orbit = host.radius + (type === 'platform' ? 48 : 32) + (serial % 3) * 9;
-  const omega = type === 'platform' ? 0.025 : 0;
+  // A visible, leisurely 90-second local orbit around the moving host.
+  const omega = type === 'platform' ? 2 * Math.PI / 90 : 0;
   const x = host.x + Math.cos(phase) * orbit, y = host.y + Math.sin(phase) * orbit;
   const unit = { id: `u${serial}`, name: `${type.toUpperCase()} ${String(serial).padStart(2, '0')}`, type, team,
     ...TYPES[type], maxHp: TYPES[type].hp, x, y,
     vx: host.vx - Math.sin(phase) * orbit * omega, vy: host.vy + Math.cos(phase) * orbit * omega,
-    hostId: host.id, color: host.color, phase: phase - w.time * omega, orbit, omega,
+    hostId: host.id, color: host.color, tier: 1, phase: phase - w.time * omega, orbit, omega,
     order: { kind: 'defend', targetId: host.id }, fireTimer: 0.4 + (serial % 4) * 0.3, launched: true,
     loaded: type === 'booster', attachProgress: 0, rearmProgress: 0 };
   w.units.push(unit);
@@ -124,15 +154,23 @@ export function addRock(w, angle, orbit = BELT_INNER + BELT_WIDTH / 2, name, siz
   const speed = beltSpeed(radial.x*orbit,radial.y*orbit,orbit,w.planets,settings);
   const serial = ++w.serial;
   const rock = { id: `r${serial}`, name: name || `ROCK ${String(serial).padStart(2, '0')}`, type: 'rock', team: 'neutral',
-    ...TYPES.rock, ...ROCK_SIZES[size], size, maxHp: TYPES.rock.hp, x: Math.cos(angle) * orbit, y: Math.sin(angle) * orbit,
+    ...TYPES.rock, ...ROCK_SIZES[size], metalRemaining: ROCK_SIZES[size].metalCapacity, size, maxHp: TYPES.rock.hp, x: Math.cos(angle) * orbit, y: Math.sin(angle) * orbit,
     vx: -Math.sin(angle) * speed, vy: Math.cos(angle) * speed, launched: false,
     beltOrbit:orbit,beltOmega:speed/orbit,beltPhase:angle-w.time*speed/orbit,order: { kind: 'ballistic' } };
   w.units.push(rock); return rock;
 }
 export function setOrder(w, id, order, team = 'player') {
   const u = entity(w, id);
-  if (!u || !['ship', 'drone', 'booster'].includes(u.type) || u.team !== team) return false;
+  if (!u || !['ship', 'drone', 'booster', 'miner'].includes(u.type) || u.team !== team) return false;
   const target = entity(w, order.targetId);
+  if(u.type==='miner'){
+    if(!['mine','move','defend','stop'].includes(order.kind))return false;
+    if(order.kind==='mine' && (!target || target.type!=='rock' || target.launched || !(target.metalRemaining>0) || (target.boosterTeam && target.boosterTeam!==team) || (target.minerId && target.minerId!==u.id && entity(w,target.minerId))))return false;
+    if(order.kind==='move' && (order.targetId?!target:!Number.isFinite(order.x)||!Number.isFinite(order.y)))return false;
+    if(order.kind==='defend' && (!target || target.team!==team))return false;
+    if(u.miningRockId)releaseMiner(w,u);
+    u.miningProgress=0;
+  }else if(order.kind==='mine')return false;
   if (u.attachedRockId) {
     if (!['detach', 'move', 'rearm', 'fit'].includes(order.kind)) return false;
     // Validate before disarming the rock or queuing a departure.
@@ -179,6 +217,7 @@ export function launchRock(w, id, impulse, team = 'player', free = false) {
   // Gravity continues throughout; the same acceleration is used in forecasts.
   r.burn = { remaining: BURN_TIME, ax: impulse.x * scale / BURN_TIME, ay: impulse.y * scale / BURN_TIME };
   r.team = team; r.launched = true;
+  const miner=entity(w,r.minerId);if(miner)releaseMiner(w,miner);
   w.threatScanAt = 0;
   r.boosterTeam = null;
   booster.loaded = false; booster.vx = r.vx; booster.vy = r.vy;
@@ -199,20 +238,50 @@ function combatTarget(u, target, w) {
 }
 // Forecast only projectiles and their attached engines, avoiding combat steering
 // and recursive threat queries. Sample at fixed simulation intervals, not frames.
+const threatForecastCache = new WeakMap();
+function threatGeometry(w) {
+  return JSON.stringify([w.gravity,w.collisions,w.planets.map(p=>[p.id,p.orbit,p.phase,p.omega,p.radius])]);
+}
+function matchingThreatMotion(w, expected) {
+  const actual=w.units.filter(u=>u.type==='rock'), predicted=expected.units.filter(u=>u.type==='rock');
+  if(actual.length!==predicted.length)return false;
+  const lookup=new Map(predicted.map(u=>[u.id,u]));
+  for(const rock of actual){
+    const p=lookup.get(rock.id);if(!p)return false;
+    for(const key of ['hp','launched','boosterId','boosterTeam','radius','mass','damage','beltOrbit','beltOmega','beltPhase'])if(rock[key]!==p[key])return false;
+    for(const key of ['x','y','vx','vy'])if(Math.abs(rock[key]-p[key])>1e-7)return false;
+    for(const key of ['remaining','ax','ay'])if(Math.abs((rock.burn?.[key]||0)-(p.burn?.[key]||0))>1e-7)return false;
+    const engine=entity(w,rock.boosterId), anticipated=entity(expected,p.boosterId);
+    if((engine?.attachedRockId||null)!==(anticipated?.attachedRockId||null))return false;
+  }
+  return true;
+}
 export function scanRockThreats(w) {
   if (w.time < (w.threatScanAt || 0)) return;
   w.threatScanAt = w.time + 1;
   const rocks = w.units.filter(u => u.hp > 0 && u.type === 'rock' && u.launched);
   w.rockThreats = {};
-  if (!rocks.length) return;
+  if (!rocks.length) { threatForecastCache.delete(w); return; }
   // Include the whole belt: a bank shot can activate a previously idle rock.
   const isolated = { ...w, units: w.units.filter(u => u.type === 'rock' || u.attachedRockId) };
-  const forecasts = predict(isolated, rocks.map(r=>r.id));
+  const geometry=threatGeometry(w);
+  let cache=threatForecastCache.get(w);
+  if(cache && cache.geometry===geometry && w.time>=cache.expected.time-1e-7 && w.time-cache.start<30){
+    const steps=Math.round((w.time-cache.expected.time)/DT);
+    for(let i=0;i<steps;i++)advanceMotion(cache.expected,DT,true);
+    if(Math.abs(w.time-cache.expected.time)>1e-7 || !matchingThreatMotion(w,cache.expected))cache=null;
+  }else cache=null;
+  if(!cache){
+    // Extra horizon keeps the next 90 seconds available during cache reuse.
+    cache={geometry,start:w.time,expected:structuredClone(isolated),forecasts:predict(isolated,rocks.map(r=>r.id),null,120)};
+    threatForecastCache.set(w,cache);
+  }
+  const forecasts=cache.forecasts;
   w.threatWarnings ||= {};
   for (const [id, flight] of forecasts) {
     const rock = entity(w, id); if (!rock || rock.type !== 'rock') continue;
-    const impact = flight.impact;
-    if (!impact || impact.targetId === 'star') continue;
+    const impact = flight.impact && {...flight.impact,time:flight.impact.time-(w.time-cache.start)};
+    if (!impact || impact.time<0 || impact.time>90 || impact.targetId === 'star') continue;
     w.rockThreats[rock.id] = { ...impact, time: w.time + impact.time };
     const planet = entity(w, impact.targetId);
     if (planet?.team === 'player' && w.threatWarnings[rock.id] !== planet.id) {
@@ -225,7 +294,7 @@ export function scanRockThreats(w) {
 function defenseTarget(u, w, anchor) {
   let best, score = Infinity;
   for (const target of w.units) {
-    if (target.hp <= 0 || !combatTarget(u, target, w) || distance(target, anchor) > (u.type === 'drone' ? 180 : 210)) continue;
+    if (target.hp <= 0 || !combatTarget(u, target, w) || distance(target, anchor) > (u.type === 'drone' ? u.defenseRadius || 180 : 210)) continue;
     if (u.type === 'drone' && !droneCanRam(u, target, w)) continue;
     const s = distance(u, target) - (target.type === 'rock' ? 100 : 0);
     if (s < score) { score = s; best = target; }
@@ -240,7 +309,7 @@ function steering(u, w, g) {
   if (kind === 'defend') {
     const anchor = target || entity(w, u.hostId);
     if (anchor && anchor.hp > 0) {
-      target = u.type === 'booster' ? null : defenseTarget(u, w, anchor);
+      target = ['booster','miner'].includes(u.type) ? null : defenseTarget(u, w, anchor);
       if (target) {
         standoff = u.range * 0.55;
         if(u.type==='drone')u.ramTargetId=target.id;
@@ -254,10 +323,10 @@ function steering(u, w, g) {
       }
     }
   } else if (target) {
-    standoff = kind === 'fit' ? target.radius + u.radius + 2 : ['planet', 'dock'].includes(target.type) ? target.radius + (hostile(u, target) ? 52 : 45) : u.order.kind === 'attack' ? u.range * .6 : 25;
+    standoff = ['fit','mine'].includes(kind) ? target.radius + u.radius + 2 : ['planet', 'dock'].includes(target.type) ? target.radius + (hostile(u, target) ? 52 : 45) : u.order.kind === 'attack' ? u.range * .6 : 25;
   }
   if (!target || target.hp <= 0) target = { x: u.order?.x ?? u.x, y: u.order?.y ?? u.y, vx: 0, vy: 0 };
-  const circleTarget = u.type === 'ship' && kind === 'attack' && hostile(u, target) && ['ship', 'booster', 'drone', 'platform'].includes(target.type);
+  const circleTarget = u.type === 'ship' && kind === 'attack' && hostile(u, target) && ['ship', 'booster', 'miner', 'drone', 'platform'].includes(target.type);
   const rawDist = distance(u, target);
   const lead = clamp((rawDist - standoff) / u.speed, 0, 24);
   let tx = target.x + (target.vx || 0) * lead, ty = target.y + (target.vy || 0) * lead;
@@ -321,7 +390,7 @@ export function advanceMotion(w, dt = DT, forecast = false) {
   // Evaluate all accelerations from the same instant, independent of array order.
   const accelerations = new Map();
   for (const u of w.units) {
-    if (u.hp <= 0 || u.type === 'platform' || u.attachedRockId || isBeltRock(u)) continue;
+    if (u.hp <= 0 || u.type === 'platform' || u.attachedRockId || u.miningRockId || isBeltRock(u)) continue;
     if (u.order?.kind === 'attack' && u.order.targetId) {
       const target = entity(w, u.order.targetId);
       if (!target || target.hp <= 0) u.order = { kind: 'stop', x: u.x, y: u.y };
@@ -341,7 +410,7 @@ export function advanceMotion(w, dt = DT, forecast = false) {
   w.time += dt;
   for (const p of w.planets) Object.assign(p, planetAt(p, w.time));
   for (const u of w.units) {
-    if (u.hp <= 0 || u.attachedRockId) continue;
+    if (u.hp <= 0 || u.attachedRockId || u.miningRockId) continue;
     if (isBeltRock(u)) {
       Object.assign(u,beltPosition(u,w.time));
     } else if (u.type === 'platform') {
@@ -371,12 +440,46 @@ export function advanceMotion(w, dt = DT, forecast = false) {
   resolveRockContacts(w, previous, oldPlanets, dt, forecast);
   resolveDroneContacts(w, previous, dt, forecast);
   updateBoosters(w, dt, forecast);
+  updateMiners(w, dt, forecast);
+}
+function releaseMiner(w, miner) {
+  const rock=w.units.find(r=>r.id===miner.miningRockId);
+  if(rock?.minerId===miner.id)rock.minerId=null;
+  miner.miningRockId=null;miner.miningOffset=null;miner.miningProgress=0;
+  miner.order={kind:'stop',x:miner.x,y:miner.y};
+}
+function updateMiners(w,dt,forecast){
+  for(const miner of w.units.filter(u=>u.type==='miner')){
+    if(miner.hp<=0){if(miner.miningRockId)releaseMiner(w,miner);continue;}
+    if(miner.miningRockId){
+      const rock=entity(w,miner.miningRockId);
+      if(!rock){miner.hp=0;releaseMiner(w,miner);if(!forecast)burst(w,miner.x,miner.y,miner.team);continue;}
+      if(rock.launched){releaseMiner(w,miner);continue;}
+      miner.x=rock.x+miner.miningOffset.x;miner.y=rock.y+miner.miningOffset.y;miner.vx=rock.vx;miner.vy=rock.vy;
+      if(!forecast && rock.metalRemaining>0){
+        const mined=Math.min(MINING_RATE*dt,rock.metalRemaining,Math.max(0,999-w.metal[miner.team]));
+        w.metal[miner.team]+=mined;rock.metalRemaining=Math.max(0,rock.metalRemaining-mined);
+        if(rock.metalRemaining<1e-9){rock.metalRemaining=0;announce(w,`${rock.name} depleted`,`${miner.name} needs another asteroid. The empty rock can still be launched.`);}
+      }
+    }else if(miner.order?.kind==='mine'){
+      const rock=entity(w,miner.order.targetId);
+      if(!rock || rock.type!=='rock' || rock.launched || !(rock.metalRemaining>0) || (rock.boosterTeam && rock.boosterTeam!==miner.team) || (rock.minerId && entity(w,rock.minerId))){miner.order={kind:'defend',targetId:miner.hostId};miner.miningProgress=0;continue;}
+      if(distance(miner,rock)<=rock.radius+miner.radius+12 && Math.hypot(miner.vx-rock.vx,miner.vy-rock.vy)<5){
+        miner.miningProgress=(miner.miningProgress||0)+dt;
+        if(miner.miningProgress>=MINING_DOCK_TIME){
+          miner.miningRockId=rock.id;rock.minerId=miner.id;miner.miningOffset={x:-(rock.radius+miner.radius+8),y:8};
+          miner.x=rock.x+miner.miningOffset.x;miner.y=rock.y+miner.miningOffset.y;miner.vx=rock.vx;miner.vy=rock.vy;
+          if(!forecast)announce(w,`${miner.name} mining`, `+${MINING_RATE} metal / second from ${rock.name}.`);
+        }
+      }else miner.miningProgress=0;
+    }
+  }
 }
 function droneCanRam(drone, target, w) {
-  if(drone.order?.kind!=='defend' || !['rock','ship','drone','booster'].includes(target.type))return false;
+  if(drone.order?.kind!=='defend' || !['rock','ship','drone','booster','miner'].includes(target.type))return false;
   if(target.type==='rock' && !target.launched)return false;
   const anchor=entity(w,drone.order.targetId)||entity(w,drone.hostId);
-  return !!anchor && anchor.hp>0 && distance(anchor,target)<=180 && combatTarget(drone,target,w);
+  return !!anchor && anchor.hp>0 && distance(anchor,target)<=(drone.defenseRadius||180) && combatTarget(drone,target,w);
 }
 function ramContact(w, drone, target, x, y, when, forecast) {
   drone.hp=0;drone.x=x;drone.y=y;
@@ -424,6 +527,8 @@ function contactTime(a, b, radius, limit) {
 function resolveRockContacts(w, previous, oldPlanets, dt, forecast) {
   w.rockContacts=[];
   const rocks=w.units.filter(u=>u.type==='rock'&&u.hp>0).sort((a,b)=>a.id.localeCompare(b.id));
+  // Untouched belt rocks cannot hit bodies, drones or one another.
+  if (!rocks.some(r=>!isBeltRock(r))) return;
   const railEnds=new Map();
   for(const r of rocks) {
     const old=previous.get(r.id);
@@ -447,21 +552,25 @@ function resolveRockContacts(w, previous, oldPlanets, dt, forecast) {
   for(let iteration=0;iteration<128 && elapsed<dt;iteration++) {
     let hit=null, earliest=Infinity;
     const remain=dt-elapsed;
+    const movingIndices=[];
+    for(let i=0;i<rocks.length;i++)if(rocks[i].hp>0&&!isBeltRock(rocks[i]))movingIndices.push(i);
     for(let i=0;i<rocks.length;i++) {
       const a=rocks[i];if(a.hp<=0)continue;
-      for(const drone of drones) {
+      const onRail=isBeltRock(a);
+      if(!onRail)for(const drone of drones) {
         if(drone.unit.hp<=0 || !droneCanRam(drone.unit,a,w))continue;
         const t=contactTime(a,{...drone,x:drone.x+drone.vx*elapsed,y:drone.y+drone.vy*elapsed},a.radius+drone.unit.radius,remain);
         if(t<earliest){earliest=t;hit={a,drone};}
       }
-      for(const body of bodies) {
-        if(isBeltRock(a))continue;
+      if(!onRail)for(const body of bodies) {
         const t=contactTime(a,{...body,x:body.x+body.vx*elapsed,y:body.y+body.vy*elapsed},a.radius+body.radius,remain);
         if(t<earliest){earliest=t;hit={a,body};}
       }
-      for(let j=i+1;j<rocks.length;j++) {
+      // Retain the original lexicographic contact tie-break, but skip idle pairs.
+      const candidates=onRail?movingIndices:null;
+      for(let k=0,j=i+1; candidates?k<candidates.length:j<rocks.length; candidates?k++:j++) {
+        if(candidates){j=candidates[k];if(j<=i)continue;}
         const b=rocks[j];if(b.hp<=0)continue;
-        if(isBeltRock(a)&&isBeltRock(b))continue;
         const t=contactTime(a,b,a.radius+b.radius,remain);
         if(t<earliest){earliest=t;hit={a,b};}
       }
@@ -593,7 +702,7 @@ function combat(w, dt) {
     target.hp = Math.max(0, target.hp - u.damage);
     if (w.lesson?.phase === 'combat' && w.lesson.attackerId === u.id && w.lesson.targetId === target.id && u.order.kind === 'attack') w.lesson.attackHit = true;
     u.fireTimer = u.cooldown;
-    w.effects.push({ type: 'shot', x: u.x, y: u.y, tx: target.x, ty: target.y, team: u.team, color: u.color, born: w.time, life: .45 });
+    w.effects.push({ type: 'shot', x: u.x, y: u.y, tx: target.x, ty: target.y, team: u.team, color: u.color, tier: u.tier, born: w.time, life: .45 });
     if (target.hp <= 0) {
       burst(w, target.x, target.y, target.team);
       if (target.type === 'rock') {
@@ -605,8 +714,8 @@ function combat(w, dt) {
   }
 }
 // Numerical shooting uses the same gravity integrator as live rocks.
-export function aimRock(w, rock, target, flightTime = 55) {
-  const future = planetAt(target, w.time + flightTime);
+export function aimRock(w, rock, target, flightTime = 55, interceptPoint = null) {
+  const future = interceptPoint || planetAt(target, w.time + flightTime);
   let vx = (future.x - rock.x) / flightTime, vy = (future.y - rock.y) / flightTime;
   const endpoint = (ivx, ivy) => {
     let x = rock.x, y = rock.y;
@@ -631,28 +740,63 @@ export function aimRock(w, rock, target, flightTime = 55) {
   }
   return { x: vx - rock.vx, y: vy - rock.vy };
 }
-export function planRockTarget(w, rock, target) {
+export function aimedContact(forecast, targetId) {
+  return forecast?.collisions?.find(c=>c.otherId===targetId) || (forecast?.impact?.targetId===targetId ? forecast.impact : null);
+}
+export function planRockIntercept(w, rock, target, offset = 0) {
+  offset=clamp(offset,-.9,.9);
+  const fallback={id:rock.id,impulse:{x:0,y:0},aim:{targetId:target?.id,targetType:'rock',offset,verified:false,horizon:120,reason:'No verified rock intercept found within 120 seconds and the boost limit.'}};
+  if(!target || target.type!=='rock' || target.id===rock.id || target.hp<=0)return fallback;
+  // Predict the target's actual rail/free flight once, without the launch rock
+  // waiting on its old rail. Planetary gravity and other collisions still apply.
+  const track=structuredClone(w);track.units=track.units.filter(u=>u.id!==rock.id && u.id!==rock.boosterId);
+  let best=fallback,closest=Infinity;
+  let predictedSteps=0;
+  for(const time of [15,25,35,45,60,75,90,105,120]) {
+    const steps=Math.round(time/DT);
+    while(predictedSteps<steps){advanceMotion(track,DT,true);predictedSteps++;}
+    const moving=entity(track,target.id);if(!moving)break;
+    const future={time,x:moving.x,y:moving.y,vx:moving.vx,vy:moving.vy};
+    // Offset perpendicular to relative approach, expressed in combined radii.
+    const dx=(future.x-rock.x)/future.time-future.vx,dy=(future.y-rock.y)/future.time-future.vy;
+    const length=Math.hypot(dx,dy)||1,side=offset*(rock.radius+target.radius);
+    const point={x:future.x-dy/length*side,y:future.y+dx/length*side};
+    const impulse=aimRock(w,rock,target,future.time,point),magnitude=Math.hypot(impulse.x,impulse.y);
+    if(!Number.isFinite(magnitude))continue;
+    const scale=Math.min(1,MAX_IMPULSE/(magnitude||1));
+    const horizon=time>90?120:90;
+    const pending={id:rock.id,impulse:{x:impulse.x*scale,y:impulse.y*scale},aim:{...fallback.aim,flightTime:future.time,horizon}};
+    const flight=predict(w,[rock.id],pending,horizon,false).get(rock.id),contact=aimedContact(flight,target.id);
+    if(contact){pending.aim.verified=true;pending.aim.flightTime=contact.time;pending.aim.kind=contact.kind;delete pending.aim.reason;return pending;}
+    if(flight?.closest<closest){closest=flight.closest;best=pending;}
+  }
+  best.aim.horizon=120;
+  return best;
+}
+export function planRockTarget(w, rock, target, offset = 0) {
+  if(target?.type==='rock')return planRockIntercept(w,rock,target,offset);
   // Search a small set of arrival windows, then verify with the actual preview
   // integrator, including the burn, impulse cap, moving bodies and collisions.
   let best = null, closest = Infinity;
-  for (const flightTime of [30, 45, 60, 75, 90]) {
+  for (const flightTime of [30, 45, 60, 75, 90, 105, 120]) {
     const requested = aimRock(w, rock, target, flightTime);
     const magnitude = Math.hypot(requested.x, requested.y);
     if (!Number.isFinite(magnitude)) continue;
     const scale = Math.min(1, MAX_IMPULSE / (magnitude || 1));
     const pending = { id: rock.id, impulse: { x: requested.x * scale, y: requested.y * scale },
-      aim: { targetId: target.id, flightTime, verified: false } };
-    const f = predict(w, [rock.id], pending, 90, false).get(rock.id);
+      aim: { targetId: target.id, flightTime, verified: false, horizon: flightTime>90?120:90 } };
+    const f = predict(w, [rock.id], pending, pending.aim.horizon, false).get(rock.id);
     if (f?.impact?.targetId === target.id) {
       pending.aim.verified = true; pending.aim.flightTime = f.impact.time;
       return pending;
     }
     if (f && f.closest < closest) {
       closest = f.closest; best = pending;
-      pending.aim.reason = f.impact ? `Trajectory hits ${f.impact.name} first.` : 'No verified impact within the 90-second forecast and boost limit.';
+      pending.aim.reason = f.impact ? `Trajectory hits ${f.impact.name} first.` : 'No verified impact found within 120 seconds and the boost limit.';
     }
   }
-  return best || { id: rock.id, impulse: { x: 0, y: 0 }, aim: { targetId: target.id, flightTime: 90, verified: false, reason: 'No verified launch solution.' } };
+  if(best)best.aim.horizon=120;
+  return best || { id: rock.id, impulse: { x: 0, y: 0 }, aim: { targetId: target.id, flightTime: 120, horizon:120, verified: false, reason: 'No verified launch solution within 120 seconds.' } };
 }
 export function enemyLaunch(w, practice = false) {
   const home = w.planets.find(p => p.team === 'player');
@@ -707,11 +851,20 @@ function ai(w) {
   const home = w.planets.find(p => p.team === 'enemy' && p.hp > 0);
   const target = w.planets.find(p => p.team === 'player' && p.hp > 0);
   if (!home || !target) return;
+  if(w.mode==='skirmish' && w.time>=(w.ai.upgradeAt||150)){
+    w.ai.upgradeAt=w.time+70;
+    const candidate=fleet(w,'enemy').find(u=>UPGRADES[u.type] && u.tier!==2 && w.metal.enemy>=UPGRADES[u.type].cost+35);
+    if(candidate)upgradeUnit(w,candidate.id,'enemy');
+  }
   if (w.time >= w.ai.buildAt) {
     w.ai.buildAt += 58;
     const counts = fleet(w, 'enemy');
-    const type = !counts.some(u => u.type === 'booster') ? 'booster' : counts.filter(u => u.type === 'ship').length < 3 ? 'ship' : counts.filter(u => u.type === 'drone').length < 2 ? 'drone' : 'platform';
+    const type = !counts.some(u => u.type === 'booster') ? 'booster' : w.mode==='skirmish' && w.time>=100 && !counts.some(u=>u.type==='miner') ? 'miner' : counts.filter(u => u.type === 'ship').length < 3 ? 'ship' : counts.filter(u => u.type === 'drone').length < 2 ? 'drone' : 'platform';
     spawn(w, type, 'enemy', home);
+  }
+  if(w.mode==='skirmish')for(const miner of fleet(w,'enemy').filter(u=>u.type==='miner'&&((u.miningRockId && !(entity(w,u.miningRockId)?.metalRemaining>0))||(!u.miningRockId&&u.order.kind!=='mine')))){
+    const rock=w.units.filter(u=>u.type==='rock'&&u.hp>0&&u.metalRemaining>0&&!u.launched&&!u.minerId&&(!u.boosterTeam||u.boosterTeam==='enemy')&&!w.units.some(m=>m.hp>0&&m.type==='miner'&&m.order.kind==='mine'&&m.order.targetId===u.id)).sort((a,b)=>distance(miner,a)-distance(miner,b))[0];
+    if(rock)setOrder(w,miner.id,{kind:'mine',targetId:rock.id},'enemy');
   }
   if (w.time >= w.ai.attackAt) {
     w.ai.attackAt += 110;
@@ -769,7 +922,7 @@ export function step(w, dt = DT) {
   scanRockThreats(w);
   advanceMotion(w, dt);
   for (const p of w.planets) if (p.hp > 0 && p.team !== 'neutral') w.metal[p.team] = Math.min(999, w.metal[p.team] + .4 * dt);
-  combat(w, dt); updateBoosters(w, 0, true); ai(w);
+  combat(w, dt); updateBoosters(w, 0, true); updateMiners(w,0,true); ai(w);
   w.effects = w.effects.filter(e => w.time - e.born < e.life);
   // Sandbox keeps simulating after colony loss; destruction and costs still apply.
   if (w.mode === 'sandbox' || w.scenario === 'playground') return;
@@ -781,7 +934,8 @@ export function step(w, dt = DT) {
   // Free Garden also requires colony destruction, never just launch/intercept flags.
   else if (w.scenario === 'garden' && !w.lesson && !w.continueSandbox && w.planets.find(p => p.id === 'ochre')?.hp <= 0) w.outcome = 'victory';
 }
-export function predict(world, ids, pending = null, horizon = 90, interceptors = true) {
+export function predict(world, ids, pending = null, horizon = pending?.aim?.horizon || 90, interceptors = true) {
+  if (!ids.length || !ids.some(id=>entity(world,id))) return new Map();
   const w = structuredClone(world);
   // Aiming must allow a defended target. Displayed previews still include rams.
   w.ignoreDroneContacts=!interceptors;
@@ -798,10 +952,11 @@ export function predict(world, ids, pending = null, horizon = 90, interceptors =
     const u = entity(w, id);
     const burningRock = u?.type === 'booster' && u.attachedRockId ? entity(w, u.attachedRockId) : null;
     if (u) results.set(id, { points: [{ x: u.x, y: u.y, t: 0 }], eta: null, closest: Infinity, impact: null, ghost: null,
-      ballistic: u.type === 'rock' && !u.burn?.remaining, powered: !!u.burn?.remaining, ended: !!u.attachedRockId && !burningRock?.burn?.remaining });
+      ballistic: u.type === 'rock' && !u.burn?.remaining, powered: !!u.burn?.remaining, ended: !!u.miningRockId || (!!u.attachedRockId && !burningRock?.burn?.remaining) });
   }
   const iterations = Math.round(horizon / DT);
   for (let n = 1; n <= iterations; n++) {
+    if ([...results.values()].every(result=>result.ended || result.impact)) break;
     advanceMotion(w, DT, true);
     for(const contact of w.rockContacts||[]) {
       if(!results.has(contact.a)&&!results.has(contact.b))continue;
@@ -811,6 +966,10 @@ export function predict(world, ids, pending = null, horizon = 90, interceptors =
         result.points.push({...pos,t:contact.time-start});
         result.collisions||=[];
         result.collisions.push({x:contact.x,y:contact.y,time:contact.time-start,kind:contact.kind,otherId:id===contact.a?contact.b:contact.a});
+        if(pending?.aim?.targetType==='rock' && id===pending.id && [contact.a,contact.b].includes(pending.aim.targetId)){
+          const target=w.units.find(u=>u.id===pending.aim.targetId);
+          result.ghost={...contact.positions[target.id],radius:target.radius,name:target.name};
+        }
         if(contact.kind==='smash')result.ended=true;
       }
     }
@@ -819,7 +978,7 @@ export function predict(world, ids, pending = null, horizon = 90, interceptors =
       if (!u || result.impact || result.ended) continue;
       if (u.impact) { result.impact = { ...u.impact, time: u.impact.time - start }; result.points.push({ x: u.x, y: u.y, t: w.time - start }); }
       if (u.hp <= 0) { result.ended = true; continue; }
-      if (u.attachedRockId && !entity(w, u.attachedRockId)?.burn?.remaining) {
+      if (u.miningRockId || (u.attachedRockId && !entity(w, u.attachedRockId)?.burn?.remaining)) {
         result.attachment = { x: u.x, y: u.y, time: w.time - start };
         result.points.push({ x: u.x, y: u.y, t: w.time - start });
         result.ended = true; continue;

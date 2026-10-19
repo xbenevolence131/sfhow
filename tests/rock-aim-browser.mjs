@@ -1,0 +1,42 @@
+import {chromium} from '@playwright/test';
+import assert from 'node:assert/strict';
+import {mkdir} from 'node:fs/promises';
+const browser=await chromium.launch({executablePath:process.env.ORBITAL_BROWSER||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+const page=await browser.newPage({viewport:{width:1440,height:960}}),errors=[];
+page.on('pageerror',e=>errors.push(e.message));
+try {
+  await page.goto(new URL('../dist/index.html',import.meta.url).href);
+  await page.locator('#modal-secondary').click();
+  await page.locator('#scenario').selectOption('playground');await page.locator('#modal-action').click();
+  const rocks=await page.evaluate(()=>orbital.world.units.filter(u=>u.type==='rock').map(u=>({id:u.id,...orbital.renderer.screen(u)})));
+  const [source,target]=rocks;
+  await page.mouse.click(700,650); // Clear the range's initially selected first rock.
+  await page.mouse.click(source.x,source.y);await page.mouse.click(target.x,target.y,{button:'right'});
+  await page.waitForFunction(()=>orbital.ui.pending?.aim?.verified);
+  assert.equal(await page.evaluate(()=>orbital.ui.pending.aim.targetId),target.id);
+  assert.match(await page.locator('#plan-summary').innerText(),/SMASH/);
+  assert.equal(await page.locator('#rock-contact-controls').isVisible(),true);
+  await page.locator('#rock-contact').fill('90');await page.locator('#rock-contact').dispatchEvent('input');
+  await page.waitForFunction(()=>orbital.ui.pending?.aim?.verified && orbital.ui.pending.aim.offset===.9);
+  assert.match(await page.locator('#plan-summary').innerText(),/DEFLECT/);
+  assert.equal(await page.evaluate(id=>orbital.ui.predictions.has(id),target.id),true);
+  await mkdir('test-results',{recursive:true});
+  await page.screenshot({path:'test-results/rock-intercept.png'});
+  await page.setViewportSize({width:390,height:844});
+  assert.equal(await page.locator('#rock-contact').isVisible(),true);
+  assert.equal(await page.locator('#confirm').isVisible(),true);
+  await page.screenshot({path:'test-results/rock-intercept-mobile.png'});
+  await page.setViewportSize({width:1440,height:960});
+  await page.locator('#cancel').click();
+  assert.equal(await page.locator('#rock-contact-controls').isVisible(),false);
+  assert.equal(await page.evaluate(id=>orbital.world.units.find(u=>u.id===id).launched,source.id),false);
+  await page.mouse.click(target.x,target.y,{button:'right'});
+  await page.locator('#rock-contact').fill('90');await page.locator('#rock-contact').dispatchEvent('input');
+  await page.waitForFunction(()=>orbital.ui.pending?.aim?.verified && orbital.ui.pending.aim.offset===.9);
+  await page.locator('#confirm').click();
+  assert.equal(await page.evaluate(id=>orbital.world.units.find(u=>u.id===id).launched,source.id),true);
+  await page.locator('#autopause').uncheck();await page.locator('[data-speed="20"]').click();
+  await page.waitForFunction(id=>orbital.world.units.find(u=>u.id===id).deflected,target.id);
+  assert.deepEqual(errors,[]);
+  console.log('Rock aiming passed: real right-click, centre smash, edge deflection, two paths, responsive contact control, cancel, confirm and live collision.');
+} finally {await browser.close();}

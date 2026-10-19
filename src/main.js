@@ -1,4 +1,4 @@
-import { DT, CAP, COST, ATTACH_TIME, REARM_TIME, GRAVITY_DEFAULTS, COLLISION_DEFAULTS, setCollisions, setGravity, distance, entity, fleet, spawn, setOrder, launchRock, sendPracticeRock, scanRockThreats, predict, step } from './simulation.js';
+import { DT, CAP, COST, UPGRADES, upgradeUnit, MINING_RATE, MINING_DOCK_TIME, ATTACH_TIME, REARM_TIME, GRAVITY_DEFAULTS, COLLISION_DEFAULTS, setCollisions, setGravity, distance, entity, fleet, spawn, setOrder, launchRock, sendPracticeRock, scanRockThreats, predict, step, planRockTarget, aimedContact } from './simulation.js';
 import { createGame, SCENARIOS } from './scenarios.js';
 import { Renderer } from './render.js';
 import { attachInput } from './input.js';
@@ -19,6 +19,10 @@ class Game {
       document.documentElement.style.setProperty('--header-bottom', `${document.querySelector('header').getBoundingClientRect().bottom + 12}px`);
     });
     this.headerObserver.observe(document.querySelector('header'));
+    const positionMapTools=()=>document.documentElement.style.setProperty('--map-tools-bottom',`${innerHeight-$('selection').getBoundingClientRect().top+12}px`);
+    this.selectionObserver=new ResizeObserver(positionMapTools);
+    this.selectionObserver.observe($('selection'));
+    window.addEventListener('resize',positionMapTools);
     requestAnimationFrame(t => this.frame(t));
   }
   modalOpen() { return !$('modal').classList.contains('hidden') || !$('new-game-modal').classList.contains('hidden'); }
@@ -73,6 +77,17 @@ class Game {
     $('gravity-reset').onclick = () => this.tuneGravity(GRAVITY_DEFAULTS);
     document.querySelectorAll('[data-collision]').forEach(input => input.oninput = () => this.tuneCollisions({ [input.dataset.collision]: Number(input.value) }));
     $('collision-reset').onclick = () => this.tuneCollisions(COLLISION_DEFAULTS);
+    $('rock-contact').oninput = () => {
+      const pending=this.ui.pending;if(pending?.aim?.targetType!=='rock')return;
+      const offset=Number($('rock-contact').value)/100;
+      pending.aim.offset=offset;pending.aim.verified=false;pending.aim.reason='Recalculating contact point...';
+      this.updateUI();clearTimeout(this.contactTimer);
+      this.contactTimer=setTimeout(()=>{
+        if(this.ui.pending!==pending)return;
+        const rock=entity(this.world,pending.id),target=entity(this.world,pending.aim.targetId);
+        if(rock && target)this.plan(planRockTarget(this.world,rock,target,offset));
+      },100);
+    };
     $('confirm').onclick = () => this.confirm(); $('cancel').onclick = () => this.cancel();
     $('help').onclick = () => this.help();
     document.querySelectorAll('[data-build]').forEach(b => b.onclick = () => this.build(b.dataset.build));
@@ -83,12 +98,18 @@ class Game {
       const rock = rocks[(current + 1) % rocks.length]; this.select(rock.id);
       const screen = this.renderer.screen(rock);
       if (screen.x < 30 || screen.y < 65 || screen.x > innerWidth - 30 || screen.y > innerHeight - 160) this.renderer.fit();
-      this.toast(rock.boosterTeam === 'player' ? 'Booster attached. Right-click a planet to target it, or empty space to aim manually. Then confirm.' : 'This rock needs a booster. Choose Send booster in its panel, then confirm the order.');
+      this.toast(rock.boosterTeam === 'player' ? 'Booster attached. Right-click a planet or rock to target it, or empty space to aim manually. Then confirm.' : 'This rock needs a booster. Choose Send booster in its panel, then confirm the order.');
     };
     $('selection').onclick = e => {
       const action = e.target.closest('[data-order]')?.dataset.order;
       if (action === 'home') { const home = this.world.planets.find(p => p.team === 'player'); if (home) this.select(home.id); return; }
       const selected = entity(this.world, this.ui.selectedId); if (!selected) return;
+      if(action==='upgrade') {
+        if(this.ui.pending){this.toast('Confirm or cancel your planned order first.');return;}
+        const result=upgradeUnit(this.world,selected.id);
+        this.toast(result.error || `${selected.name} upgraded to Super.`);
+        this.previewDirty=true;this.updateUI();return;
+      }
       if (action === 'detach') {
         const booster = selected.type === 'rock' ? entity(this.world, selected.boosterId) : selected;
         if (booster?.attachedRockId) this.plan({ id: booster.id, order: { kind: 'detach' } });
@@ -96,7 +117,7 @@ class Game {
       }
       if (action === 'aim') {
         this.select(selected.type === 'rock' ? selected.boosterId : selected.attachedRockId);
-        this.toast(selected.type === 'rock' ? 'Controlling booster. Right-click home or a destination to detach and travel. Confirm the order.' : 'Controlling rock. Right-click a planet to target it, or empty space to aim manually. Then confirm.');
+        this.toast(selected.type === 'rock' ? 'Controlling booster. Right-click home or a destination to detach and travel. Confirm the order.' : 'Controlling rock. Right-click a planet or rock to target it, or empty space to aim manually. Then confirm.');
         return;
       }
       if (action === 'fit-rock' && selected.type === 'rock') {
@@ -145,8 +166,8 @@ class Game {
     // must be checked again against the new physics before it can be committed.
     const pending = this.ui.pending;
     if (pending?.aim) {
-      pending.aim.verified = this.ui.predictions.get(pending.id)?.impact?.targetId === pending.aim.targetId;
-      if (!pending.aim.verified) pending.aim.reason = 'Gravity changed the shot. Right-click the planet to recalculate.';
+      pending.aim.verified = !!aimedContact(this.ui.predictions.get(pending.id),pending.aim.targetId);
+      if (!pending.aim.verified) pending.aim.reason = 'Gravity changed the shot. Right-click the target to recalculate.';
     }
     this.gravityAdjusted = true; this.updateUI();
   }
@@ -156,7 +177,7 @@ class Game {
     scanRockThreats(this.world); this.processEvents(); this.refreshPredictions();
     const pending=this.ui.pending;
     if(pending?.aim){
-      pending.aim.verified=this.ui.predictions.get(pending.id)?.impact?.targetId===pending.aim.targetId;
+      pending.aim.verified=!!aimedContact(this.ui.predictions.get(pending.id),pending.aim.targetId);
       if(!pending.aim.verified)pending.aim.reason='Collision tuning changed the shot. Re-aim or choose a new target.';
     }
     this.updateUI();
@@ -387,7 +408,7 @@ class Game {
   closeModal() { $('modal').classList.add('hidden'); this.canvas.focus(); this.updateUI(); }
   help() {
     this.showModal('FIELD GUIDE', 'Small orders. Wide orbits.',
-      '<ul><li><b>Left-click</b> to select. Click it again or empty space to clear selection. <b>Right-click</b> to plan an order; <b>Enter</b> confirms, <b>Esc</b> cancels.</li><li><b>Prepare a rock:</b> untouched rocks follow stable belt orbits until launched or struck. Select it and choose Send booster, or select a booster ship and right-click the rock. Attachment takes 6 seconds after arrival.</li><li><b>Launch:</b> select an equipped rock and right-click a planet to calculate a shot toward its future position. Right-click empty space for manual aim; confirm for 35 metal (free with unlimited metal). Drag aiming also works. The booster fires for 4 seconds, then detaches automatically and awaits orders. Choose Return home to reload in 8 seconds at no extra cost. You can detach manually before launching.</li><li><b>Context orders:</b> a combat ship attacks enemies, escorts friendly mobile units, and defends friendly planets or platforms. A booster attaches to free rocks and returns to a friendly colony to reload. Hover for the action hint.</li><li><b>Right-click</b> a friendly planet or platform with a ship or drone to defend it. Drones ram rocks and hostile units in their assigned local area, sacrificing themselves for 45 damage. Platforms keep firing reusable guns.</li><li><b>Space</b> pauses. <b>1 / 2 / 3</b> select 1× / 5× / 20×. Scroll to zoom; drag empty space to pan; <b>F</b> fits the system.</li></ul><p>Booster ships cost 50 metal and are unarmed. Select your colony to deploy. Income is 0.4 metal / second; fleet limit 12. Launched rocks damage any planet, including your own. Defenses intercept your rocks when they threaten home. Ship weapons do not fire on friendly ships or colonies.</p><p><b>Rock collisions:</b> small, medium, and large rocks have masses 1, 2, and 4 and colony damage 35, 65, and 100. All fall equally under gravity. Glancing hits deflect; hard hits shatter both rocks and any attached boosters, leaving harmless debris. Collision tuning adjusts rebound and rock strength, pauses time, and redraws both paths. Violet paths show other rocks after contact. Restart keeps tuning.</p><p><b>Gravity:</b> adjust G, shared planet mass, or sun mass in the left-hand controls. Changes pause time and redraw paths. G and sun mass set planetary orbital speed; radii and current positions stay fixed. Planet mass changes its pull on units, not its own orbital speed. Free-flying units keep their velocities. Reset restores defaults; restarting retains tuning, while New game starts at defaults.</p><p class="note">Teal launch segments show powered flight; gold shows coasting. Ship paths end when attachment completes. Predictions cover 90 seconds. Weapons and future enemy decisions can change the outcome.</p>',
+      '<ul><li><b>Left-click</b> to select. Click it again or empty space to clear selection. <b>Right-click</b> to plan an order; <b>Enter</b> confirms, <b>Esc</b> cancels.</li><li><b>Prepare a rock:</b> untouched rocks follow stable belt orbits until launched or struck. Select it and choose Send booster, or select a booster ship and right-click the rock. Attachment takes 6 seconds after arrival.</li><li><b>Launch:</b> select an equipped rock and right-click a planet to calculate a shot toward its future position. Right-click empty space for manual aim; confirm for 35 metal (free with unlimited metal). Drag aiming also works. The booster fires for 4 seconds, then detaches automatically and awaits orders. Choose Return home to reload in 8 seconds at no extra cost. You can detach manually before launching.</li><li><b>Context orders:</b> a combat ship attacks enemies, escorts friendly mobile units, and defends friendly planets or platforms. A booster attaches to free rocks and returns to a friendly colony to reload. Hover for the action hint.</li><li><b>Right-click</b> a friendly planet or platform with a ship or drone to defend it. Drones ram rocks and hostile units in their assigned local area, sacrificing themselves for 45 damage. Platforms keep firing reusable guns.</li><li><b>Space</b> pauses. <b>1 / 2 / 3</b> select 1× / 5× / 20×. Scroll to zoom; drag empty space to pan; <b>F</b> fits the system.</li></ul><p>Booster ships cost 50 metal and are unarmed. Select your colony to deploy. Income is 0.4 metal / second; fleet limit 12. Launched rocks damage any planet, including your own. Defenses intercept your rocks when they threaten home. Ship weapons do not fire on friendly ships or colonies.</p><p><b>Mining:</b> miners cost 25 metal, are unarmed, and share the fleet limit. Right-click an idle asteroid, confirm, and dock for 4 seconds. Each miner earns 0.2 metal per second directly into your treasury. One miner per asteroid. Right-click to leave; launching the asteroid releases the miner. A destroyed asteroid destroys its docked miner. Select a warship and right-click the miner to escort it.</p><p><b>Upgrades:</b> each ship, platform or drone can become Super once, using the selected-unit panel. Review the stats and price before buying: ship 50, platform 65, drone 20 metal. Super units and shots use a darker faction color and units carry a double-chevron marker. Existing damage is preserved proportionally. No research tree.</p><p><b>Rock collisions:</b> small, medium, and large rocks have masses 1, 2, and 4 and colony damage 35, 65, and 100. All fall equally under gravity. Glancing hits deflect; hard hits shatter both rocks and any attached boosters, leaving harmless debris. Collision tuning adjusts rebound and rock strength, pauses time, and redraws both paths. Violet paths show other rocks after contact. Restart keeps tuning.</p><p><b>Gravity:</b> adjust G, shared planet mass, or sun mass in the left-hand controls. Changes pause time and redraw paths. G and sun mass set planetary orbital speed; radii and current positions stay fixed. Planet mass changes its pull on units, not its own orbital speed. Free-flying units keep their velocities. Reset restores defaults; restarting retains tuning, while New game starts at defaults.</p><p class="note">Teal launch segments show powered flight; gold shows coasting. Ship paths end when attachment completes. Predictions normally cover 90 seconds; difficult targeted rock shots try up to 120 seconds. Weapons and future enemy decisions can change the outcome.</p>',
       'Back to the system', () => this.closeModal());
   }
   toast(message) { $('toast').textContent = message; $('toast').classList.add('visible'); this.toastUntil = performance.now() + 6000; }
@@ -403,10 +424,11 @@ class Game {
   }
   confirm() {
     const pending = this.ui.pending; if (!pending) return;
-    if (pending.aim && !pending.aim.verified) { this.toast('No verified impact. Right-click empty space to aim manually, choose another planet, or cancel and wait.'); return; }
+    if (pending.aim && !pending.aim.verified) { this.toast('No verified impact. Right-click empty space to aim manually, choose another target, or cancel and wait.'); return; }
     if (pending.impulse) {
       const result = launchRock(this.world, pending.id, pending.impulse);
       if (result.error) { this.toast(result.error); return; }
+      if(pending.aim?.horizon>90)entity(this.world,pending.id).previewUntil=this.world.time+pending.aim.horizon;
       scanRockThreats(this.world); this.processEvents();
       this.toast('Launch committed. Unpause for a 4-second burn, then automatic separation.');
     } else {
@@ -440,8 +462,9 @@ class Game {
     const selected = entity(w, this.ui.selectedId);
     if (selected && selected.type !== 'planet') ids.add(selected.id);
     for (const u of w.units) if (u.hp > 0 && (u.visitor || (u.team === 'enemy' && (u.type === 'rock' || u.order?.kind === 'attack')) || entity(w, w.rockThreats?.[u.id]?.targetId)?.team === 'player' || (this.ui.allPaths && (u.type !== 'rock' || u.launched)))) ids.add(u.id);
-    this.ui.predictions = predict(w, [...ids], this.ui.pending);
-    this.ui.baseline = this.ui.pending?.impulse ? predict(w, [this.ui.pending.id]).get(this.ui.pending.id) : null;
+    const horizon=Math.min(120,Math.max(90,this.ui.pending?.aim?.horizon||0,(selected?.previewUntil||0)-w.time));
+    this.ui.predictions = predict(w, [...ids], this.ui.pending,horizon);
+    this.ui.baseline = this.ui.pending?.impulse ? predict(w, [this.ui.pending.id],null,horizon).get(this.ui.pending.id) : null;
     this.previewDirty = false; this.lastPreview = performance.now();
   }
   processEvents() {
@@ -481,7 +504,8 @@ class Game {
     setText('objective-label', w.mode === 'sandbox' ? 'YOUR PLAYGROUND' : 'YOUR OBJECTIVE');
     setText('objective', w.mode === 'sandbox' ? 'Explore trajectories. Build a fleet. Make your own experiments.' : w.scenario === 'hold' ? `Keep Verdant alive / ${time(w.duration - w.time)} remaining` : SCENARIOS[w.scenario].objective);
     if(w.lesson?.phase==='assault')setText('objective','Overwhelm Ochre: coordinate rocks and ships. Destroy its colony.');
-    setText('income-hint', playground ? 'Free launches / defenders only engage fired rocks' : w.unlimitedMetal ? 'Unlimited metal / fleet limit 12' : '+0.4 metal / second from your colony');
+    const miningIncome=w.units.filter(m=>m.type==='miner'&&m.team==='player'&&m.hp>0&&m.miningRockId&&entity(w,m.miningRockId)?.metalRemaining>0&&!entity(w,m.miningRockId).launched).length*MINING_RATE;
+    setText('income-hint', playground ? 'Free launches / defenders only engage fired rocks' : w.unlimitedMetal ? 'Unlimited metal / fleet limit 12' : `+0.4 metal / second from your colony${miningIncome?` / +${miningIncome.toFixed(1)} from miners`:''}`);
     $('colonies').innerHTML = w.planets.filter(p => p.team !== 'neutral').map(p => `<div style="--colony-color:${p.color}" class="colony ${p.team === 'enemy' ? 'enemy' : ''}"><div><span>${p.name}${p.team === 'player' ? ' / HOME' : playground ? ' / TARGET' : ' / RIVAL'}</span><span>${Math.ceil(p.hp / p.maxHp * 100)}%</span></div><span class="bar"><i style="width:${p.hp / p.maxHp * 100}%"></i></span></div>`).join('');
     const count = fleet(w, 'player').length;
     $('fleet-count').textContent = playground ? `${w.units.filter(r => r.type === 'rock' && r.hp > 0 && r.boosterTeam === 'player').length} / 12 ready` : `${count} / ${CAP}`;
@@ -517,28 +541,47 @@ class Game {
         const fitter = w.units.find(b => b.hp > 0 && b.order?.kind === 'fit' && b.order.targetId === u.id);
         status = u.burn?.remaining > 0 ? `Powered burn · ${Math.ceil(u.burn.remaining)}s left<br>Booster detaches automatically · then coasting` : u.launched ? `Ballistic flight · ${u.deflected ? 'redirected by collision' : u.team === 'enemy' ? 'incoming threat' : 'launch committed'}<br>${forecast?.impact ? `Impact: ${forecast.impact.name} in ${Math.ceil(forecast.impact.time)}s` : forecast && Number.isFinite(forecast.closest) ? `Closest approach: ${Math.max(0, forecast.closest).toFixed(0)} u in ${Math.ceil(forecast.closestTime)}s` : 'Forecast horizon: 90 seconds'}` : u.boosterTeam ? `${u.boosterTeam === 'player' ? 'Your booster attached · ready to launch' : 'Enemy booster attached · destroy this rock'}<br>${u.boosterTeam === 'player' ? (w.unlimitedMetal ? 'Right-click to aim / free launch' : 'Right-click to aim / launch for 35 metal') : 'An enemy launch is being prepared'}` : fitter ? `${fitter.team === 'enemy' ? 'Enemy' : 'Your'} booster ${fitter.attachProgress > 0 ? `attaching · ${Math.ceil(ATTACH_TIME - fitter.attachProgress)}s left` : 'en route'}<br>${fitter.team === 'player' ? 'Escort it with a combat ship' : 'Intercept the booster before it finishes'}` : 'No booster attached · launch unavailable<br>Send a booster ship to prepare this rock.';
       }
+      else if(u.type==='miner'){
+        const rock=entity(w,u.miningRockId||u.order?.targetId);
+        status=u.miningRockId && !(rock?.metalRemaining>0)?'Asteroid depleted / income stopped<br>Right-click another asteroid to resume mining':u.miningRockId?`Mining ${rock?.name||'asteroid'} / +${MINING_RATE} metal per second<br>Direct to treasury / right-click to leave`:u.order.kind==='mine'?`En route to ${rock?.name||'asteroid'}${u.miningProgress?` / docking ${Math.ceil(MINING_DOCK_TIME-u.miningProgress)}s`:''}<br>Unarmed / escort with a warship`:'Unarmed asteroid miner<br>Right-click an idle rock to dock and mine';
+      }
       else if (u.type === 'booster') {
         const target = entity(w, u.order?.targetId);
         status = target?.burn?.remaining > 0 && u.attachedRockId ? `Firing · ${Math.ceil(target.burn.remaining)}s left<br>${u.departureOrder ? 'Departure queued after burn' : 'Right-click a destination to queue departure'}` : u.attachedRockId ? `Attached to ${target?.name || 'rock'} · ${u.loaded ? 'ready to launch' : 'charge spent'}<br>${u.loaded ? 'Select rock to aim / Right-click to detach and travel' : 'Right-click home to detach and rearm'}` : u.order.kind === 'fit' ? `${u.attachProgress > 0 ? `Attaching · ${Math.ceil(ATTACH_TIME - u.attachProgress)}s left` : `En route → ${target?.name || 'rock'}`}<br>Unarmed · one booster loaded` : u.order.kind === 'rearm' ? `${u.rearmProgress > 0 ? `Rearming · ${Math.ceil(REARM_TIME - u.rearmProgress)}s left` : 'Returning home to rearm'}<br>Unarmed · automatic reload at colony` : `${u.loaded ? 'One booster loaded · ready' : (playground ? 'Charge spent / reset range for more' : 'Charge spent · awaiting orders')}<br>${u.loaded ? 'Right-click a free rock to attach' : (playground ? 'Reset restores rocks and attached boosters' : 'Choose Return home to reload')}`;
       }
       else {
         const target = entity(w, u.order?.targetId);
-        status = u.type === 'platform' ? `Local defense · ${u.range} u weapon range` : `${titleCase(u.order?.kind || 'idle')}${target ? ` → ${target.name}` : ''}<br>${u.type === 'drone' ? 'Rams rocks and hostile ships / 45 damage<br>Consumed on contact / defends within 180 u' : forecast?.eta ? `Arrival / weapons range in ~${Math.ceil(forecast.eta)}s` : 'Right-click to plan a new order'}`;
-        if (u.type === 'ship' && u.order?.kind === 'attack' && target && ['ship', 'booster', 'drone', 'platform'].includes(target.type)) status = `Attack / ${target.name}<br>${distance(u, target) <= u.range ? 'Circling target / firing whenever ready' : 'Intercepting / circle and fire on arrival'}`;
+        status = u.type === 'platform' ? `Local defense · ${u.range} u weapon range` : `${titleCase(u.order?.kind || 'idle')}${target ? ` → ${target.name}` : ''}<br>${u.type === 'drone' ? `Rams rocks and hostile ships / ${u.damage} damage<br>Consumed on contact / defends within ${u.defenseRadius||180} u` : forecast?.eta ? `Arrival / weapons range in ~${Math.ceil(forecast.eta)}s` : 'Right-click to plan a new order'}`;
+        if(u.type==='ship' && u.order?.kind==='defend' && target && target.type!=='planet')status=`Escort / ${target.name}<br>Following unit / engaging nearby threats`;
+        if (u.type === 'ship' && u.order?.kind === 'attack' && target && ['ship', 'booster', 'miner', 'drone', 'platform'].includes(target.type)) status = `Attack / ${target.name}<br>${distance(u, target) <= u.range ? 'Circling target / firing whenever ready' : 'Intercepting / circle and fire on arrival'}`;
       }
     }
+    if(u?.type==='miner'){const rock=entity(w,u.miningRockId||u.order?.targetId);if(rock?.type==='rock')status+=`<br>Metal remaining: ${Math.max(0,rock.metalRemaining||0).toFixed(1)} / ${rock.metalCapacity||0}`;}
     if(u?.type==='rock'){
       status=`${titleCase(u.size||'medium')} / mass ${u.mass||2} / impact ${u.damage}<br>`+status;
+      const miner=entity(w,u.minerId);if(miner)status+=`<br>${miner.team==='player'?'Your':'Enemy'} miner / ${u.metalRemaining>0?`+${MINING_RATE} metal per second`:'depleted'}`;
+      status+=`<br>Metal remaining: ${Math.max(0,u.metalRemaining||0).toFixed(1)} / ${u.metalCapacity||0}${u.metalRemaining>0?'':' / DEPLETED'}`;
       if(!u.launched && u.beltOrbit)status+=' <br>Stable orbit / launch or impact releases it.';
       const contact=this.ui.predictions.get(u.id)?.collisions?.[0];
       if(contact)status+=`<br>${contact.kind==='smash'?'Shatters':'Deflects'} in ${contact.time.toFixed(1)}s / both paths shown`;
     }
+    const upgrade=UPGRADES[u?.type];
+    if(upgrade && u)status+=`<br>${u.tier===2?'SUPER':'BASIC'} / ${u.damage} damage / ${u.type==='drone'?`${u.speed} speed`:`${u.range} range / shot every ${u.cooldown}s`}`;
     setText('selected-name', u?.name || 'THE SYSTEM IS YOURS');
+    const canUpgrade=u?.team==='player' && upgrade && u.tier!==2 && !(w.outcome && !w.continueSandbox);
+    $('unit-upgrade').classList.toggle('hidden',!canUpgrade);
+    if(canUpgrade){
+      const price=w.unlimitedMetal?0:upgrade.cost;
+      setText('order-upgrade',`Upgrade to Super / ${price} metal`);
+      $('order-upgrade').disabled=w.metal.player<price || !!this.ui.pending;
+      $('order-upgrade').title=this.ui.pending?'Confirm or cancel your planned order first.':w.metal.player<price?'Not enough metal.':'Upgrade this unit. Existing damage is preserved proportionally.';
+      setText('upgrade-details',u.type==='drone'?`Speed ${u.speed} ? ${upgrade.speed} ? Defense area ${u.defenseRadius||180} ? ${upgrade.defenseRadius} ? Ram ${u.damage} ? ${upgrade.damage}`:`Range ${u.range} ? ${upgrade.range} ? Damage ${u.damage} ? ${upgrade.damage} ? Shot ${u.cooldown}s ? ${upgrade.cooldown}s ? Armor ${u.maxHp} ? ${upgrade.maxHp}${u.type==='ship'?` ? Speed ${u.speed} ? ${upgrade.speed}`:''}`);
+    }
     setText('selected-health', u ? `${Math.ceil(u.hp)} / ${u.maxHp}` : '');
     // Cache source text rather than comparing browser-normalized HTML (& -> &amp;).
     if (this.selectedStatus !== status) { $('selected-meta').innerHTML = status; this.selectedStatus = status; }
     const attachedBooster = u?.type === 'booster' && u.attachedRockId ? u : u?.type === 'rock' ? entity(w, u.boosterId) : null;
-    const mobileFriendly = u?.team === 'player' && ['ship', 'drone', 'booster'].includes(u.type) && !u.attachedRockId;
+    const mobileFriendly = u?.team === 'player' && ['ship', 'drone', 'booster', 'miner'].includes(u.type) && !u.attachedRockId;
     const burning = !!entity(w, attachedBooster?.attachedRockId)?.burn?.remaining;
     $('order-detach').classList.toggle('hidden', !(attachedBooster?.team === 'player' && attachedBooster.attachedRockId) || burning);
     $('order-aim').classList.toggle('hidden', !attachedBooster?.attachedRockId);
@@ -546,26 +589,40 @@ class Game {
     $('order-fit').classList.toggle('hidden', !(u?.type === 'rock' && !u.launched && !u.boosterTeam));
     $('order-fit').disabled = !fleet(w, 'player').some(b => b.type === 'booster' && b.loaded && !b.attachedRockId && b.order.kind !== 'fit');
     $('order-defend').classList.toggle('hidden', !mobileFriendly);
-    setText('order-defend', u?.type === 'booster' ? 'Return home' : 'Defend home');
+    setText('order-defend', ['booster','miner'].includes(u?.type) ? 'Return home' : 'Defend home');
     $('order-stop').classList.toggle('hidden', !mobileFriendly);
     if (!hasHome) $('order-defend').classList.add('hidden');
     $('order-home').classList.toggle('hidden', !hasHome);
     $('selected-actions').classList.toggle('hidden', u?.team === 'player' && u.type === 'planet');
     setText('order-home', mobileFriendly ? 'Colony' : 'Select home colony');
     $('plan').classList.toggle('hidden', !this.ui.pending);
+    $('rock-contact-controls').classList.toggle('hidden',this.ui.pending?.aim?.targetType!=='rock');
     if (this.ui.pending) {
       const pending = this.ui.pending, f = this.ui.predictions.get(pending.id);
       const target = entity(w, pending.aim?.targetId || pending.order?.targetId);
       $('plan-kind').textContent = pending.impulse ? (w.unlimitedMetal ? 'PLANNED LAUNCH / FREE' : 'PLANNED LAUNCH / 35 METAL') : `PLANNED ${pending.order.kind.toUpperCase()} / ASSISTED FLIGHT`;
-      let detail = f?.attachment ? `Attached and waiting in ~${Math.ceil(f.attachment.time)}s` : f?.impact ? `Impact: ${f.impact.name} in ${Math.ceil(f.impact.time)}s` : f?.eta ? `Arrival / range in ~${Math.ceil(f.eta)}s` : '90-second flight preview';
+      let detail = f?.attachment ? `Attached and waiting in ~${Math.ceil(f.attachment.time)}s` : f?.impact ? `Impact: ${f.impact.name} in ${Math.ceil(f.impact.time)}s` : f?.eta ? `Arrival / range in ~${Math.ceil(f.eta)}s` : `${pending.aim?.horizon||90}-second flight preview`;
+      if(pending.order?.kind==='mine' && f?.attachment)detail=`Dock and start mining in ~${Math.ceil(f.attachment.time)}s`;
       if (pending.impulse && f && !f.impact && Number.isFinite(f.closest)) detail = `Closest approach: ${Math.max(0, f.closest).toFixed(0)} u in ${Math.ceil(f.closestTime)}s`;
       if (pending.impulse && entity(w, f?.impact?.targetId)?.team === 'player') detail = `WARNING: YOUR COLONY — ${detail}`;
       if (pending.aim && !pending.aim.verified) detail = `NO VERIFIED SHOT / ${pending.aim.reason} ${detail}`;
       $('plan-summary').textContent = `${target ? `${target.name} · ` : ''}${detail}`;
-      $('plan-note').textContent = pending.impulse ? '4s powered burn, then coast · booster detaches automatically' : pending.order.kind === 'fit' ? 'Attach for 6s after arrival · stay attached until you launch or detach' : pending.order.kind === 'attack' && target && ['ship', 'booster', 'drone', 'platform'].includes(target.type) ? 'Intercept, then circle in weapon range / keep firing at this target' : 'Moving targets are pursued · weapons can change the outcome';
+      $('plan-note').textContent = pending.impulse ? '4s powered burn, then coast · booster detaches automatically' : pending.order.kind === 'fit' ? 'Attach for 6s after arrival · stay attached until you launch or detach' : pending.order.kind === 'attack' && target && ['ship', 'booster', 'miner', 'drone', 'platform'].includes(target.type) ? 'Intercept, then circle in weapon range / keep firing at this target' : 'Moving targets are pursued · weapons can change the outcome';
+      if(pending.order?.kind==='mine')$('plan-note').textContent=`Dock for ${MINING_DOCK_TIME}s, then +${MINING_RATE} metal per second directly to your treasury`;
       const departing = entity(w, pending.id);
       if (pending.order && departing?.attachedRockId) $('plan-note').textContent = entity(w, departing.attachedRockId)?.burn?.remaining > 0 ? 'Finish the burn, then detach and follow this order / Escape cancels' : 'Detach from the rock, then follow this order / Escape cancels';
       if (pending.aim) $('plan-note').textContent = pending.aim.verified ? 'Targeting its future position / confirm to launch, or right-click to revise' : 'Choose another target, aim manually in empty space, or cancel and wait';
+      if(pending.aim?.targetType==='rock') {
+        const offset=pending.aim.offset||0,contact=aimedContact(f,pending.aim.targetId);
+        $('rock-contact').value=Math.round(offset*100);
+        setText('rock-contact-value',offset===0?'Centre':`${Math.round(Math.abs(offset)*100)}% ${offset<0?'left':'right'}`);
+        if(contact){
+          $('plan-summary').textContent=`${target?.name || 'Rock'} / ${contact.kind==='smash'?'SMASH: both rocks shatter':'DEFLECT: both paths shown'} in ${contact.time.toFixed(1)}s`;
+          $('plan-note').textContent='Drag contact point for a glancing hit. Gold: launched rock / violet: struck rock. Confirm to launch.';
+        } else if(pending.aim.verified) {
+          $('plan-note').textContent='Intercept solution found; defenses or another collision may stop it. Preview shows the current outcome.';
+        }
+      }
       $('confirm').disabled = (!!pending.impulse && !w.unlimitedMetal && w.metal.player < COST.rock) || !!(pending.aim && !pending.aim.verified);
     }
     const threats = w.units.filter(u => u.hp > 0 && (u.visitor || (u.team === 'enemy' && (u.type === 'rock' || ['attack', 'fit'].includes(u.order?.kind))) || (u.type === 'rock' && u.launched && entity(w, w.rockThreats?.[u.id]?.targetId)?.team === 'player')));
@@ -587,7 +644,8 @@ class Game {
     const topThreat = incoming ? `INCOMING ROCK / ${Math.ceil(incoming.time - w.time)}s to ${incoming.name}` : major?.text || '';
     setText('top-threat', topThreat); $('top-threat').classList.toggle('hidden', !topThreat);
     $('alerts').innerHTML = alerts.slice(0, 4).join('');
-    $('hint').innerHTML = this.ui.pending ? 'Enter to commit · Esc to cancel<br><span>Time is paused while you plan</span>' : u?.type === 'rock' && !u.launched ? u.boosterTeam === 'player' ? `Right-click a planet to target it<br><span>Empty space: manual aim / ${w.unlimitedMetal ? 'Free launch' : '35 metal'}</span>` : 'Send a booster to earn your shot<br><span>Escort it · Attach · Aim · Launch</span>' : u?.type === 'booster' ? u.attachedRockId ? burning ? 'Booster firing · automatic separation after burn<br><span>Right-click to queue travel after the burn</span>' : 'Attached and waiting for your order<br><span>Select rock to aim / Right-click to detach and travel</span>' : 'Right-click a rock to fit a booster<br><span>Stays attached · Detach manually</span>' : 'Select a unit · Right-click for an order<br><span>Enemy: attack / friendly unit: escort or defend</span>';
+    $('hint').innerHTML = this.ui.pending ? 'Enter to commit · Esc to cancel<br><span>Time is paused while you plan</span>' : u?.type === 'rock' && !u.launched ? u.boosterTeam === 'player' ? `Right-click a planet or rock to target it<br><span>Empty space: manual aim / ${w.unlimitedMetal ? 'Free launch' : '35 metal'}</span>` : 'Send a booster to earn your shot<br><span>Escort it · Attach · Aim · Launch</span>' : u?.type === 'booster' ? u.attachedRockId ? burning ? 'Booster firing · automatic separation after burn<br><span>Right-click to queue travel after the burn</span>' : 'Attached and waiting for your order<br><span>Select rock to aim / Right-click to detach and travel</span>' : 'Right-click a rock to fit a booster<br><span>Stays attached · Detach manually</span>' : 'Select a unit · Right-click for an order<br><span>Enemy: attack / friendly unit: escort or defend</span>';
+    if(!this.ui.pending && u?.type==='miner')$('hint').innerHTML='Right-click an idle asteroid to mine<br><span>Right-click home or empty space to leave / escort with a warship</span>';
     this.updateContextHint?.();
     this.updateTutorial();
   }

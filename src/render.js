@@ -90,9 +90,10 @@ export class Renderer {
       const droneHosts=new Set();
       for(const u of w.units)if(u.hp>0 && u.type==='drone' && (u.team==='player' || u.id===ui.selectedId)) {
         const host=entity(w,u.order?.targetId)||entity(w,u.hostId);
-        if(!host || droneHosts.has(host.id))continue;
-        droneHosts.add(host.id);const p=this.screen(host);
-        this.circle(p.x,p.y,180*z,objectColor(u)+'44',null,[2,7]);
+        const radius=u.defenseRadius||180,key=host?.id+':'+radius;
+        if(!host || droneHosts.has(key))continue;
+        droneHosts.add(key);const p=this.screen(host);
+        this.circle(p.x,p.y,radius*z,objectColor(u)+'44',null,[2,7]);
       }
       for (const u of w.units) if (u.hp > 0 && u.range && (u.team === 'player' || u.id === ui.selectedId)) {
         const s = this.screen(u); this.circle(s.x, s.y, u.range * z, objectColor(u) + '22', null, [3, 5]);
@@ -100,8 +101,9 @@ export class Renderer {
     }
     for (const [id, forecast] of ui.predictions) {
       const u = entity(w, id); if (!u) continue;
-      const color = forecast.secondary ? '#a7b9df' : u.type === 'rock' && u.team !== 'enemy' ? '#d6c398' : objectColor(u);
-      this.path(forecast, color, !forecast.secondary && id !== ui.selectedId && !(u.type === 'rock' && u.team === 'enemy'));
+      const struck=forecast.secondary || (ui.pending?.aim?.targetType==='rock' && ui.pending.aim.targetId===id);
+      const color = struck ? '#a7b9df' : u.type === 'rock' && u.team !== 'enemy' ? '#d6c398' : objectColor(u);
+      this.path(forecast, color, !struck && id !== ui.selectedId && !(u.type === 'rock' && u.team === 'enemy'));
       if(forecast.secondary&&forecast.points.length){const p=this.screen(forecast.points.at(-1));this.text(u.name+' / AFTER CONTACT',p.x+8,p.y-8,color,8);}
     }
     if (ui.baseline) this.path(ui.baseline, '#92a4ae', true);
@@ -132,6 +134,11 @@ export class Renderer {
       const size = Math.max(u.type === 'rock' ? u.size==='small'?4:u.size==='large'?8:5.5 : u.type === 'drone' ? 3.2 : 5.5, u.radius * z);
       if (u.type === 'ship') {
         c.rotate(Math.atan2(u.vy, u.vx) + Math.PI / 2); c.beginPath(); c.moveTo(0, -size * 1.35); c.lineTo(size * .75, size); c.lineTo(0, size * .5); c.lineTo(-size * .75, size); c.closePath(); c.fill();
+      } else if (u.type === 'miner') {
+        c.rotate(Math.atan2(u.vy,u.vx)+Math.PI/2);
+        c.strokeRect(-size*.7,-size*.7,size*1.4,size*1.4);
+        c.beginPath();c.moveTo(-size*1.3,-size*.5);c.lineTo(-size*.7,-size*.5);c.moveTo(size*.7,-size*.5);c.lineTo(size*1.3,-size*.5);c.moveTo(-size*.3,-size*.7);c.lineTo(0,-size*1.3);c.lineTo(size*.3,-size*.7);c.stroke();
+        if(u.miningRockId && entity(w,u.miningRockId)?.metalRemaining>0){c.fillRect(-2,-2,4,4);}
       } else if (u.type === 'booster') {
         c.rotate(Math.atan2(u.vy, u.vx) + Math.PI / 2);
         c.strokeRect(-size * .5, -size, size, size * 2);
@@ -150,6 +157,16 @@ export class Renderer {
         if (u.launched) this.circle(0, 0, size + 5, color + '80', null, [2, 3]);
         else if (u.boosterTeam) { c.fillStyle = color; c.fillRect(size + 2, -3, 5, 6); this.circle(0, 0, size + 7, color + '88'); }
       } c.restore();
+      if(u.tier===2){
+        c.save();c.strokeStyle=u.baseColor||'#c0e6e2';c.lineWidth=1.5;
+        c.beginPath();
+        for(const dy of [0,4]){c.moveTo(s.x+size+3,s.y-3+dy);c.lineTo(s.x+size+6,s.y-6+dy);c.lineTo(s.x+size+9,s.y-3+dy);}
+        c.stroke();c.restore();
+      }
+      if(u.type==='miner' && (u.miningRockId || u.miningProgress>0)){
+        this.text(u.miningRockId?(entity(w,u.miningRockId)?.metalRemaining>0?'+0.2 / s':'DEPLETED'):`DOCK ${Math.ceil(4-u.miningProgress)}s`,s.x-12,s.y-14,color,9,'right');
+        const rock=entity(w,u.miningRockId);if(rock){const p=this.screen(rock);c.save();c.strokeStyle=color+'88';c.setLineDash([2,3]);c.beginPath();c.moveTo(s.x,s.y);c.lineTo(p.x,p.y);c.stroke();c.restore();}
+      }
       if (u.type === 'booster' && u.attachedRockId && entity(w, u.attachedRockId)?.burn?.remaining > 0) {
         const rock = entity(w, u.attachedRockId), burn = rock.burn;
         const angle = Math.atan2(burn.ay, burn.ax), length = 10 + 3 * Math.sin(w.time * 16);
@@ -167,7 +184,7 @@ export class Renderer {
     }
     for (const e of w.effects) {
       const age = (w.time - e.born) / e.life, s = this.screen(e); c.save(); c.globalAlpha = 1 - age;
-      if (e.type === 'shot') { const t = this.screen({ x: e.tx, y: e.ty }); c.strokeStyle = objectColor(e); c.lineWidth = 1; c.beginPath(); c.moveTo(s.x, s.y); c.lineTo(t.x, t.y); c.stroke(); }
+      if (e.type === 'shot') { const t = this.screen({ x: e.tx, y: e.ty }); c.strokeStyle = objectColor(e); c.lineWidth = e.tier===2?2:1; c.beginPath(); c.moveTo(s.x, s.y); c.lineTo(t.x, t.y); c.stroke(); }
       else {
         const color = COLORS[e.team] || '#f2ce87'; this.circle(s.x, s.y, (8 + 23 * age) * z, color);
         if(e.type==='ram')this.text('RAM / -45',s.x+10,s.y-12,e.color||color,8);

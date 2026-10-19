@@ -75,6 +75,14 @@ header{grid-template-columns:var(--control-width) minmax(160px,1fr) var(--contro
 .wordmark{font-size:14px;letter-spacing:.4px;gap:8px}.wordmark .orbit-logo{flex-shrink:0}
 @media(max-width:720px){.wordmark{font-size:11px;letter-spacing:0;gap:5px}}
 
+.rock-contact-controls{min-width:180px;max-width:240px}.rock-contact-controls label{font-size:10px;justify-content:space-between;color:var(--gold)}.rock-contact-controls input{width:100%;height:20px;margin:7px 0;accent-color:var(--gold)}.contact-labels{display:flex;justify-content:space-between;font-size:8px;color:var(--muted)}
+.map-tools{bottom:var(--map-tools-bottom,175px)}
+@media(max-width:720px){.rock-contact-controls{width:100%;max-width:none}.plan:has(.rock-contact-controls:not(.hidden)){max-height:55vh;overflow:auto}}
+
+.unit-upgrade{margin-top:10px;padding-top:8px;border-top:1px solid #ffffff18}.unit-upgrade small{display:block;color:#a9babf;font-size:10px;line-height:1.5;margin-bottom:7px}.unit-upgrade button{width:100%}
+
+@media(max-width:720px){.build-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.range-dock .build-buttons{grid-template-columns:repeat(2,minmax(0,1fr))}.unit-upgrade small{font-size:8px}.unit-upgrade button{font-size:9px;padding:7px 3px}}
+
 </style>
 </head>
 <body>
@@ -145,6 +153,7 @@ header{grid-template-columns:var(--control-width) minmax(160px,1fr) var(--contro
         <button data-build="platform"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="11"/><circle cx="20" cy="20" r="3"/><path d="M20 3V13M20 27V37M3 20H13M27 20H37"/></svg><b>PLATFORM</b><span>80 ◇</span></button>
         <button data-build="drone" title="Ramming interceptor: sacrifices itself for 45 contact damage. Intercepts incoming rocks and hostile ships."><svg viewBox="0 0 40 40"><path d="m20 9 11 20H9Z"/><circle cx="20" cy="9" r="3"/><circle cx="9" cy="29" r="3"/><circle cx="31" cy="29" r="3"/></svg><b>DRONE</b><span>25 ◇ / RAM</span></button>
         <button data-build="booster"><svg viewBox="0 0 40 40"><path d="m16 8 4-4 4 4v24h-8ZM10 15h6v13h-6ZM24 15h6v13h-6ZM18 32v5M22 32v5"/></svg><b>BOOSTER</b><span>50 ◇</span></button>
+        <button data-build="miner" title="Unarmed asteroid miner. Dock to earn 0.2 metal per second."><svg viewBox="0 0 40 40"><path d="M10 10h20v20H10ZM4 14h6M4 26h6M30 14h6M30 26h6M16 10V5M24 10V5"/></svg><b>MINER</b><span>25 &#9671;</span></button>
         <button id="rock-tool"><svg class="rock-icon" viewBox="0 0 40 40"><path d="m13 5 15 3 8 14-7 12-16 1-9-11Z"/></svg><b>ROCK</b><span>35 ◇ / launch</span></button>
         <button id="range-reset" class="hidden"><span aria-hidden="true">&#8635;</span><b>RESET RANGE</b><span>Fresh rocks &amp; defenses</span></button>
       </div>
@@ -153,10 +162,11 @@ header{grid-template-columns:var(--control-width) minmax(160px,1fr) var(--contro
     <section id="selection" class="selection" aria-label="Selected object">
       <div class="selected-title"><strong id="selected-name"></strong><span id="selected-health"></span></div>
       <div id="selected-meta" class="selected-meta"></div>
+      <div id="unit-upgrade" class="unit-upgrade hidden"><small id="upgrade-details"></small><button id="order-upgrade" data-order="upgrade">Upgrade to Super</button></div>
       <div id="selected-actions" class="selected-actions"><button id="order-fit" data-order="fit-rock" class="hidden">Send booster</button><button id="order-detach" data-order="detach" class="hidden">Detach</button><button id="order-aim" data-order="aim" class="hidden">Select rock</button><button id="order-defend" data-order="defend">Defend home</button><button id="order-stop" data-order="stop">Stop</button><button id="order-home" data-order="home">Colony</button></div>
     </section>
   </footer>
-  <div id="plan" class="plan hidden" aria-live="polite"><div><span class="eyebrow" id="plan-kind">PLANNED MANEUVER</span><p id="plan-summary"></p><small id="plan-note">Flight prediction · weapons may change the outcome</small></div><div class="plan-actions"><button id="confirm" class="primary">Confirm <kbd>↵</kbd></button><button id="cancel">Cancel <kbd>Esc</kbd></button></div></div>
+  <div id="plan" class="plan hidden" aria-live="polite"><div><span class="eyebrow" id="plan-kind">PLANNED MANEUVER</span><p id="plan-summary"></p><small id="plan-note">Flight prediction · weapons may change the outcome</small></div><div id="rock-contact-controls" class="rock-contact-controls hidden"><label for="rock-contact">Contact point <output id="rock-contact-value">Centre</output></label><input id="rock-contact" type="range" min="-90" max="90" step="5" value="0" aria-label="Rock impact contact point"><div class="contact-labels"><span>Left edge</span><span>Centre</span><span>Right edge</span></div></div><div class="plan-actions"><button id="confirm" class="primary">Confirm <kbd>↵</kbd></button><button id="cancel">Cancel <kbd>Esc</kbd></button></div></div>
   <div id="modal" class="modal"><section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title"><span class="eyebrow" id="modal-kicker"></span><h1 id="modal-title"></h1><div id="modal-body"></div><button id="modal-action" class="primary"></button><button id="modal-secondary" class="hidden"></button></section></div>
   <div id="new-game-modal" class="modal hidden"><section class="modal-card new-game-card" role="dialog" aria-modal="true" aria-labelledby="new-game-title">
     <span class="eyebrow">A NEW ORBIT</span><h1 id="new-game-title">How do you want to play?</h1>
@@ -182,11 +192,11 @@ header{grid-template-columns:var(--control-width) minmax(160px,1fr) var(--contro
 // All distances and masses are game units. Both forecasts and live flight use DT.
 const DT = 1 / 20;
 // The displayed G is a normalized multiplier; 1.0 uses this tuned baseline.
-const GRAVITY_BASE = 6;
+const GRAVITY_BASE = 12;
 const GRAVITY_DEFAULTS = Object.freeze({ g: 1, planetMass: 2800, sunMass: 5400 });
 const GRAVITY_LIMITS = Object.freeze({ g: 3, planetMass: 8400, sunMass: 16200 });
 const COLLISION_DEFAULTS = Object.freeze({ bounce: .35, strength: 18 });
-const ROCK_SIZES = Object.freeze({ small: { radius: 5.5, mass: 1, damage: 35 }, medium: { radius: 8, mass: 2, damage: 65 }, large: { radius: 12, mass: 4, damage: 100 } });
+const ROCK_SIZES = Object.freeze({ small: { radius: 5.5, mass: 1, damage: 35, metalCapacity: 40 }, medium: { radius: 8, mass: 2, damage: 65, metalCapacity: 80 }, large: { radius: 12, mass: 4, damage: 100, metalCapacity: 160 } });
 function normalizeCollisions(settings = {}) {
   return { bounce: Number.isFinite(settings.bounce) ? clamp(settings.bounce, 0, 1) : COLLISION_DEFAULTS.bounce,
     strength: Number.isFinite(settings.strength) ? clamp(settings.strength, 1, 100) : COLLISION_DEFAULTS.strength };
@@ -205,12 +215,41 @@ const CAP = 12;
 const ATTACH_TIME = 6;
 const REARM_TIME = 8;
 const BURN_TIME = 4;
-const COST = { ship: 60, platform: 80, drone: 25, booster: 50, rock: 35 };
+const COST = { ship: 60, platform: 80, drone: 25, booster: 50, miner: 25, rock: 35 };
+const MINING_RATE = .2;
+const MINING_DOCK_TIME = 4;
+const UPGRADES = Object.freeze({
+  ship: { cost: 50, maxHp: 145, speed: 26, thrust: 8, range: 130, damage: 12, cooldown: 1.8 },
+  platform: { cost: 65, maxHp: 300, range: 170, damage: 16, cooldown: 1.5 },
+  drone: { cost: 20, speed: 42, thrust: 13, damage: 70, defenseRadius: 240 },
+});
+function superColor(color = '#80d6cf') {
+  const rgb=(color.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i)||['','80','d6','cf']).slice(1).map(c=>parseInt(c,16));
+  const low=Math.min(...rgb);
+  return '#'+rgb.map(c=>Math.max(0,Math.round(c*.9-low*.3)).toString(16).padStart(2,'0')).join('');
+}
+function upgradeUnit(w, id, team = 'player') {
+  const u=entity(w,id),spec=UPGRADES[u?.type];
+  if(!u || u.team!==team || !spec)return {error:'Select your ship, platform or drone.'};
+  if(u.tier===2)return {error:'This unit is already Super.'};
+  if(w.outcome && !w.continueSandbox)return {error:'This encounter has ended.'};
+  const cost=w.unlimitedMetal && team==='player'?0:spec.cost;
+  if(w.metal[team]<cost)return {error:`You need ${cost} metal to upgrade.`};
+  const health=u.hp/u.maxHp,oldCooldown=u.cooldown;
+  w.metal[team]-=cost;
+  const {cost:unused,...stats}=spec;Object.assign(u,stats);
+  u.hp=health*u.maxHp;
+  if(oldCooldown>0)u.fireTimer*=u.cooldown/oldCooldown;
+  u.tier=2;u.baseColor=u.color;u.color=superColor(u.color);
+  announce(w,`${u.name} upgraded`, 'Super unit ready.');
+  return u;
+}
 const TYPES = {
   ship: { hp: 110, radius: 6, speed: 21, thrust: 6.5, range: 105, damage: 8, cooldown: 2.3 },
   platform: { hp: 230, radius: 9, speed: 0, thrust: 0, range: 135, damage: 12, cooldown: 2.1 },
   drone: { hp: 38, radius: 4, speed: 32, thrust: 10, range: 0, damage: 45, cooldown: 0 },
   booster: { hp: 65, radius: 6, speed: 19, thrust: 6, range: 0, damage: 0, cooldown: 0 },
+  miner: { hp: 65, radius: 7, speed: 18, thrust: 6, range: 0, damage: 0, cooldown: 0 },
   rock: { hp: 50, radius: 8, speed: 0, thrust: 0, range: 0, damage: 65, cooldown: 0 },
 };
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -287,12 +326,13 @@ function spawn(w, type, team, host, free = false) {
   const serial = ++w.serial;
   const phase = serial * 2.39996;
   const orbit = host.radius + (type === 'platform' ? 48 : 32) + (serial % 3) * 9;
-  const omega = type === 'platform' ? 0.025 : 0;
+  // A visible, leisurely 90-second local orbit around the moving host.
+  const omega = type === 'platform' ? 2 * Math.PI / 90 : 0;
   const x = host.x + Math.cos(phase) * orbit, y = host.y + Math.sin(phase) * orbit;
   const unit = { id: `u${serial}`, name: `${type.toUpperCase()} ${String(serial).padStart(2, '0')}`, type, team,
     ...TYPES[type], maxHp: TYPES[type].hp, x, y,
     vx: host.vx - Math.sin(phase) * orbit * omega, vy: host.vy + Math.cos(phase) * orbit * omega,
-    hostId: host.id, color: host.color, phase: phase - w.time * omega, orbit, omega,
+    hostId: host.id, color: host.color, tier: 1, phase: phase - w.time * omega, orbit, omega,
     order: { kind: 'defend', targetId: host.id }, fireTimer: 0.4 + (serial % 4) * 0.3, launched: true,
     loaded: type === 'booster', attachProgress: 0, rearmProgress: 0 };
   w.units.push(unit);
@@ -305,15 +345,23 @@ function addRock(w, angle, orbit = BELT_INNER + BELT_WIDTH / 2, name, size = 'me
   const speed = beltSpeed(radial.x*orbit,radial.y*orbit,orbit,w.planets,settings);
   const serial = ++w.serial;
   const rock = { id: `r${serial}`, name: name || `ROCK ${String(serial).padStart(2, '0')}`, type: 'rock', team: 'neutral',
-    ...TYPES.rock, ...ROCK_SIZES[size], size, maxHp: TYPES.rock.hp, x: Math.cos(angle) * orbit, y: Math.sin(angle) * orbit,
+    ...TYPES.rock, ...ROCK_SIZES[size], metalRemaining: ROCK_SIZES[size].metalCapacity, size, maxHp: TYPES.rock.hp, x: Math.cos(angle) * orbit, y: Math.sin(angle) * orbit,
     vx: -Math.sin(angle) * speed, vy: Math.cos(angle) * speed, launched: false,
     beltOrbit:orbit,beltOmega:speed/orbit,beltPhase:angle-w.time*speed/orbit,order: { kind: 'ballistic' } };
   w.units.push(rock); return rock;
 }
 function setOrder(w, id, order, team = 'player') {
   const u = entity(w, id);
-  if (!u || !['ship', 'drone', 'booster'].includes(u.type) || u.team !== team) return false;
+  if (!u || !['ship', 'drone', 'booster', 'miner'].includes(u.type) || u.team !== team) return false;
   const target = entity(w, order.targetId);
+  if(u.type==='miner'){
+    if(!['mine','move','defend','stop'].includes(order.kind))return false;
+    if(order.kind==='mine' && (!target || target.type!=='rock' || target.launched || !(target.metalRemaining>0) || (target.boosterTeam && target.boosterTeam!==team) || (target.minerId && target.minerId!==u.id && entity(w,target.minerId))))return false;
+    if(order.kind==='move' && (order.targetId?!target:!Number.isFinite(order.x)||!Number.isFinite(order.y)))return false;
+    if(order.kind==='defend' && (!target || target.team!==team))return false;
+    if(u.miningRockId)releaseMiner(w,u);
+    u.miningProgress=0;
+  }else if(order.kind==='mine')return false;
   if (u.attachedRockId) {
     if (!['detach', 'move', 'rearm', 'fit'].includes(order.kind)) return false;
     // Validate before disarming the rock or queuing a departure.
@@ -360,6 +408,7 @@ function launchRock(w, id, impulse, team = 'player', free = false) {
   // Gravity continues throughout; the same acceleration is used in forecasts.
   r.burn = { remaining: BURN_TIME, ax: impulse.x * scale / BURN_TIME, ay: impulse.y * scale / BURN_TIME };
   r.team = team; r.launched = true;
+  const miner=entity(w,r.minerId);if(miner)releaseMiner(w,miner);
   w.threatScanAt = 0;
   r.boosterTeam = null;
   booster.loaded = false; booster.vx = r.vx; booster.vy = r.vy;
@@ -380,20 +429,50 @@ function combatTarget(u, target, w) {
 }
 // Forecast only projectiles and their attached engines, avoiding combat steering
 // and recursive threat queries. Sample at fixed simulation intervals, not frames.
+const threatForecastCache = new WeakMap();
+function threatGeometry(w) {
+  return JSON.stringify([w.gravity,w.collisions,w.planets.map(p=>[p.id,p.orbit,p.phase,p.omega,p.radius])]);
+}
+function matchingThreatMotion(w, expected) {
+  const actual=w.units.filter(u=>u.type==='rock'), predicted=expected.units.filter(u=>u.type==='rock');
+  if(actual.length!==predicted.length)return false;
+  const lookup=new Map(predicted.map(u=>[u.id,u]));
+  for(const rock of actual){
+    const p=lookup.get(rock.id);if(!p)return false;
+    for(const key of ['hp','launched','boosterId','boosterTeam','radius','mass','damage','beltOrbit','beltOmega','beltPhase'])if(rock[key]!==p[key])return false;
+    for(const key of ['x','y','vx','vy'])if(Math.abs(rock[key]-p[key])>1e-7)return false;
+    for(const key of ['remaining','ax','ay'])if(Math.abs((rock.burn?.[key]||0)-(p.burn?.[key]||0))>1e-7)return false;
+    const engine=entity(w,rock.boosterId), anticipated=entity(expected,p.boosterId);
+    if((engine?.attachedRockId||null)!==(anticipated?.attachedRockId||null))return false;
+  }
+  return true;
+}
 function scanRockThreats(w) {
   if (w.time < (w.threatScanAt || 0)) return;
   w.threatScanAt = w.time + 1;
   const rocks = w.units.filter(u => u.hp > 0 && u.type === 'rock' && u.launched);
   w.rockThreats = {};
-  if (!rocks.length) return;
+  if (!rocks.length) { threatForecastCache.delete(w); return; }
   // Include the whole belt: a bank shot can activate a previously idle rock.
   const isolated = { ...w, units: w.units.filter(u => u.type === 'rock' || u.attachedRockId) };
-  const forecasts = predict(isolated, rocks.map(r=>r.id));
+  const geometry=threatGeometry(w);
+  let cache=threatForecastCache.get(w);
+  if(cache && cache.geometry===geometry && w.time>=cache.expected.time-1e-7 && w.time-cache.start<30){
+    const steps=Math.round((w.time-cache.expected.time)/DT);
+    for(let i=0;i<steps;i++)advanceMotion(cache.expected,DT,true);
+    if(Math.abs(w.time-cache.expected.time)>1e-7 || !matchingThreatMotion(w,cache.expected))cache=null;
+  }else cache=null;
+  if(!cache){
+    // Extra horizon keeps the next 90 seconds available during cache reuse.
+    cache={geometry,start:w.time,expected:structuredClone(isolated),forecasts:predict(isolated,rocks.map(r=>r.id),null,120)};
+    threatForecastCache.set(w,cache);
+  }
+  const forecasts=cache.forecasts;
   w.threatWarnings ||= {};
   for (const [id, flight] of forecasts) {
     const rock = entity(w, id); if (!rock || rock.type !== 'rock') continue;
-    const impact = flight.impact;
-    if (!impact || impact.targetId === 'star') continue;
+    const impact = flight.impact && {...flight.impact,time:flight.impact.time-(w.time-cache.start)};
+    if (!impact || impact.time<0 || impact.time>90 || impact.targetId === 'star') continue;
     w.rockThreats[rock.id] = { ...impact, time: w.time + impact.time };
     const planet = entity(w, impact.targetId);
     if (planet?.team === 'player' && w.threatWarnings[rock.id] !== planet.id) {
@@ -406,7 +485,7 @@ function scanRockThreats(w) {
 function defenseTarget(u, w, anchor) {
   let best, score = Infinity;
   for (const target of w.units) {
-    if (target.hp <= 0 || !combatTarget(u, target, w) || distance(target, anchor) > (u.type === 'drone' ? 180 : 210)) continue;
+    if (target.hp <= 0 || !combatTarget(u, target, w) || distance(target, anchor) > (u.type === 'drone' ? u.defenseRadius || 180 : 210)) continue;
     if (u.type === 'drone' && !droneCanRam(u, target, w)) continue;
     const s = distance(u, target) - (target.type === 'rock' ? 100 : 0);
     if (s < score) { score = s; best = target; }
@@ -421,7 +500,7 @@ function steering(u, w, g) {
   if (kind === 'defend') {
     const anchor = target || entity(w, u.hostId);
     if (anchor && anchor.hp > 0) {
-      target = u.type === 'booster' ? null : defenseTarget(u, w, anchor);
+      target = ['booster','miner'].includes(u.type) ? null : defenseTarget(u, w, anchor);
       if (target) {
         standoff = u.range * 0.55;
         if(u.type==='drone')u.ramTargetId=target.id;
@@ -435,10 +514,10 @@ function steering(u, w, g) {
       }
     }
   } else if (target) {
-    standoff = kind === 'fit' ? target.radius + u.radius + 2 : ['planet', 'dock'].includes(target.type) ? target.radius + (hostile(u, target) ? 52 : 45) : u.order.kind === 'attack' ? u.range * .6 : 25;
+    standoff = ['fit','mine'].includes(kind) ? target.radius + u.radius + 2 : ['planet', 'dock'].includes(target.type) ? target.radius + (hostile(u, target) ? 52 : 45) : u.order.kind === 'attack' ? u.range * .6 : 25;
   }
   if (!target || target.hp <= 0) target = { x: u.order?.x ?? u.x, y: u.order?.y ?? u.y, vx: 0, vy: 0 };
-  const circleTarget = u.type === 'ship' && kind === 'attack' && hostile(u, target) && ['ship', 'booster', 'drone', 'platform'].includes(target.type);
+  const circleTarget = u.type === 'ship' && kind === 'attack' && hostile(u, target) && ['ship', 'booster', 'miner', 'drone', 'platform'].includes(target.type);
   const rawDist = distance(u, target);
   const lead = clamp((rawDist - standoff) / u.speed, 0, 24);
   let tx = target.x + (target.vx || 0) * lead, ty = target.y + (target.vy || 0) * lead;
@@ -502,7 +581,7 @@ function advanceMotion(w, dt = DT, forecast = false) {
   // Evaluate all accelerations from the same instant, independent of array order.
   const accelerations = new Map();
   for (const u of w.units) {
-    if (u.hp <= 0 || u.type === 'platform' || u.attachedRockId || isBeltRock(u)) continue;
+    if (u.hp <= 0 || u.type === 'platform' || u.attachedRockId || u.miningRockId || isBeltRock(u)) continue;
     if (u.order?.kind === 'attack' && u.order.targetId) {
       const target = entity(w, u.order.targetId);
       if (!target || target.hp <= 0) u.order = { kind: 'stop', x: u.x, y: u.y };
@@ -522,7 +601,7 @@ function advanceMotion(w, dt = DT, forecast = false) {
   w.time += dt;
   for (const p of w.planets) Object.assign(p, planetAt(p, w.time));
   for (const u of w.units) {
-    if (u.hp <= 0 || u.attachedRockId) continue;
+    if (u.hp <= 0 || u.attachedRockId || u.miningRockId) continue;
     if (isBeltRock(u)) {
       Object.assign(u,beltPosition(u,w.time));
     } else if (u.type === 'platform') {
@@ -552,12 +631,46 @@ function advanceMotion(w, dt = DT, forecast = false) {
   resolveRockContacts(w, previous, oldPlanets, dt, forecast);
   resolveDroneContacts(w, previous, dt, forecast);
   updateBoosters(w, dt, forecast);
+  updateMiners(w, dt, forecast);
+}
+function releaseMiner(w, miner) {
+  const rock=w.units.find(r=>r.id===miner.miningRockId);
+  if(rock?.minerId===miner.id)rock.minerId=null;
+  miner.miningRockId=null;miner.miningOffset=null;miner.miningProgress=0;
+  miner.order={kind:'stop',x:miner.x,y:miner.y};
+}
+function updateMiners(w,dt,forecast){
+  for(const miner of w.units.filter(u=>u.type==='miner')){
+    if(miner.hp<=0){if(miner.miningRockId)releaseMiner(w,miner);continue;}
+    if(miner.miningRockId){
+      const rock=entity(w,miner.miningRockId);
+      if(!rock){miner.hp=0;releaseMiner(w,miner);if(!forecast)burst(w,miner.x,miner.y,miner.team);continue;}
+      if(rock.launched){releaseMiner(w,miner);continue;}
+      miner.x=rock.x+miner.miningOffset.x;miner.y=rock.y+miner.miningOffset.y;miner.vx=rock.vx;miner.vy=rock.vy;
+      if(!forecast && rock.metalRemaining>0){
+        const mined=Math.min(MINING_RATE*dt,rock.metalRemaining,Math.max(0,999-w.metal[miner.team]));
+        w.metal[miner.team]+=mined;rock.metalRemaining=Math.max(0,rock.metalRemaining-mined);
+        if(rock.metalRemaining<1e-9){rock.metalRemaining=0;announce(w,`${rock.name} depleted`,`${miner.name} needs another asteroid. The empty rock can still be launched.`);}
+      }
+    }else if(miner.order?.kind==='mine'){
+      const rock=entity(w,miner.order.targetId);
+      if(!rock || rock.type!=='rock' || rock.launched || !(rock.metalRemaining>0) || (rock.boosterTeam && rock.boosterTeam!==miner.team) || (rock.minerId && entity(w,rock.minerId))){miner.order={kind:'defend',targetId:miner.hostId};miner.miningProgress=0;continue;}
+      if(distance(miner,rock)<=rock.radius+miner.radius+12 && Math.hypot(miner.vx-rock.vx,miner.vy-rock.vy)<5){
+        miner.miningProgress=(miner.miningProgress||0)+dt;
+        if(miner.miningProgress>=MINING_DOCK_TIME){
+          miner.miningRockId=rock.id;rock.minerId=miner.id;miner.miningOffset={x:-(rock.radius+miner.radius+8),y:8};
+          miner.x=rock.x+miner.miningOffset.x;miner.y=rock.y+miner.miningOffset.y;miner.vx=rock.vx;miner.vy=rock.vy;
+          if(!forecast)announce(w,`${miner.name} mining`, `+${MINING_RATE} metal / second from ${rock.name}.`);
+        }
+      }else miner.miningProgress=0;
+    }
+  }
 }
 function droneCanRam(drone, target, w) {
-  if(drone.order?.kind!=='defend' || !['rock','ship','drone','booster'].includes(target.type))return false;
+  if(drone.order?.kind!=='defend' || !['rock','ship','drone','booster','miner'].includes(target.type))return false;
   if(target.type==='rock' && !target.launched)return false;
   const anchor=entity(w,drone.order.targetId)||entity(w,drone.hostId);
-  return !!anchor && anchor.hp>0 && distance(anchor,target)<=180 && combatTarget(drone,target,w);
+  return !!anchor && anchor.hp>0 && distance(anchor,target)<=(drone.defenseRadius||180) && combatTarget(drone,target,w);
 }
 function ramContact(w, drone, target, x, y, when, forecast) {
   drone.hp=0;drone.x=x;drone.y=y;
@@ -605,6 +718,8 @@ function contactTime(a, b, radius, limit) {
 function resolveRockContacts(w, previous, oldPlanets, dt, forecast) {
   w.rockContacts=[];
   const rocks=w.units.filter(u=>u.type==='rock'&&u.hp>0).sort((a,b)=>a.id.localeCompare(b.id));
+  // Untouched belt rocks cannot hit bodies, drones or one another.
+  if (!rocks.some(r=>!isBeltRock(r))) return;
   const railEnds=new Map();
   for(const r of rocks) {
     const old=previous.get(r.id);
@@ -628,21 +743,25 @@ function resolveRockContacts(w, previous, oldPlanets, dt, forecast) {
   for(let iteration=0;iteration<128 && elapsed<dt;iteration++) {
     let hit=null, earliest=Infinity;
     const remain=dt-elapsed;
+    const movingIndices=[];
+    for(let i=0;i<rocks.length;i++)if(rocks[i].hp>0&&!isBeltRock(rocks[i]))movingIndices.push(i);
     for(let i=0;i<rocks.length;i++) {
       const a=rocks[i];if(a.hp<=0)continue;
-      for(const drone of drones) {
+      const onRail=isBeltRock(a);
+      if(!onRail)for(const drone of drones) {
         if(drone.unit.hp<=0 || !droneCanRam(drone.unit,a,w))continue;
         const t=contactTime(a,{...drone,x:drone.x+drone.vx*elapsed,y:drone.y+drone.vy*elapsed},a.radius+drone.unit.radius,remain);
         if(t<earliest){earliest=t;hit={a,drone};}
       }
-      for(const body of bodies) {
-        if(isBeltRock(a))continue;
+      if(!onRail)for(const body of bodies) {
         const t=contactTime(a,{...body,x:body.x+body.vx*elapsed,y:body.y+body.vy*elapsed},a.radius+body.radius,remain);
         if(t<earliest){earliest=t;hit={a,body};}
       }
-      for(let j=i+1;j<rocks.length;j++) {
+      // Retain the original lexicographic contact tie-break, but skip idle pairs.
+      const candidates=onRail?movingIndices:null;
+      for(let k=0,j=i+1; candidates?k<candidates.length:j<rocks.length; candidates?k++:j++) {
+        if(candidates){j=candidates[k];if(j<=i)continue;}
         const b=rocks[j];if(b.hp<=0)continue;
-        if(isBeltRock(a)&&isBeltRock(b))continue;
         const t=contactTime(a,b,a.radius+b.radius,remain);
         if(t<earliest){earliest=t;hit={a,b};}
       }
@@ -774,7 +893,7 @@ function combat(w, dt) {
     target.hp = Math.max(0, target.hp - u.damage);
     if (w.lesson?.phase === 'combat' && w.lesson.attackerId === u.id && w.lesson.targetId === target.id && u.order.kind === 'attack') w.lesson.attackHit = true;
     u.fireTimer = u.cooldown;
-    w.effects.push({ type: 'shot', x: u.x, y: u.y, tx: target.x, ty: target.y, team: u.team, color: u.color, born: w.time, life: .45 });
+    w.effects.push({ type: 'shot', x: u.x, y: u.y, tx: target.x, ty: target.y, team: u.team, color: u.color, tier: u.tier, born: w.time, life: .45 });
     if (target.hp <= 0) {
       burst(w, target.x, target.y, target.team);
       if (target.type === 'rock') {
@@ -786,8 +905,8 @@ function combat(w, dt) {
   }
 }
 // Numerical shooting uses the same gravity integrator as live rocks.
-function aimRock(w, rock, target, flightTime = 55) {
-  const future = planetAt(target, w.time + flightTime);
+function aimRock(w, rock, target, flightTime = 55, interceptPoint = null) {
+  const future = interceptPoint || planetAt(target, w.time + flightTime);
   let vx = (future.x - rock.x) / flightTime, vy = (future.y - rock.y) / flightTime;
   const endpoint = (ivx, ivy) => {
     let x = rock.x, y = rock.y;
@@ -812,28 +931,63 @@ function aimRock(w, rock, target, flightTime = 55) {
   }
   return { x: vx - rock.vx, y: vy - rock.vy };
 }
-function planRockTarget(w, rock, target) {
+function aimedContact(forecast, targetId) {
+  return forecast?.collisions?.find(c=>c.otherId===targetId) || (forecast?.impact?.targetId===targetId ? forecast.impact : null);
+}
+function planRockIntercept(w, rock, target, offset = 0) {
+  offset=clamp(offset,-.9,.9);
+  const fallback={id:rock.id,impulse:{x:0,y:0},aim:{targetId:target?.id,targetType:'rock',offset,verified:false,horizon:120,reason:'No verified rock intercept found within 120 seconds and the boost limit.'}};
+  if(!target || target.type!=='rock' || target.id===rock.id || target.hp<=0)return fallback;
+  // Predict the target's actual rail/free flight once, without the launch rock
+  // waiting on its old rail. Planetary gravity and other collisions still apply.
+  const track=structuredClone(w);track.units=track.units.filter(u=>u.id!==rock.id && u.id!==rock.boosterId);
+  let best=fallback,closest=Infinity;
+  let predictedSteps=0;
+  for(const time of [15,25,35,45,60,75,90,105,120]) {
+    const steps=Math.round(time/DT);
+    while(predictedSteps<steps){advanceMotion(track,DT,true);predictedSteps++;}
+    const moving=entity(track,target.id);if(!moving)break;
+    const future={time,x:moving.x,y:moving.y,vx:moving.vx,vy:moving.vy};
+    // Offset perpendicular to relative approach, expressed in combined radii.
+    const dx=(future.x-rock.x)/future.time-future.vx,dy=(future.y-rock.y)/future.time-future.vy;
+    const length=Math.hypot(dx,dy)||1,side=offset*(rock.radius+target.radius);
+    const point={x:future.x-dy/length*side,y:future.y+dx/length*side};
+    const impulse=aimRock(w,rock,target,future.time,point),magnitude=Math.hypot(impulse.x,impulse.y);
+    if(!Number.isFinite(magnitude))continue;
+    const scale=Math.min(1,MAX_IMPULSE/(magnitude||1));
+    const horizon=time>90?120:90;
+    const pending={id:rock.id,impulse:{x:impulse.x*scale,y:impulse.y*scale},aim:{...fallback.aim,flightTime:future.time,horizon}};
+    const flight=predict(w,[rock.id],pending,horizon,false).get(rock.id),contact=aimedContact(flight,target.id);
+    if(contact){pending.aim.verified=true;pending.aim.flightTime=contact.time;pending.aim.kind=contact.kind;delete pending.aim.reason;return pending;}
+    if(flight?.closest<closest){closest=flight.closest;best=pending;}
+  }
+  best.aim.horizon=120;
+  return best;
+}
+function planRockTarget(w, rock, target, offset = 0) {
+  if(target?.type==='rock')return planRockIntercept(w,rock,target,offset);
   // Search a small set of arrival windows, then verify with the actual preview
   // integrator, including the burn, impulse cap, moving bodies and collisions.
   let best = null, closest = Infinity;
-  for (const flightTime of [30, 45, 60, 75, 90]) {
+  for (const flightTime of [30, 45, 60, 75, 90, 105, 120]) {
     const requested = aimRock(w, rock, target, flightTime);
     const magnitude = Math.hypot(requested.x, requested.y);
     if (!Number.isFinite(magnitude)) continue;
     const scale = Math.min(1, MAX_IMPULSE / (magnitude || 1));
     const pending = { id: rock.id, impulse: { x: requested.x * scale, y: requested.y * scale },
-      aim: { targetId: target.id, flightTime, verified: false } };
-    const f = predict(w, [rock.id], pending, 90, false).get(rock.id);
+      aim: { targetId: target.id, flightTime, verified: false, horizon: flightTime>90?120:90 } };
+    const f = predict(w, [rock.id], pending, pending.aim.horizon, false).get(rock.id);
     if (f?.impact?.targetId === target.id) {
       pending.aim.verified = true; pending.aim.flightTime = f.impact.time;
       return pending;
     }
     if (f && f.closest < closest) {
       closest = f.closest; best = pending;
-      pending.aim.reason = f.impact ? `Trajectory hits ${f.impact.name} first.` : 'No verified impact within the 90-second forecast and boost limit.';
+      pending.aim.reason = f.impact ? `Trajectory hits ${f.impact.name} first.` : 'No verified impact found within 120 seconds and the boost limit.';
     }
   }
-  return best || { id: rock.id, impulse: { x: 0, y: 0 }, aim: { targetId: target.id, flightTime: 90, verified: false, reason: 'No verified launch solution.' } };
+  if(best)best.aim.horizon=120;
+  return best || { id: rock.id, impulse: { x: 0, y: 0 }, aim: { targetId: target.id, flightTime: 120, horizon:120, verified: false, reason: 'No verified launch solution within 120 seconds.' } };
 }
 function enemyLaunch(w, practice = false) {
   const home = w.planets.find(p => p.team === 'player');
@@ -888,11 +1042,20 @@ function ai(w) {
   const home = w.planets.find(p => p.team === 'enemy' && p.hp > 0);
   const target = w.planets.find(p => p.team === 'player' && p.hp > 0);
   if (!home || !target) return;
+  if(w.mode==='skirmish' && w.time>=(w.ai.upgradeAt||150)){
+    w.ai.upgradeAt=w.time+70;
+    const candidate=fleet(w,'enemy').find(u=>UPGRADES[u.type] && u.tier!==2 && w.metal.enemy>=UPGRADES[u.type].cost+35);
+    if(candidate)upgradeUnit(w,candidate.id,'enemy');
+  }
   if (w.time >= w.ai.buildAt) {
     w.ai.buildAt += 58;
     const counts = fleet(w, 'enemy');
-    const type = !counts.some(u => u.type === 'booster') ? 'booster' : counts.filter(u => u.type === 'ship').length < 3 ? 'ship' : counts.filter(u => u.type === 'drone').length < 2 ? 'drone' : 'platform';
+    const type = !counts.some(u => u.type === 'booster') ? 'booster' : w.mode==='skirmish' && w.time>=100 && !counts.some(u=>u.type==='miner') ? 'miner' : counts.filter(u => u.type === 'ship').length < 3 ? 'ship' : counts.filter(u => u.type === 'drone').length < 2 ? 'drone' : 'platform';
     spawn(w, type, 'enemy', home);
+  }
+  if(w.mode==='skirmish')for(const miner of fleet(w,'enemy').filter(u=>u.type==='miner'&&((u.miningRockId && !(entity(w,u.miningRockId)?.metalRemaining>0))||(!u.miningRockId&&u.order.kind!=='mine')))){
+    const rock=w.units.filter(u=>u.type==='rock'&&u.hp>0&&u.metalRemaining>0&&!u.launched&&!u.minerId&&(!u.boosterTeam||u.boosterTeam==='enemy')&&!w.units.some(m=>m.hp>0&&m.type==='miner'&&m.order.kind==='mine'&&m.order.targetId===u.id)).sort((a,b)=>distance(miner,a)-distance(miner,b))[0];
+    if(rock)setOrder(w,miner.id,{kind:'mine',targetId:rock.id},'enemy');
   }
   if (w.time >= w.ai.attackAt) {
     w.ai.attackAt += 110;
@@ -950,7 +1113,7 @@ function step(w, dt = DT) {
   scanRockThreats(w);
   advanceMotion(w, dt);
   for (const p of w.planets) if (p.hp > 0 && p.team !== 'neutral') w.metal[p.team] = Math.min(999, w.metal[p.team] + .4 * dt);
-  combat(w, dt); updateBoosters(w, 0, true); ai(w);
+  combat(w, dt); updateBoosters(w, 0, true); updateMiners(w,0,true); ai(w);
   w.effects = w.effects.filter(e => w.time - e.born < e.life);
   // Sandbox keeps simulating after colony loss; destruction and costs still apply.
   if (w.mode === 'sandbox' || w.scenario === 'playground') return;
@@ -962,7 +1125,8 @@ function step(w, dt = DT) {
   // Free Garden also requires colony destruction, never just launch/intercept flags.
   else if (w.scenario === 'garden' && !w.lesson && !w.continueSandbox && w.planets.find(p => p.id === 'ochre')?.hp <= 0) w.outcome = 'victory';
 }
-function predict(world, ids, pending = null, horizon = 90, interceptors = true) {
+function predict(world, ids, pending = null, horizon = pending?.aim?.horizon || 90, interceptors = true) {
+  if (!ids.length || !ids.some(id=>entity(world,id))) return new Map();
   const w = structuredClone(world);
   // Aiming must allow a defended target. Displayed previews still include rams.
   w.ignoreDroneContacts=!interceptors;
@@ -979,10 +1143,11 @@ function predict(world, ids, pending = null, horizon = 90, interceptors = true) 
     const u = entity(w, id);
     const burningRock = u?.type === 'booster' && u.attachedRockId ? entity(w, u.attachedRockId) : null;
     if (u) results.set(id, { points: [{ x: u.x, y: u.y, t: 0 }], eta: null, closest: Infinity, impact: null, ghost: null,
-      ballistic: u.type === 'rock' && !u.burn?.remaining, powered: !!u.burn?.remaining, ended: !!u.attachedRockId && !burningRock?.burn?.remaining });
+      ballistic: u.type === 'rock' && !u.burn?.remaining, powered: !!u.burn?.remaining, ended: !!u.miningRockId || (!!u.attachedRockId && !burningRock?.burn?.remaining) });
   }
   const iterations = Math.round(horizon / DT);
   for (let n = 1; n <= iterations; n++) {
+    if ([...results.values()].every(result=>result.ended || result.impact)) break;
     advanceMotion(w, DT, true);
     for(const contact of w.rockContacts||[]) {
       if(!results.has(contact.a)&&!results.has(contact.b))continue;
@@ -992,6 +1157,10 @@ function predict(world, ids, pending = null, horizon = 90, interceptors = true) 
         result.points.push({...pos,t:contact.time-start});
         result.collisions||=[];
         result.collisions.push({x:contact.x,y:contact.y,time:contact.time-start,kind:contact.kind,otherId:id===contact.a?contact.b:contact.a});
+        if(pending?.aim?.targetType==='rock' && id===pending.id && [contact.a,contact.b].includes(pending.aim.targetId)){
+          const target=w.units.find(u=>u.id===pending.aim.targetId);
+          result.ghost={...contact.positions[target.id],radius:target.radius,name:target.name};
+        }
         if(contact.kind==='smash')result.ended=true;
       }
     }
@@ -1000,7 +1169,7 @@ function predict(world, ids, pending = null, horizon = 90, interceptors = true) 
       if (!u || result.impact || result.ended) continue;
       if (u.impact) { result.impact = { ...u.impact, time: u.impact.time - start }; result.points.push({ x: u.x, y: u.y, t: w.time - start }); }
       if (u.hp <= 0) { result.ended = true; continue; }
-      if (u.attachedRockId && !entity(w, u.attachedRockId)?.burn?.remaining) {
+      if (u.miningRockId || (u.attachedRockId && !entity(w, u.attachedRockId)?.burn?.remaining)) {
         result.attachment = { x: u.x, y: u.y, time: w.time - start };
         result.points.push({ x: u.x, y: u.y, t: w.time - start });
         result.ended = true; continue;
@@ -1030,6 +1199,8 @@ function predict(world, ids, pending = null, horizon = 90, interceptors = true) 
 }
 
 // scenarios.js
+const SKIRMISH_ROCK_COUNT = 23;
+const SKIRMISH_ORBIT_JITTER = .08;
 const SCENARIOS = {
   playground: { name: 'Slingshot Playground', kicker: '04 / A LIVE-FIRE PLAYGROUND', objective: 'Test trajectories and planetary defenses. Every rock is ready to launch.',
     body: '<p>Twelve belt rocks already have <b>friendly boosters attached</b>. Launches are free. <b>Verdant is your home</b>; Cinder and Ochre are enemy targets.</p><ul><li><b>Aim:</b> select a rock and right-click a planet, or empty space for manual aim. Review and confirm.</li><li><b>Observe:</b> every planet has a ship, a platform, and two drones. Verdant\'s defenders are yours; enemy defenders match their planet\'s color.</li><li><b>Experiment:</b> try different approaches, coordinate several launches, or adjust the gravity sliders.</li><li><b>Reset range:</b> instantly restore rocks and defenses while keeping your gravity settings.</li></ul><p>The defenders intercept nearby threats but never build units or launch attacks. No victory screen or time limit. Spent boosters detach after firing; reset when you want fresh ammunition.</p>' },
@@ -1098,11 +1269,28 @@ function createGame(options = {}) {
     enemies: mode === 'skirmish' || options.enemies === true,
     unlimited: mode === 'sandbox' && options.unlimited === true, gravity: normalizeGravity(options.gravity), collisions: normalizeCollisions(options.collisions),
     visitorSeed: Number.isInteger(options.visitorSeed) ? options.visitorSeed >>> 0 : Math.floor(Math.random()*4294967296) };
+  setup.layoutSeed=Number.isInteger(options.layoutSeed)?options.layoutSeed>>>0:(setup.visitorSeed^0x9e3779b9)>>>0;
+  let layoutSeed=setup.layoutSeed;
+  const layoutRandom=()=>{layoutSeed=(Math.imul(layoutSeed,1664525)+1013904223)>>>0;return layoutSeed/4294967296;};
   const w = createScenario('neighbors', setup.gravity, setup.collisions);
   w.mode = mode; w.setup = setup; w.unlimitedMetal = setup.unlimited;
   if(mode==='skirmish')w.visitors={seed:setup.visitorSeed,nextAt:40,count:0};
   w.metal = { player: setup.budget, enemy: setup.budget };
   if (setup.system === 'two') w.planets = w.planets.filter(p => p.id !== 'ochre');
+  if(mode==='skirmish') {
+    for(const p of w.planets) {
+      const old={x:p.x,y:p.y,vx:p.vx,vy:p.vy};
+      p.referenceOrbit=p.orbit;
+      p.orbit*=1+(layoutRandom()*2-1)*SKIRMISH_ORBIT_JITTER;
+      p.phase=layoutRandom()*Math.PI*2;p.omega=orbitalRate(p.orbit,w.gravity);
+      Object.assign(p,planetAt(p,0));
+      // Move each starting fleet with its host, preserving safe local offsets.
+      for(const unit of w.units.filter(u=>u.hostId===p.id)) {
+        unit.x+=p.x-old.x;unit.y+=p.y-old.y;
+        unit.vx+=p.vx-old.vx;unit.vy+=p.vy-old.vy;
+      }
+    }
+  }
   if (!setup.enemies) {
     w.units = w.units.filter(u => u.team !== 'enemy');
     const rival = w.planets.find(p => p.team === 'enemy');
@@ -1110,7 +1298,20 @@ function createGame(options = {}) {
   }
   // Seed belt velocities against the actual chosen planets.
   w.units = w.units.filter(u => u.type !== 'rock');
-  for (let i = 0; i < 15; i++) addRock(w, i / 15 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`, ['medium', 'small', 'large'][i % 3]);
+  const count=mode==='skirmish'?SKIRMISH_ROCK_COUNT:15, rotation=mode==='skirmish'?layoutRandom()*Math.PI*2:.04;
+  for (let i = 0; i < count; i++) {
+    const angle=(i+(mode==='skirmish'?(layoutRandom()-.5)*.6:0))/count*Math.PI*2+rotation;
+    const radius=BELT_INNER+(mode==='skirmish'?layoutRandom()*BELT_WIDTH:(i%3)*BELT_WIDTH/2);
+    addRock(w,angle,radius,`ROCK ${String(i+1).padStart(2,'0')}`,['medium','small','large'][i%3]);
+  }
+  if(mode==='skirmish') {
+    const lanes=w.planets.map(p=>p.orbit).sort((a,b)=>a-b);
+    const inner=lanes.length===3?(lanes[0]+lanes[1])/2:lanes[0]*.65;
+    const outer=(lanes.at(-2)+lanes.at(-1))/2;
+    for(const [i,radius] of [inner,outer].entries()){
+      const rock=addRock(w,layoutRandom()*Math.PI*2,radius,`INNER ROCK ${i+1}`,'large');rock.innerRock=true;
+    }
+  }
   return w;
 }
 
@@ -1206,9 +1407,10 @@ class Renderer {
       const droneHosts=new Set();
       for(const u of w.units)if(u.hp>0 && u.type==='drone' && (u.team==='player' || u.id===ui.selectedId)) {
         const host=entity(w,u.order?.targetId)||entity(w,u.hostId);
-        if(!host || droneHosts.has(host.id))continue;
-        droneHosts.add(host.id);const p=this.screen(host);
-        this.circle(p.x,p.y,180*z,objectColor(u)+'44',null,[2,7]);
+        const radius=u.defenseRadius||180,key=host?.id+':'+radius;
+        if(!host || droneHosts.has(key))continue;
+        droneHosts.add(key);const p=this.screen(host);
+        this.circle(p.x,p.y,radius*z,objectColor(u)+'44',null,[2,7]);
       }
       for (const u of w.units) if (u.hp > 0 && u.range && (u.team === 'player' || u.id === ui.selectedId)) {
         const s = this.screen(u); this.circle(s.x, s.y, u.range * z, objectColor(u) + '22', null, [3, 5]);
@@ -1216,8 +1418,9 @@ class Renderer {
     }
     for (const [id, forecast] of ui.predictions) {
       const u = entity(w, id); if (!u) continue;
-      const color = forecast.secondary ? '#a7b9df' : u.type === 'rock' && u.team !== 'enemy' ? '#d6c398' : objectColor(u);
-      this.path(forecast, color, !forecast.secondary && id !== ui.selectedId && !(u.type === 'rock' && u.team === 'enemy'));
+      const struck=forecast.secondary || (ui.pending?.aim?.targetType==='rock' && ui.pending.aim.targetId===id);
+      const color = struck ? '#a7b9df' : u.type === 'rock' && u.team !== 'enemy' ? '#d6c398' : objectColor(u);
+      this.path(forecast, color, !struck && id !== ui.selectedId && !(u.type === 'rock' && u.team === 'enemy'));
       if(forecast.secondary&&forecast.points.length){const p=this.screen(forecast.points.at(-1));this.text(u.name+' / AFTER CONTACT',p.x+8,p.y-8,color,8);}
     }
     if (ui.baseline) this.path(ui.baseline, '#92a4ae', true);
@@ -1248,6 +1451,11 @@ class Renderer {
       const size = Math.max(u.type === 'rock' ? u.size==='small'?4:u.size==='large'?8:5.5 : u.type === 'drone' ? 3.2 : 5.5, u.radius * z);
       if (u.type === 'ship') {
         c.rotate(Math.atan2(u.vy, u.vx) + Math.PI / 2); c.beginPath(); c.moveTo(0, -size * 1.35); c.lineTo(size * .75, size); c.lineTo(0, size * .5); c.lineTo(-size * .75, size); c.closePath(); c.fill();
+      } else if (u.type === 'miner') {
+        c.rotate(Math.atan2(u.vy,u.vx)+Math.PI/2);
+        c.strokeRect(-size*.7,-size*.7,size*1.4,size*1.4);
+        c.beginPath();c.moveTo(-size*1.3,-size*.5);c.lineTo(-size*.7,-size*.5);c.moveTo(size*.7,-size*.5);c.lineTo(size*1.3,-size*.5);c.moveTo(-size*.3,-size*.7);c.lineTo(0,-size*1.3);c.lineTo(size*.3,-size*.7);c.stroke();
+        if(u.miningRockId && entity(w,u.miningRockId)?.metalRemaining>0){c.fillRect(-2,-2,4,4);}
       } else if (u.type === 'booster') {
         c.rotate(Math.atan2(u.vy, u.vx) + Math.PI / 2);
         c.strokeRect(-size * .5, -size, size, size * 2);
@@ -1266,6 +1474,16 @@ class Renderer {
         if (u.launched) this.circle(0, 0, size + 5, color + '80', null, [2, 3]);
         else if (u.boosterTeam) { c.fillStyle = color; c.fillRect(size + 2, -3, 5, 6); this.circle(0, 0, size + 7, color + '88'); }
       } c.restore();
+      if(u.tier===2){
+        c.save();c.strokeStyle=u.baseColor||'#c0e6e2';c.lineWidth=1.5;
+        c.beginPath();
+        for(const dy of [0,4]){c.moveTo(s.x+size+3,s.y-3+dy);c.lineTo(s.x+size+6,s.y-6+dy);c.lineTo(s.x+size+9,s.y-3+dy);}
+        c.stroke();c.restore();
+      }
+      if(u.type==='miner' && (u.miningRockId || u.miningProgress>0)){
+        this.text(u.miningRockId?(entity(w,u.miningRockId)?.metalRemaining>0?'+0.2 / s':'DEPLETED'):`DOCK ${Math.ceil(4-u.miningProgress)}s`,s.x-12,s.y-14,color,9,'right');
+        const rock=entity(w,u.miningRockId);if(rock){const p=this.screen(rock);c.save();c.strokeStyle=color+'88';c.setLineDash([2,3]);c.beginPath();c.moveTo(s.x,s.y);c.lineTo(p.x,p.y);c.stroke();c.restore();}
+      }
       if (u.type === 'booster' && u.attachedRockId && entity(w, u.attachedRockId)?.burn?.remaining > 0) {
         const rock = entity(w, u.attachedRockId), burn = rock.burn;
         const angle = Math.atan2(burn.ay, burn.ax), length = 10 + 3 * Math.sin(w.time * 16);
@@ -1283,7 +1501,7 @@ class Renderer {
     }
     for (const e of w.effects) {
       const age = (w.time - e.born) / e.life, s = this.screen(e); c.save(); c.globalAlpha = 1 - age;
-      if (e.type === 'shot') { const t = this.screen({ x: e.tx, y: e.ty }); c.strokeStyle = objectColor(e); c.lineWidth = 1; c.beginPath(); c.moveTo(s.x, s.y); c.lineTo(t.x, t.y); c.stroke(); }
+      if (e.type === 'shot') { const t = this.screen({ x: e.tx, y: e.ty }); c.strokeStyle = objectColor(e); c.lineWidth = e.tier===2?2:1; c.beginPath(); c.moveTo(s.x, s.y); c.lineTo(t.x, t.y); c.stroke(); }
       else {
         const color = COLORS[e.team] || '#f2ce87'; this.circle(s.x, s.y, (8 + 23 * age) * z, color);
         if(e.type==='ram')this.text('RAM / -45',s.x+10,s.y-12,e.color||color,8);
@@ -1325,11 +1543,13 @@ function contextualOrder(w, selectedId, target, point) {
   if (!u) return unavailable('Select a unit or equipped rock first');
   if (u.team !== 'player') return unavailable('Select one of your units');
   if (u.type === 'rock') {
+    if(target?.attachedRockId)target=entity(w,target.attachedRockId)||target;
     if (u.launched) return unavailable('Rock is already in flight');
     const booster = entity(w, u.boosterId);
     if (u.boosterTeam !== 'player' || !booster?.loaded || booster.attachedRockId !== u.id) return unavailable('Attach a loaded booster first');
     if (target?.type === 'planet') return { label: `Target ${target.name}`, rockTargetId: target.id, id: u.id };
-    if (target && target.id !== u.id) return unavailable('Aim at a planet or empty space');
+    if (target?.type === 'rock' && target.id!==u.id && target.hp>0) return { label: `Intercept ${target.name}`, rockTargetId: target.id, id: u.id };
+    if (target && target.id !== u.id) return unavailable('Aim at a planet, another rock, or empty space');
     let x = (point.x - u.x) / 10, y = (point.y - u.y) / 10;
     const scale = Math.min(1, MAX_IMPULSE / (Math.hypot(x, y) || 1));
     return { label: 'Aim launch', pending: { id: u.id, impulse: { x: x * scale, y: y * scale } } };
@@ -1342,6 +1562,17 @@ function contextualOrder(w, selectedId, target, point) {
   const friendly = target?.team === u.team;
   const anchor = friendly && ['planet', 'platform'].includes(target.type);
   if (u.type === 'drone') return anchor ? order('Defend', 'defend') : unavailable('Drones defend friendly planets or platforms');
+  if(u.type==='miner'){
+    if(target?.type==='rock'){
+      if(target.launched || (target.boosterTeam && target.boosterTeam!==u.team))return unavailable('Choose an idle asteroid without an enemy booster');
+      if(!(target.metalRemaining>0))return unavailable('Asteroid depleted / choose another rock');
+      if(target.minerId && target.minerId!==u.id && entity(w,target.minerId))return unavailable('This asteroid already has a miner');
+      return order('Mine asteroid','mine');
+    }
+    if(friendly && target.type==='planet')return order('Return home','defend');
+    if(target?.team==='enemy')return unavailable('Miner is unarmed / escort it with a warship');
+    return order('Move','move');
+  }
   if (u.type === 'booster') {
     if (target?.type === 'rock') {
       if (!u.loaded) return unavailable('Return home to reload first');
@@ -1354,8 +1585,8 @@ function contextualOrder(w, selectedId, target, point) {
   }
   if (u.type === 'ship') {
     if (target?.team === 'enemy') return order('Attack', 'attack');
-    if (anchor) return order('Defend', 'defend');
-    if (friendly && ['ship', 'booster', 'drone'].includes(target.type)) return order('Escort', 'defend');
+    if (anchor) return order(target.type==='planet'?'Defend':'Escort', 'defend');
+    if (friendly && ['ship', 'booster', 'miner', 'drone', 'rock'].includes(target.type)) return order('Escort', 'defend');
     return order('Move', 'move');
   }
   return unavailable('No movement order available');
@@ -1390,7 +1621,9 @@ function attachInput(game) {
     // either timing replace a held manual aim with a new target order.
     if (manualContext) return;
     if (game.modalOpen()) return;
-    const p = point(e), target = pick(p);
+    const p = point(e), picked = pick(p);
+    const selected=entity(game.world,game.ui.selectedId);
+    const target=selected?.type==='rock' && picked?.attachedRockId ? entity(game.world,picked.attachedRockId) : picked;
     const action = contextualOrder(game.world, game.ui.selectedId, target, r.world(p));
     if (action.error) { game.toast(action.error); return; }
     if (action.rockTargetId) {
@@ -1738,6 +1971,10 @@ class Game {
       document.documentElement.style.setProperty('--header-bottom', `${document.querySelector('header').getBoundingClientRect().bottom + 12}px`);
     });
     this.headerObserver.observe(document.querySelector('header'));
+    const positionMapTools=()=>document.documentElement.style.setProperty('--map-tools-bottom',`${innerHeight-$('selection').getBoundingClientRect().top+12}px`);
+    this.selectionObserver=new ResizeObserver(positionMapTools);
+    this.selectionObserver.observe($('selection'));
+    window.addEventListener('resize',positionMapTools);
     requestAnimationFrame(t => this.frame(t));
   }
   modalOpen() { return !$('modal').classList.contains('hidden') || !$('new-game-modal').classList.contains('hidden'); }
@@ -1792,6 +2029,17 @@ class Game {
     $('gravity-reset').onclick = () => this.tuneGravity(GRAVITY_DEFAULTS);
     document.querySelectorAll('[data-collision]').forEach(input => input.oninput = () => this.tuneCollisions({ [input.dataset.collision]: Number(input.value) }));
     $('collision-reset').onclick = () => this.tuneCollisions(COLLISION_DEFAULTS);
+    $('rock-contact').oninput = () => {
+      const pending=this.ui.pending;if(pending?.aim?.targetType!=='rock')return;
+      const offset=Number($('rock-contact').value)/100;
+      pending.aim.offset=offset;pending.aim.verified=false;pending.aim.reason='Recalculating contact point...';
+      this.updateUI();clearTimeout(this.contactTimer);
+      this.contactTimer=setTimeout(()=>{
+        if(this.ui.pending!==pending)return;
+        const rock=entity(this.world,pending.id),target=entity(this.world,pending.aim.targetId);
+        if(rock && target)this.plan(planRockTarget(this.world,rock,target,offset));
+      },100);
+    };
     $('confirm').onclick = () => this.confirm(); $('cancel').onclick = () => this.cancel();
     $('help').onclick = () => this.help();
     document.querySelectorAll('[data-build]').forEach(b => b.onclick = () => this.build(b.dataset.build));
@@ -1802,12 +2050,18 @@ class Game {
       const rock = rocks[(current + 1) % rocks.length]; this.select(rock.id);
       const screen = this.renderer.screen(rock);
       if (screen.x < 30 || screen.y < 65 || screen.x > innerWidth - 30 || screen.y > innerHeight - 160) this.renderer.fit();
-      this.toast(rock.boosterTeam === 'player' ? 'Booster attached. Right-click a planet to target it, or empty space to aim manually. Then confirm.' : 'This rock needs a booster. Choose Send booster in its panel, then confirm the order.');
+      this.toast(rock.boosterTeam === 'player' ? 'Booster attached. Right-click a planet or rock to target it, or empty space to aim manually. Then confirm.' : 'This rock needs a booster. Choose Send booster in its panel, then confirm the order.');
     };
     $('selection').onclick = e => {
       const action = e.target.closest('[data-order]')?.dataset.order;
       if (action === 'home') { const home = this.world.planets.find(p => p.team === 'player'); if (home) this.select(home.id); return; }
       const selected = entity(this.world, this.ui.selectedId); if (!selected) return;
+      if(action==='upgrade') {
+        if(this.ui.pending){this.toast('Confirm or cancel your planned order first.');return;}
+        const result=upgradeUnit(this.world,selected.id);
+        this.toast(result.error || `${selected.name} upgraded to Super.`);
+        this.previewDirty=true;this.updateUI();return;
+      }
       if (action === 'detach') {
         const booster = selected.type === 'rock' ? entity(this.world, selected.boosterId) : selected;
         if (booster?.attachedRockId) this.plan({ id: booster.id, order: { kind: 'detach' } });
@@ -1815,7 +2069,7 @@ class Game {
       }
       if (action === 'aim') {
         this.select(selected.type === 'rock' ? selected.boosterId : selected.attachedRockId);
-        this.toast(selected.type === 'rock' ? 'Controlling booster. Right-click home or a destination to detach and travel. Confirm the order.' : 'Controlling rock. Right-click a planet to target it, or empty space to aim manually. Then confirm.');
+        this.toast(selected.type === 'rock' ? 'Controlling booster. Right-click home or a destination to detach and travel. Confirm the order.' : 'Controlling rock. Right-click a planet or rock to target it, or empty space to aim manually. Then confirm.');
         return;
       }
       if (action === 'fit-rock' && selected.type === 'rock') {
@@ -1864,8 +2118,8 @@ class Game {
     // must be checked again against the new physics before it can be committed.
     const pending = this.ui.pending;
     if (pending?.aim) {
-      pending.aim.verified = this.ui.predictions.get(pending.id)?.impact?.targetId === pending.aim.targetId;
-      if (!pending.aim.verified) pending.aim.reason = 'Gravity changed the shot. Right-click the planet to recalculate.';
+      pending.aim.verified = !!aimedContact(this.ui.predictions.get(pending.id),pending.aim.targetId);
+      if (!pending.aim.verified) pending.aim.reason = 'Gravity changed the shot. Right-click the target to recalculate.';
     }
     this.gravityAdjusted = true; this.updateUI();
   }
@@ -1875,7 +2129,7 @@ class Game {
     scanRockThreats(this.world); this.processEvents(); this.refreshPredictions();
     const pending=this.ui.pending;
     if(pending?.aim){
-      pending.aim.verified=this.ui.predictions.get(pending.id)?.impact?.targetId===pending.aim.targetId;
+      pending.aim.verified=!!aimedContact(this.ui.predictions.get(pending.id),pending.aim.targetId);
       if(!pending.aim.verified)pending.aim.reason='Collision tuning changed the shot. Re-aim or choose a new target.';
     }
     this.updateUI();
@@ -2106,7 +2360,7 @@ class Game {
   closeModal() { $('modal').classList.add('hidden'); this.canvas.focus(); this.updateUI(); }
   help() {
     this.showModal('FIELD GUIDE', 'Small orders. Wide orbits.',
-      '<ul><li><b>Left-click</b> to select. Click it again or empty space to clear selection. <b>Right-click</b> to plan an order; <b>Enter</b> confirms, <b>Esc</b> cancels.</li><li><b>Prepare a rock:</b> untouched rocks follow stable belt orbits until launched or struck. Select it and choose Send booster, or select a booster ship and right-click the rock. Attachment takes 6 seconds after arrival.</li><li><b>Launch:</b> select an equipped rock and right-click a planet to calculate a shot toward its future position. Right-click empty space for manual aim; confirm for 35 metal (free with unlimited metal). Drag aiming also works. The booster fires for 4 seconds, then detaches automatically and awaits orders. Choose Return home to reload in 8 seconds at no extra cost. You can detach manually before launching.</li><li><b>Context orders:</b> a combat ship attacks enemies, escorts friendly mobile units, and defends friendly planets or platforms. A booster attaches to free rocks and returns to a friendly colony to reload. Hover for the action hint.</li><li><b>Right-click</b> a friendly planet or platform with a ship or drone to defend it. Drones ram rocks and hostile units in their assigned local area, sacrificing themselves for 45 damage. Platforms keep firing reusable guns.</li><li><b>Space</b> pauses. <b>1 / 2 / 3</b> select 1× / 5× / 20×. Scroll to zoom; drag empty space to pan; <b>F</b> fits the system.</li></ul><p>Booster ships cost 50 metal and are unarmed. Select your colony to deploy. Income is 0.4 metal / second; fleet limit 12. Launched rocks damage any planet, including your own. Defenses intercept your rocks when they threaten home. Ship weapons do not fire on friendly ships or colonies.</p><p><b>Rock collisions:</b> small, medium, and large rocks have masses 1, 2, and 4 and colony damage 35, 65, and 100. All fall equally under gravity. Glancing hits deflect; hard hits shatter both rocks and any attached boosters, leaving harmless debris. Collision tuning adjusts rebound and rock strength, pauses time, and redraws both paths. Violet paths show other rocks after contact. Restart keeps tuning.</p><p><b>Gravity:</b> adjust G, shared planet mass, or sun mass in the left-hand controls. Changes pause time and redraw paths. G and sun mass set planetary orbital speed; radii and current positions stay fixed. Planet mass changes its pull on units, not its own orbital speed. Free-flying units keep their velocities. Reset restores defaults; restarting retains tuning, while New game starts at defaults.</p><p class="note">Teal launch segments show powered flight; gold shows coasting. Ship paths end when attachment completes. Predictions cover 90 seconds. Weapons and future enemy decisions can change the outcome.</p>',
+      '<ul><li><b>Left-click</b> to select. Click it again or empty space to clear selection. <b>Right-click</b> to plan an order; <b>Enter</b> confirms, <b>Esc</b> cancels.</li><li><b>Prepare a rock:</b> untouched rocks follow stable belt orbits until launched or struck. Select it and choose Send booster, or select a booster ship and right-click the rock. Attachment takes 6 seconds after arrival.</li><li><b>Launch:</b> select an equipped rock and right-click a planet to calculate a shot toward its future position. Right-click empty space for manual aim; confirm for 35 metal (free with unlimited metal). Drag aiming also works. The booster fires for 4 seconds, then detaches automatically and awaits orders. Choose Return home to reload in 8 seconds at no extra cost. You can detach manually before launching.</li><li><b>Context orders:</b> a combat ship attacks enemies, escorts friendly mobile units, and defends friendly planets or platforms. A booster attaches to free rocks and returns to a friendly colony to reload. Hover for the action hint.</li><li><b>Right-click</b> a friendly planet or platform with a ship or drone to defend it. Drones ram rocks and hostile units in their assigned local area, sacrificing themselves for 45 damage. Platforms keep firing reusable guns.</li><li><b>Space</b> pauses. <b>1 / 2 / 3</b> select 1× / 5× / 20×. Scroll to zoom; drag empty space to pan; <b>F</b> fits the system.</li></ul><p>Booster ships cost 50 metal and are unarmed. Select your colony to deploy. Income is 0.4 metal / second; fleet limit 12. Launched rocks damage any planet, including your own. Defenses intercept your rocks when they threaten home. Ship weapons do not fire on friendly ships or colonies.</p><p><b>Mining:</b> miners cost 25 metal, are unarmed, and share the fleet limit. Right-click an idle asteroid, confirm, and dock for 4 seconds. Each miner earns 0.2 metal per second directly into your treasury. One miner per asteroid. Right-click to leave; launching the asteroid releases the miner. A destroyed asteroid destroys its docked miner. Select a warship and right-click the miner to escort it.</p><p><b>Upgrades:</b> each ship, platform or drone can become Super once, using the selected-unit panel. Review the stats and price before buying: ship 50, platform 65, drone 20 metal. Super units and shots use a darker faction color and units carry a double-chevron marker. Existing damage is preserved proportionally. No research tree.</p><p><b>Rock collisions:</b> small, medium, and large rocks have masses 1, 2, and 4 and colony damage 35, 65, and 100. All fall equally under gravity. Glancing hits deflect; hard hits shatter both rocks and any attached boosters, leaving harmless debris. Collision tuning adjusts rebound and rock strength, pauses time, and redraws both paths. Violet paths show other rocks after contact. Restart keeps tuning.</p><p><b>Gravity:</b> adjust G, shared planet mass, or sun mass in the left-hand controls. Changes pause time and redraw paths. G and sun mass set planetary orbital speed; radii and current positions stay fixed. Planet mass changes its pull on units, not its own orbital speed. Free-flying units keep their velocities. Reset restores defaults; restarting retains tuning, while New game starts at defaults.</p><p class="note">Teal launch segments show powered flight; gold shows coasting. Ship paths end when attachment completes. Predictions normally cover 90 seconds; difficult targeted rock shots try up to 120 seconds. Weapons and future enemy decisions can change the outcome.</p>',
       'Back to the system', () => this.closeModal());
   }
   toast(message) { $('toast').textContent = message; $('toast').classList.add('visible'); this.toastUntil = performance.now() + 6000; }
@@ -2122,10 +2376,11 @@ class Game {
   }
   confirm() {
     const pending = this.ui.pending; if (!pending) return;
-    if (pending.aim && !pending.aim.verified) { this.toast('No verified impact. Right-click empty space to aim manually, choose another planet, or cancel and wait.'); return; }
+    if (pending.aim && !pending.aim.verified) { this.toast('No verified impact. Right-click empty space to aim manually, choose another target, or cancel and wait.'); return; }
     if (pending.impulse) {
       const result = launchRock(this.world, pending.id, pending.impulse);
       if (result.error) { this.toast(result.error); return; }
+      if(pending.aim?.horizon>90)entity(this.world,pending.id).previewUntil=this.world.time+pending.aim.horizon;
       scanRockThreats(this.world); this.processEvents();
       this.toast('Launch committed. Unpause for a 4-second burn, then automatic separation.');
     } else {
@@ -2159,8 +2414,9 @@ class Game {
     const selected = entity(w, this.ui.selectedId);
     if (selected && selected.type !== 'planet') ids.add(selected.id);
     for (const u of w.units) if (u.hp > 0 && (u.visitor || (u.team === 'enemy' && (u.type === 'rock' || u.order?.kind === 'attack')) || entity(w, w.rockThreats?.[u.id]?.targetId)?.team === 'player' || (this.ui.allPaths && (u.type !== 'rock' || u.launched)))) ids.add(u.id);
-    this.ui.predictions = predict(w, [...ids], this.ui.pending);
-    this.ui.baseline = this.ui.pending?.impulse ? predict(w, [this.ui.pending.id]).get(this.ui.pending.id) : null;
+    const horizon=Math.min(120,Math.max(90,this.ui.pending?.aim?.horizon||0,(selected?.previewUntil||0)-w.time));
+    this.ui.predictions = predict(w, [...ids], this.ui.pending,horizon);
+    this.ui.baseline = this.ui.pending?.impulse ? predict(w, [this.ui.pending.id],null,horizon).get(this.ui.pending.id) : null;
     this.previewDirty = false; this.lastPreview = performance.now();
   }
   processEvents() {
@@ -2200,7 +2456,8 @@ class Game {
     setText('objective-label', w.mode === 'sandbox' ? 'YOUR PLAYGROUND' : 'YOUR OBJECTIVE');
     setText('objective', w.mode === 'sandbox' ? 'Explore trajectories. Build a fleet. Make your own experiments.' : w.scenario === 'hold' ? `Keep Verdant alive / ${time(w.duration - w.time)} remaining` : SCENARIOS[w.scenario].objective);
     if(w.lesson?.phase==='assault')setText('objective','Overwhelm Ochre: coordinate rocks and ships. Destroy its colony.');
-    setText('income-hint', playground ? 'Free launches / defenders only engage fired rocks' : w.unlimitedMetal ? 'Unlimited metal / fleet limit 12' : '+0.4 metal / second from your colony');
+    const miningIncome=w.units.filter(m=>m.type==='miner'&&m.team==='player'&&m.hp>0&&m.miningRockId&&entity(w,m.miningRockId)?.metalRemaining>0&&!entity(w,m.miningRockId).launched).length*MINING_RATE;
+    setText('income-hint', playground ? 'Free launches / defenders only engage fired rocks' : w.unlimitedMetal ? 'Unlimited metal / fleet limit 12' : `+0.4 metal / second from your colony${miningIncome?` / +${miningIncome.toFixed(1)} from miners`:''}`);
     $('colonies').innerHTML = w.planets.filter(p => p.team !== 'neutral').map(p => `<div style="--colony-color:${p.color}" class="colony ${p.team === 'enemy' ? 'enemy' : ''}"><div><span>${p.name}${p.team === 'player' ? ' / HOME' : playground ? ' / TARGET' : ' / RIVAL'}</span><span>${Math.ceil(p.hp / p.maxHp * 100)}%</span></div><span class="bar"><i style="width:${p.hp / p.maxHp * 100}%"></i></span></div>`).join('');
     const count = fleet(w, 'player').length;
     $('fleet-count').textContent = playground ? `${w.units.filter(r => r.type === 'rock' && r.hp > 0 && r.boosterTeam === 'player').length} / 12 ready` : `${count} / ${CAP}`;
@@ -2236,28 +2493,47 @@ class Game {
         const fitter = w.units.find(b => b.hp > 0 && b.order?.kind === 'fit' && b.order.targetId === u.id);
         status = u.burn?.remaining > 0 ? `Powered burn · ${Math.ceil(u.burn.remaining)}s left<br>Booster detaches automatically · then coasting` : u.launched ? `Ballistic flight · ${u.deflected ? 'redirected by collision' : u.team === 'enemy' ? 'incoming threat' : 'launch committed'}<br>${forecast?.impact ? `Impact: ${forecast.impact.name} in ${Math.ceil(forecast.impact.time)}s` : forecast && Number.isFinite(forecast.closest) ? `Closest approach: ${Math.max(0, forecast.closest).toFixed(0)} u in ${Math.ceil(forecast.closestTime)}s` : 'Forecast horizon: 90 seconds'}` : u.boosterTeam ? `${u.boosterTeam === 'player' ? 'Your booster attached · ready to launch' : 'Enemy booster attached · destroy this rock'}<br>${u.boosterTeam === 'player' ? (w.unlimitedMetal ? 'Right-click to aim / free launch' : 'Right-click to aim / launch for 35 metal') : 'An enemy launch is being prepared'}` : fitter ? `${fitter.team === 'enemy' ? 'Enemy' : 'Your'} booster ${fitter.attachProgress > 0 ? `attaching · ${Math.ceil(ATTACH_TIME - fitter.attachProgress)}s left` : 'en route'}<br>${fitter.team === 'player' ? 'Escort it with a combat ship' : 'Intercept the booster before it finishes'}` : 'No booster attached · launch unavailable<br>Send a booster ship to prepare this rock.';
       }
+      else if(u.type==='miner'){
+        const rock=entity(w,u.miningRockId||u.order?.targetId);
+        status=u.miningRockId && !(rock?.metalRemaining>0)?'Asteroid depleted / income stopped<br>Right-click another asteroid to resume mining':u.miningRockId?`Mining ${rock?.name||'asteroid'} / +${MINING_RATE} metal per second<br>Direct to treasury / right-click to leave`:u.order.kind==='mine'?`En route to ${rock?.name||'asteroid'}${u.miningProgress?` / docking ${Math.ceil(MINING_DOCK_TIME-u.miningProgress)}s`:''}<br>Unarmed / escort with a warship`:'Unarmed asteroid miner<br>Right-click an idle rock to dock and mine';
+      }
       else if (u.type === 'booster') {
         const target = entity(w, u.order?.targetId);
         status = target?.burn?.remaining > 0 && u.attachedRockId ? `Firing · ${Math.ceil(target.burn.remaining)}s left<br>${u.departureOrder ? 'Departure queued after burn' : 'Right-click a destination to queue departure'}` : u.attachedRockId ? `Attached to ${target?.name || 'rock'} · ${u.loaded ? 'ready to launch' : 'charge spent'}<br>${u.loaded ? 'Select rock to aim / Right-click to detach and travel' : 'Right-click home to detach and rearm'}` : u.order.kind === 'fit' ? `${u.attachProgress > 0 ? `Attaching · ${Math.ceil(ATTACH_TIME - u.attachProgress)}s left` : `En route → ${target?.name || 'rock'}`}<br>Unarmed · one booster loaded` : u.order.kind === 'rearm' ? `${u.rearmProgress > 0 ? `Rearming · ${Math.ceil(REARM_TIME - u.rearmProgress)}s left` : 'Returning home to rearm'}<br>Unarmed · automatic reload at colony` : `${u.loaded ? 'One booster loaded · ready' : (playground ? 'Charge spent / reset range for more' : 'Charge spent · awaiting orders')}<br>${u.loaded ? 'Right-click a free rock to attach' : (playground ? 'Reset restores rocks and attached boosters' : 'Choose Return home to reload')}`;
       }
       else {
         const target = entity(w, u.order?.targetId);
-        status = u.type === 'platform' ? `Local defense · ${u.range} u weapon range` : `${titleCase(u.order?.kind || 'idle')}${target ? ` → ${target.name}` : ''}<br>${u.type === 'drone' ? 'Rams rocks and hostile ships / 45 damage<br>Consumed on contact / defends within 180 u' : forecast?.eta ? `Arrival / weapons range in ~${Math.ceil(forecast.eta)}s` : 'Right-click to plan a new order'}`;
-        if (u.type === 'ship' && u.order?.kind === 'attack' && target && ['ship', 'booster', 'drone', 'platform'].includes(target.type)) status = `Attack / ${target.name}<br>${distance(u, target) <= u.range ? 'Circling target / firing whenever ready' : 'Intercepting / circle and fire on arrival'}`;
+        status = u.type === 'platform' ? `Local defense · ${u.range} u weapon range` : `${titleCase(u.order?.kind || 'idle')}${target ? ` → ${target.name}` : ''}<br>${u.type === 'drone' ? `Rams rocks and hostile ships / ${u.damage} damage<br>Consumed on contact / defends within ${u.defenseRadius||180} u` : forecast?.eta ? `Arrival / weapons range in ~${Math.ceil(forecast.eta)}s` : 'Right-click to plan a new order'}`;
+        if(u.type==='ship' && u.order?.kind==='defend' && target && target.type!=='planet')status=`Escort / ${target.name}<br>Following unit / engaging nearby threats`;
+        if (u.type === 'ship' && u.order?.kind === 'attack' && target && ['ship', 'booster', 'miner', 'drone', 'platform'].includes(target.type)) status = `Attack / ${target.name}<br>${distance(u, target) <= u.range ? 'Circling target / firing whenever ready' : 'Intercepting / circle and fire on arrival'}`;
       }
     }
+    if(u?.type==='miner'){const rock=entity(w,u.miningRockId||u.order?.targetId);if(rock?.type==='rock')status+=`<br>Metal remaining: ${Math.max(0,rock.metalRemaining||0).toFixed(1)} / ${rock.metalCapacity||0}`;}
     if(u?.type==='rock'){
       status=`${titleCase(u.size||'medium')} / mass ${u.mass||2} / impact ${u.damage}<br>`+status;
+      const miner=entity(w,u.minerId);if(miner)status+=`<br>${miner.team==='player'?'Your':'Enemy'} miner / ${u.metalRemaining>0?`+${MINING_RATE} metal per second`:'depleted'}`;
+      status+=`<br>Metal remaining: ${Math.max(0,u.metalRemaining||0).toFixed(1)} / ${u.metalCapacity||0}${u.metalRemaining>0?'':' / DEPLETED'}`;
       if(!u.launched && u.beltOrbit)status+=' <br>Stable orbit / launch or impact releases it.';
       const contact=this.ui.predictions.get(u.id)?.collisions?.[0];
       if(contact)status+=`<br>${contact.kind==='smash'?'Shatters':'Deflects'} in ${contact.time.toFixed(1)}s / both paths shown`;
     }
+    const upgrade=UPGRADES[u?.type];
+    if(upgrade && u)status+=`<br>${u.tier===2?'SUPER':'BASIC'} / ${u.damage} damage / ${u.type==='drone'?`${u.speed} speed`:`${u.range} range / shot every ${u.cooldown}s`}`;
     setText('selected-name', u?.name || 'THE SYSTEM IS YOURS');
+    const canUpgrade=u?.team==='player' && upgrade && u.tier!==2 && !(w.outcome && !w.continueSandbox);
+    $('unit-upgrade').classList.toggle('hidden',!canUpgrade);
+    if(canUpgrade){
+      const price=w.unlimitedMetal?0:upgrade.cost;
+      setText('order-upgrade',`Upgrade to Super / ${price} metal`);
+      $('order-upgrade').disabled=w.metal.player<price || !!this.ui.pending;
+      $('order-upgrade').title=this.ui.pending?'Confirm or cancel your planned order first.':w.metal.player<price?'Not enough metal.':'Upgrade this unit. Existing damage is preserved proportionally.';
+      setText('upgrade-details',u.type==='drone'?`Speed ${u.speed} ? ${upgrade.speed} ? Defense area ${u.defenseRadius||180} ? ${upgrade.defenseRadius} ? Ram ${u.damage} ? ${upgrade.damage}`:`Range ${u.range} ? ${upgrade.range} ? Damage ${u.damage} ? ${upgrade.damage} ? Shot ${u.cooldown}s ? ${upgrade.cooldown}s ? Armor ${u.maxHp} ? ${upgrade.maxHp}${u.type==='ship'?` ? Speed ${u.speed} ? ${upgrade.speed}`:''}`);
+    }
     setText('selected-health', u ? `${Math.ceil(u.hp)} / ${u.maxHp}` : '');
     // Cache source text rather than comparing browser-normalized HTML (& -> &amp;).
     if (this.selectedStatus !== status) { $('selected-meta').innerHTML = status; this.selectedStatus = status; }
     const attachedBooster = u?.type === 'booster' && u.attachedRockId ? u : u?.type === 'rock' ? entity(w, u.boosterId) : null;
-    const mobileFriendly = u?.team === 'player' && ['ship', 'drone', 'booster'].includes(u.type) && !u.attachedRockId;
+    const mobileFriendly = u?.team === 'player' && ['ship', 'drone', 'booster', 'miner'].includes(u.type) && !u.attachedRockId;
     const burning = !!entity(w, attachedBooster?.attachedRockId)?.burn?.remaining;
     $('order-detach').classList.toggle('hidden', !(attachedBooster?.team === 'player' && attachedBooster.attachedRockId) || burning);
     $('order-aim').classList.toggle('hidden', !attachedBooster?.attachedRockId);
@@ -2265,26 +2541,40 @@ class Game {
     $('order-fit').classList.toggle('hidden', !(u?.type === 'rock' && !u.launched && !u.boosterTeam));
     $('order-fit').disabled = !fleet(w, 'player').some(b => b.type === 'booster' && b.loaded && !b.attachedRockId && b.order.kind !== 'fit');
     $('order-defend').classList.toggle('hidden', !mobileFriendly);
-    setText('order-defend', u?.type === 'booster' ? 'Return home' : 'Defend home');
+    setText('order-defend', ['booster','miner'].includes(u?.type) ? 'Return home' : 'Defend home');
     $('order-stop').classList.toggle('hidden', !mobileFriendly);
     if (!hasHome) $('order-defend').classList.add('hidden');
     $('order-home').classList.toggle('hidden', !hasHome);
     $('selected-actions').classList.toggle('hidden', u?.team === 'player' && u.type === 'planet');
     setText('order-home', mobileFriendly ? 'Colony' : 'Select home colony');
     $('plan').classList.toggle('hidden', !this.ui.pending);
+    $('rock-contact-controls').classList.toggle('hidden',this.ui.pending?.aim?.targetType!=='rock');
     if (this.ui.pending) {
       const pending = this.ui.pending, f = this.ui.predictions.get(pending.id);
       const target = entity(w, pending.aim?.targetId || pending.order?.targetId);
       $('plan-kind').textContent = pending.impulse ? (w.unlimitedMetal ? 'PLANNED LAUNCH / FREE' : 'PLANNED LAUNCH / 35 METAL') : `PLANNED ${pending.order.kind.toUpperCase()} / ASSISTED FLIGHT`;
-      let detail = f?.attachment ? `Attached and waiting in ~${Math.ceil(f.attachment.time)}s` : f?.impact ? `Impact: ${f.impact.name} in ${Math.ceil(f.impact.time)}s` : f?.eta ? `Arrival / range in ~${Math.ceil(f.eta)}s` : '90-second flight preview';
+      let detail = f?.attachment ? `Attached and waiting in ~${Math.ceil(f.attachment.time)}s` : f?.impact ? `Impact: ${f.impact.name} in ${Math.ceil(f.impact.time)}s` : f?.eta ? `Arrival / range in ~${Math.ceil(f.eta)}s` : `${pending.aim?.horizon||90}-second flight preview`;
+      if(pending.order?.kind==='mine' && f?.attachment)detail=`Dock and start mining in ~${Math.ceil(f.attachment.time)}s`;
       if (pending.impulse && f && !f.impact && Number.isFinite(f.closest)) detail = `Closest approach: ${Math.max(0, f.closest).toFixed(0)} u in ${Math.ceil(f.closestTime)}s`;
       if (pending.impulse && entity(w, f?.impact?.targetId)?.team === 'player') detail = `WARNING: YOUR COLONY — ${detail}`;
       if (pending.aim && !pending.aim.verified) detail = `NO VERIFIED SHOT / ${pending.aim.reason} ${detail}`;
       $('plan-summary').textContent = `${target ? `${target.name} · ` : ''}${detail}`;
-      $('plan-note').textContent = pending.impulse ? '4s powered burn, then coast · booster detaches automatically' : pending.order.kind === 'fit' ? 'Attach for 6s after arrival · stay attached until you launch or detach' : pending.order.kind === 'attack' && target && ['ship', 'booster', 'drone', 'platform'].includes(target.type) ? 'Intercept, then circle in weapon range / keep firing at this target' : 'Moving targets are pursued · weapons can change the outcome';
+      $('plan-note').textContent = pending.impulse ? '4s powered burn, then coast · booster detaches automatically' : pending.order.kind === 'fit' ? 'Attach for 6s after arrival · stay attached until you launch or detach' : pending.order.kind === 'attack' && target && ['ship', 'booster', 'miner', 'drone', 'platform'].includes(target.type) ? 'Intercept, then circle in weapon range / keep firing at this target' : 'Moving targets are pursued · weapons can change the outcome';
+      if(pending.order?.kind==='mine')$('plan-note').textContent=`Dock for ${MINING_DOCK_TIME}s, then +${MINING_RATE} metal per second directly to your treasury`;
       const departing = entity(w, pending.id);
       if (pending.order && departing?.attachedRockId) $('plan-note').textContent = entity(w, departing.attachedRockId)?.burn?.remaining > 0 ? 'Finish the burn, then detach and follow this order / Escape cancels' : 'Detach from the rock, then follow this order / Escape cancels';
       if (pending.aim) $('plan-note').textContent = pending.aim.verified ? 'Targeting its future position / confirm to launch, or right-click to revise' : 'Choose another target, aim manually in empty space, or cancel and wait';
+      if(pending.aim?.targetType==='rock') {
+        const offset=pending.aim.offset||0,contact=aimedContact(f,pending.aim.targetId);
+        $('rock-contact').value=Math.round(offset*100);
+        setText('rock-contact-value',offset===0?'Centre':`${Math.round(Math.abs(offset)*100)}% ${offset<0?'left':'right'}`);
+        if(contact){
+          $('plan-summary').textContent=`${target?.name || 'Rock'} / ${contact.kind==='smash'?'SMASH: both rocks shatter':'DEFLECT: both paths shown'} in ${contact.time.toFixed(1)}s`;
+          $('plan-note').textContent='Drag contact point for a glancing hit. Gold: launched rock / violet: struck rock. Confirm to launch.';
+        } else if(pending.aim.verified) {
+          $('plan-note').textContent='Intercept solution found; defenses or another collision may stop it. Preview shows the current outcome.';
+        }
+      }
       $('confirm').disabled = (!!pending.impulse && !w.unlimitedMetal && w.metal.player < COST.rock) || !!(pending.aim && !pending.aim.verified);
     }
     const threats = w.units.filter(u => u.hp > 0 && (u.visitor || (u.team === 'enemy' && (u.type === 'rock' || ['attack', 'fit'].includes(u.order?.kind))) || (u.type === 'rock' && u.launched && entity(w, w.rockThreats?.[u.id]?.targetId)?.team === 'player')));
@@ -2306,7 +2596,8 @@ class Game {
     const topThreat = incoming ? `INCOMING ROCK / ${Math.ceil(incoming.time - w.time)}s to ${incoming.name}` : major?.text || '';
     setText('top-threat', topThreat); $('top-threat').classList.toggle('hidden', !topThreat);
     $('alerts').innerHTML = alerts.slice(0, 4).join('');
-    $('hint').innerHTML = this.ui.pending ? 'Enter to commit · Esc to cancel<br><span>Time is paused while you plan</span>' : u?.type === 'rock' && !u.launched ? u.boosterTeam === 'player' ? `Right-click a planet to target it<br><span>Empty space: manual aim / ${w.unlimitedMetal ? 'Free launch' : '35 metal'}</span>` : 'Send a booster to earn your shot<br><span>Escort it · Attach · Aim · Launch</span>' : u?.type === 'booster' ? u.attachedRockId ? burning ? 'Booster firing · automatic separation after burn<br><span>Right-click to queue travel after the burn</span>' : 'Attached and waiting for your order<br><span>Select rock to aim / Right-click to detach and travel</span>' : 'Right-click a rock to fit a booster<br><span>Stays attached · Detach manually</span>' : 'Select a unit · Right-click for an order<br><span>Enemy: attack / friendly unit: escort or defend</span>';
+    $('hint').innerHTML = this.ui.pending ? 'Enter to commit · Esc to cancel<br><span>Time is paused while you plan</span>' : u?.type === 'rock' && !u.launched ? u.boosterTeam === 'player' ? `Right-click a planet or rock to target it<br><span>Empty space: manual aim / ${w.unlimitedMetal ? 'Free launch' : '35 metal'}</span>` : 'Send a booster to earn your shot<br><span>Escort it · Attach · Aim · Launch</span>' : u?.type === 'booster' ? u.attachedRockId ? burning ? 'Booster firing · automatic separation after burn<br><span>Right-click to queue travel after the burn</span>' : 'Attached and waiting for your order<br><span>Select rock to aim / Right-click to detach and travel</span>' : 'Right-click a rock to fit a booster<br><span>Stays attached · Detach manually</span>' : 'Select a unit · Right-click for an order<br><span>Enemy: attack / friendly unit: escort or defend</span>';
+    if(!this.ui.pending && u?.type==='miner')$('hint').innerHTML='Right-click an idle asteroid to mine<br><span>Right-click home or empty space to leave / escort with a warship</span>';
     this.updateContextHint?.();
     this.updateTutorial();
   }

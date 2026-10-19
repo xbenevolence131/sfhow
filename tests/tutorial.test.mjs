@@ -48,7 +48,8 @@ test('new defenses stop the same shot that hits an undefended colony',()=>{
 test('defense exercise works at later orbital positions and supports retry',()=>{
   for(const delay of [120,240,400]){
     const w=defenseFixture(delay);assert.equal(launchTutorialAttack(w).error,undefined);
-    tick(w,60);assert.equal(w.lesson.phase,'combat',`delay ${delay}`);
+    // The exercise verifies up to 90 seconds; changed gravity can select a later arrival.
+    tick(w,90);assert.equal(w.lesson.phase,'combat',`delay ${delay}`);
   }
   const w=defenseFixture();entity(w,w.lesson.rockId).hp=0;
   assert.ok(launchTutorialAttack(w).error);prepareTutorialAttack(w);

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DT, COST, CAP, MAX_IMPULSE, ATTACH_TIME, BURN_TIME, gravity, spawn, launchRock, setOrder, predict, advanceMotion, step, entity, enemyLaunch, sendPracticeRock, dispatchBooster, aimRock, distance, planetAt, sweptHit, scanRockThreats } from '../src/simulation.js';
+import { DT, COST, CAP, MAX_IMPULSE, ATTACH_TIME, BURN_TIME, gravity, spawn, launchRock, setOrder, predict, advanceMotion, step, entity, enemyLaunch, sendPracticeRock, dispatchBooster, aimRock, planRockTarget, distance, planetAt, sweptHit, scanRockThreats } from '../src/simulation.js';
 import { createScenario } from '../src/scenarios.js';
 
 const advance = (w, seconds) => { for (let i = 0; i < Math.round(seconds / DT); i++) step(w); };
@@ -18,7 +18,8 @@ test('a clear planetary flyby bends visibly, matches its preview and remains sta
     const w = createScenario('neighbors'), planet = w.planets[0], rock = w.units.find(u => u.type === 'rock');
     if (weak) w.gravity.planetMass = 180;
     w.units = [rock];
-    Object.assign(rock, { x: planet.x - 180, y: planet.y + 100, vx: planet.vx + 18, vy: planet.vy, launched: true });
+    // Match the faster orbital scale: the old slow pass is now captured.
+    Object.assign(rock, { x: planet.x - 180, y: planet.y + 100, vx: planet.vx + 26, vy: planet.vy, launched: true });
     const forecast = verifyPreview ? predict(w, [rock.id], null, 40).get(rock.id) : null;
     let closest = Infinity;
     for (let n = 1; n <= Math.round(40 / dt); n++) {
@@ -113,7 +114,8 @@ test('friendly rocks damage their own colony and destroyed rocks create harmless
 
 test('friendly powered launch previews predict damage to home and actual impact agrees', () => {
   const w = createScenario(), home = w.planets[0], rock = w.units.find(u => u.type === 'rock');
-  const booster = equip(w, rock), impulse = aimRock(w, rock, home, 55);
+  const booster = equip(w, rock), plan = planRockTarget(w, rock, home), impulse = plan.impulse;
+  assert.ok(plan.aim.verified);
   const forecast = predict(w, [rock.id], { id: rock.id, impulse }, 70).get(rock.id);
   assert.equal(forecast.impact?.targetId, home.id);
   assert.equal(home.hp, home.maxHp, 'preview cannot damage the real colony');
@@ -178,7 +180,8 @@ test('Hold the Orbit can be won and loss/restart are clean', () => {
 test('Neighbors is winnable by defending early and then committing a fleet', () => {
   const w = createScenario('neighbors');
   const home = w.planets[0]; spawn(w, 'ship', 'player', home); spawn(w, 'ship', 'player', home);
-  advance(w, 55);
+  // Commit during the new orbital approach window, after the early defense.
+  advance(w, 40);
   for (const u of w.units.filter(u => u.type === 'ship' && u.team === 'player')) setOrder(w, u.id, { kind: 'attack', targetId: 'cinder' });
   advance(w, 300); assert.equal(w.outcome, 'victory');
 });

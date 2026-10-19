@@ -28,7 +28,9 @@ export function attachInput(game) {
     // either timing replace a held manual aim with a new target order.
     if (manualContext) return;
     if (game.modalOpen()) return;
-    const p = point(e), target = pick(p);
+    const p = point(e), picked = pick(p);
+    const selected=entity(game.world,game.ui.selectedId);
+    const target=selected?.type==='rock' && picked?.attachedRockId ? entity(game.world,picked.attachedRockId) : picked;
     const action = contextualOrder(game.world, game.ui.selectedId, target, r.world(p));
     if (action.error) { game.toast(action.error); return; }
     if (action.rockTargetId) {

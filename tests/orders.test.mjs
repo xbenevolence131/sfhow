@@ -5,7 +5,7 @@ import { contextualOrder } from '../src/orders.js';
 import { DT, MAX_IMPULSE, planRockTarget, predict, launchRock, advanceMotion, setOrder } from '../src/simulation.js';
 
 const setup = () => {
-  const w = createGame({ mode: 'skirmish' });
+  const w = createGame({ mode: 'skirmish', layoutSeed: 17, visitorSeed: 42 });
   const unit = (type, team = 'player') => w.units.find(u => u.type === type && u.team === team);
   return { w, unit, home: w.planets[0], enemy: w.planets[1], rock: unit('rock', 'neutral'), point: { x: 800, y: 600 } };
 };
@@ -19,7 +19,7 @@ test('cursor hint and right-click share valid orders for each unit/target pairin
   const cases = [
     ['ship', enemy, 'attack', 'Attack'], ['ship', unit('booster','enemy'), 'attack', 'Attack'],
     ['ship', unit('booster'), 'defend', 'Escort'], ['ship', unit('drone'), 'defend', 'Escort'],
-    ['ship', home, 'defend', 'Defend'], ['ship', unit('platform'), 'defend', 'Defend'],
+    ['ship', home, 'defend', 'Defend'], ['ship', unit('platform'), 'defend', 'Escort'],
     ['ship', null, 'move', 'Move'], ['booster', rock, 'fit', 'Attach booster'],
     ['booster', home, 'rearm', 'Return and reload'], ['booster', null, 'move', 'Move'],
     ['drone', home, 'defend', 'Defend'], ['drone', unit('platform'), 'defend', 'Defend'],
@@ -54,7 +54,7 @@ test('equipped rocks target planets or manually aim with a capped additional imp
 test('planet auto-aim verifies moving-target impact with the real burn and flight rules', () => {
   for(const targetId of ['verdant','cinder','ochre']) {
     const { w, unit, rock }=setup(), target=w.planets.find(p=>p.id===targetId);
-    Object.assign(rock,{x:target.x+250,y:target.y+90,vx:0,vy:0});attach(rock,unit('booster'));
+    Object.assign(rock,{x:target.x+250,y:target.y+90,vx:target.vx,vy:target.vy});attach(rock,unit('booster'));
     const before=structuredClone(w), pending=planRockTarget(w,rock,target);
     assert.deepEqual(w,before,'planning must not spend metal, launch, or move anything');
     assert.ok(pending.aim.verified, `${targetId}: ${pending.aim.reason}`);
@@ -62,7 +62,7 @@ test('planet auto-aim verifies moving-target impact with the real burn and fligh
     const f=predict(w,[rock.id],pending).get(rock.id);
     assert.equal(f.impact.targetId,targetId); assert.ok(f.ghost);
     assert.ok(!launchRock(w,rock.id,pending.impulse).error);
-    for(let i=0;i<90/DT&&rock.hp>0;i++) advanceMotion(w);
+    for(let i=0;i<pending.aim.horizon/DT&&rock.hp>0;i++) advanceMotion(w);
     assert.equal(rock.impact.targetId,targetId);
     assert.ok(Math.abs(rock.impact.time-f.impact.time)<DT);
   }

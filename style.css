@@ -65,3 +65,11 @@ header{grid-template-columns:var(--control-width) minmax(160px,1fr) var(--contro
 /* Keep the full title within the navigation column. */
 .wordmark{font-size:14px;letter-spacing:.4px;gap:8px}.wordmark .orbit-logo{flex-shrink:0}
 @media(max-width:720px){.wordmark{font-size:11px;letter-spacing:0;gap:5px}}
+
+.rock-contact-controls{min-width:180px;max-width:240px}.rock-contact-controls label{font-size:10px;justify-content:space-between;color:var(--gold)}.rock-contact-controls input{width:100%;height:20px;margin:7px 0;accent-color:var(--gold)}.contact-labels{display:flex;justify-content:space-between;font-size:8px;color:var(--muted)}
+.map-tools{bottom:var(--map-tools-bottom,175px)}
+@media(max-width:720px){.rock-contact-controls{width:100%;max-width:none}.plan:has(.rock-contact-controls:not(.hidden)){max-height:55vh;overflow:auto}}
+
+.unit-upgrade{margin-top:10px;padding-top:8px;border-top:1px solid #ffffff18}.unit-upgrade small{display:block;color:#a9babf;font-size:10px;line-height:1.5;margin-bottom:7px}.unit-upgrade button{width:100%}
+
+@media(max-width:720px){.build-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.range-dock .build-buttons{grid-template-columns:repeat(2,minmax(0,1fr))}.unit-upgrade small{font-size:8px}.unit-upgrade button{font-size:9px;padding:7px 3px}}

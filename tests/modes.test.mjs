@@ -1,7 +1,43 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame } from '../src/scenarios.js';
-import { spawn, launchRock, step, CAP, COST, fleet } from '../src/simulation.js';
+import { createGame, createScenario } from '../src/scenarios.js';
+import { spawn, launchRock, step, CAP, COST, fleet, orbitalRate, BELT_INNER, BELT_WIDTH, advanceMotion, distance } from '../src/simulation.js';
+
+test('skirmish seeds vary fixed orbital radii and angles, keep safe fleets, and add 23 belt plus two inner rocks',()=>{
+  const base=createScenario('neighbors'),layouts=new Set();
+  for(let seed=0;seed<32;seed++){
+    const w=createGame({mode:'skirmish',system:seed%2?'two':'three',layoutSeed:seed,visitorSeed:12});
+    assert.deepEqual(createGame(w.setup),w);
+    layouts.add(JSON.stringify(w.planets.map(p=>[p.orbit,p.phase])));
+    for(const p of w.planets){
+      const reference=base.planets.find(b=>b.id===p.id);
+      assert.ok(p.orbit>=reference.orbit*.92 && p.orbit<=reference.orbit*1.08);
+      assert.equal(p.omega,orbitalRate(p.orbit,w.gravity));
+      assert.ok(Math.abs(Math.hypot(p.x,p.y)-p.orbit)<1e-9);
+      assert.ok(p.orbit+p.radius<BELT_INNER-100);
+      for(const u of w.units.filter(u=>u.hostId===p.id)){
+        assert.ok(distance(u,p)>p.radius+u.radius);
+        assert.ok(distance(u,p)<110);
+        const old=base.units.find(b=>b.id===u.id);
+        assert.ok(Math.abs((u.vx-p.vx)-(old.vx-reference.vx))<1e-9);
+        assert.ok(Math.abs((u.vy-p.vy)-(old.vy-reference.vy))<1e-9);
+      }
+    }
+    const rocks=w.units.filter(u=>u.type==='rock' && !u.innerRock);assert.equal(rocks.length,23);
+    for(const rock of rocks){assert.ok(rock.beltOrbit>=BELT_INNER && rock.beltOrbit<=BELT_INNER+BELT_WIDTH);
+      for(const other of rocks)if(other!==rock)assert.ok(distance(rock,other)>rock.radius+other.radius+20);
+    }
+    const inner=w.units.filter(u=>u.innerRock);assert.equal(inner.length,2);
+    for(const rock of inner){
+      assert.equal(rock.size,'large');assert.equal(rock.launched,false);
+      assert.ok(rock.beltOrbit<BELT_INNER);
+      for(const p of w.planets)assert.ok(Math.abs(p.orbit-rock.beltOrbit)>p.radius+rock.radius+60);
+    }
+    for(let n=0;n<20;n++)advanceMotion(w);
+    for(const p of w.planets)assert.ok(Math.abs(Math.hypot(p.x,p.y)-p.orbit)<1e-9);
+  }
+  assert.equal(layouts.size,32);
+});
 
 test('skirmish configuration is repeatable, balanced in budget, and keeps victory/defeat', () => {
   for (const system of ['two', 'three']) {

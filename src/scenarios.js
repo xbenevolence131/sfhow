@@ -1,4 +1,6 @@
 import { planetAt, orbitalRate, setGravity, spawn, addRock, BELT_INNER, BELT_WIDTH, normalizeGravity, normalizeCollisions } from './simulation.js';
+export const SKIRMISH_ROCK_COUNT = 23;
+export const SKIRMISH_ORBIT_JITTER = .08;
 export const SCENARIOS = {
   playground: { name: 'Slingshot Playground', kicker: '04 / A LIVE-FIRE PLAYGROUND', objective: 'Test trajectories and planetary defenses. Every rock is ready to launch.',
     body: '<p>Twelve belt rocks already have <b>friendly boosters attached</b>. Launches are free. <b>Verdant is your home</b>; Cinder and Ochre are enemy targets.</p><ul><li><b>Aim:</b> select a rock and right-click a planet, or empty space for manual aim. Review and confirm.</li><li><b>Observe:</b> every planet has a ship, a platform, and two drones. Verdant\'s defenders are yours; enemy defenders match their planet\'s color.</li><li><b>Experiment:</b> try different approaches, coordinate several launches, or adjust the gravity sliders.</li><li><b>Reset range:</b> instantly restore rocks and defenses while keeping your gravity settings.</li></ul><p>The defenders intercept nearby threats but never build units or launch attacks. No victory screen or time limit. Spent boosters detach after firing; reset when you want fresh ammunition.</p>' },
@@ -67,11 +69,28 @@ export function createGame(options = {}) {
     enemies: mode === 'skirmish' || options.enemies === true,
     unlimited: mode === 'sandbox' && options.unlimited === true, gravity: normalizeGravity(options.gravity), collisions: normalizeCollisions(options.collisions),
     visitorSeed: Number.isInteger(options.visitorSeed) ? options.visitorSeed >>> 0 : Math.floor(Math.random()*4294967296) };
+  setup.layoutSeed=Number.isInteger(options.layoutSeed)?options.layoutSeed>>>0:(setup.visitorSeed^0x9e3779b9)>>>0;
+  let layoutSeed=setup.layoutSeed;
+  const layoutRandom=()=>{layoutSeed=(Math.imul(layoutSeed,1664525)+1013904223)>>>0;return layoutSeed/4294967296;};
   const w = createScenario('neighbors', setup.gravity, setup.collisions);
   w.mode = mode; w.setup = setup; w.unlimitedMetal = setup.unlimited;
   if(mode==='skirmish')w.visitors={seed:setup.visitorSeed,nextAt:40,count:0};
   w.metal = { player: setup.budget, enemy: setup.budget };
   if (setup.system === 'two') w.planets = w.planets.filter(p => p.id !== 'ochre');
+  if(mode==='skirmish') {
+    for(const p of w.planets) {
+      const old={x:p.x,y:p.y,vx:p.vx,vy:p.vy};
+      p.referenceOrbit=p.orbit;
+      p.orbit*=1+(layoutRandom()*2-1)*SKIRMISH_ORBIT_JITTER;
+      p.phase=layoutRandom()*Math.PI*2;p.omega=orbitalRate(p.orbit,w.gravity);
+      Object.assign(p,planetAt(p,0));
+      // Move each starting fleet with its host, preserving safe local offsets.
+      for(const unit of w.units.filter(u=>u.hostId===p.id)) {
+        unit.x+=p.x-old.x;unit.y+=p.y-old.y;
+        unit.vx+=p.vx-old.vx;unit.vy+=p.vy-old.vy;
+      }
+    }
+  }
   if (!setup.enemies) {
     w.units = w.units.filter(u => u.team !== 'enemy');
     const rival = w.planets.find(p => p.team === 'enemy');
@@ -79,6 +98,19 @@ export function createGame(options = {}) {
   }
   // Seed belt velocities against the actual chosen planets.
   w.units = w.units.filter(u => u.type !== 'rock');
-  for (let i = 0; i < 15; i++) addRock(w, i / 15 * Math.PI * 2 + .04, BELT_INNER + (i % 3) * BELT_WIDTH / 2, `ROCK ${String(i + 1).padStart(2, '0')}`, ['medium', 'small', 'large'][i % 3]);
+  const count=mode==='skirmish'?SKIRMISH_ROCK_COUNT:15, rotation=mode==='skirmish'?layoutRandom()*Math.PI*2:.04;
+  for (let i = 0; i < count; i++) {
+    const angle=(i+(mode==='skirmish'?(layoutRandom()-.5)*.6:0))/count*Math.PI*2+rotation;
+    const radius=BELT_INNER+(mode==='skirmish'?layoutRandom()*BELT_WIDTH:(i%3)*BELT_WIDTH/2);
+    addRock(w,angle,radius,`ROCK ${String(i+1).padStart(2,'0')}`,['medium','small','large'][i%3]);
+  }
+  if(mode==='skirmish') {
+    const lanes=w.planets.map(p=>p.orbit).sort((a,b)=>a-b);
+    const inner=lanes.length===3?(lanes[0]+lanes[1])/2:lanes[0]*.65;
+    const outer=(lanes.at(-2)+lanes.at(-1))/2;
+    for(const [i,radius] of [inner,outer].entries()){
+      const rock=addRock(w,layoutRandom()*Math.PI*2,radius,`INNER ROCK ${i+1}`,'large');rock.innerRock=true;
+    }
+  }
   return w;
 }
