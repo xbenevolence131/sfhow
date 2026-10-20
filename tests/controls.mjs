@@ -59,7 +59,7 @@ try {
     await heldClick(`[data-build="${type}"]`);
     assert.equal(await page.evaluate(() => orbital.world.units.length), before + 1);
   }
-  await heldClick('#rock-tool');
+  await page.evaluate(() => orbital.select(orbital.world.units.find(u => u.type === 'rock' && !u.launched && !u.boosterTeam).id));
   assert.equal(await page.evaluate(() => orbital.world.units.find(u => u.id === orbital.ui.selectedId).type), 'rock');
   await heldClick('#order-fit');
   assert.equal(await page.evaluate(() => orbital.ui.pending?.order.kind), 'fit');
@@ -91,6 +91,7 @@ try {
     assert.equal(await page.evaluate(() => orbital.world.scenario), scenario);
     await heldClick('#modal-action');
   }
+  await heldClick('#system-details > summary');
   await heldClick('#practice');
   assert.equal(await page.evaluate(() => orbital.world.units.filter(u => u.practice).length), 1);
   await page.evaluate(() => { orbital.world.outcome = 'victory'; orbital.showOutcome(); });

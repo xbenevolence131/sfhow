@@ -1,6 +1,7 @@
-import { DT, CAP, COST, UPGRADES, upgradeUnit, shipRepairStatus, REPAIR_RATE, MINING_RATE, MINING_DOCK_TIME, ATTACH_TIME, REARM_TIME, GRAVITY_DEFAULTS, COLLISION_DEFAULTS, setCollisions, setGravity, distance, entity, fleet, spawn, setOrder, launchRock, sendPracticeRock, scanRockThreats, predict, step, planRockTarget, aimedContact } from './simulation.js';
+import { DT, CAP, COST, UPGRADES, upgradeUnit, shipRepairStatus, REPAIR_RATE, MINING_RATE, MINING_DOCK_TIME, ATTACH_TIME, REARM_TIME, GRAVITY_DEFAULTS, COLLISION_DEFAULTS, setCollisions, setGravity, distance, entity, fleet, spawn, setOrder, launchRock, sendPracticeRock, scanRockThreats, predict, step, planRockTarget, aimedContact, activateSystem } from './simulation.js';
 import { createGame, SCENARIOS } from './scenarios.js';
 import { Renderer } from './render.js';
+import { arrangeHUD, PlanetViews } from './hud.js';
 import { attachInput } from './input.js';
 import { attachPlaytestRecorder } from './playtest.js';
 import { beginTutorial, skipTutorial, advanceTutorial, tutorialDefenses, prepareTutorialAttack, launchTutorialAttack, sendTutorialPractice } from './tutorial.js';
@@ -10,11 +11,13 @@ const time = seconds => `${String(Math.floor(Math.max(0, seconds) / 60)).padStar
 const titleCase = text => text[0].toUpperCase() + text.slice(1);
 class Game {
   constructor() {
+    arrangeHUD();
     this.canvas = $('space'); this.renderer = new Renderer(this.canvas);
     this.ui = { selectedId: null, hoverId: null, pending: null, predictions: new Map(), baseline: null, ranges: false, allPaths: false };
     this.paused = true; this.speed = 1; this.accumulator = 0; this.lastFrame = performance.now();
     this.lastPreview = 0; this.previewDirty = true; this.lastUI = 0; this.seenEvent = 0; this.toastUntil = 0;
     this.bindUI(); this.load('garden', undefined, true); attachInput(this);
+    this.planetViews=new PlanetViews(this);
     this.headerObserver = new ResizeObserver(() => {
       document.documentElement.style.setProperty('--header-bottom', `${document.querySelector('header').getBoundingClientRect().bottom + 12}px`);
     });
@@ -91,16 +94,7 @@ class Game {
     $('confirm').onclick = () => this.confirm(); $('cancel').onclick = () => this.cancel();
     $('help').onclick = () => this.help();
     document.querySelectorAll('[data-build]').forEach(b => b.onclick = () => this.build(b.dataset.build));
-    $('rock-tool').onclick = () => {
-      const rocks = this.world.units.filter(u => u.type === 'rock' && !u.launched && u.hp > 0 && (!u.boosterTeam || u.boosterTeam === 'player')).sort((a, b) => Number(!!b.boosterTeam) - Number(!!a.boosterTeam));
-      if (!rocks.length) { this.toast('No unlaunched rocks remain. Restart to reset the belt.'); return; }
-      const current = rocks.findIndex(r => r.id === this.ui.selectedId);
-      const rock = rocks[(current + 1) % rocks.length]; this.select(rock.id);
-      const screen = this.renderer.screen(rock);
-      if (screen.x < 30 || screen.y < 65 || screen.x > innerWidth - 30 || screen.y > innerHeight - 160) this.renderer.fit();
-      this.toast(rock.boosterTeam === 'player' ? 'Booster attached. Right-click a planet or rock to target it, or empty space to aim manually. Then confirm.' : 'This rock needs a booster. Choose Send booster in its panel, then confirm the order.');
-    };
-    $('selection').onclick = e => {
+    $('action-panel').onclick = e => {
       const action = e.target.closest('[data-order]')?.dataset.order;
       if (action === 'home') { const home = this.world.planets.find(p => p.team === 'player'); if (home) this.select(home.id); return; }
       const selected = entity(this.world, this.ui.selectedId); if (!selected) return;
@@ -136,6 +130,7 @@ class Game {
       if (!e.target.closest('#practice')) return;
       const result = this.world.lesson ? sendTutorialPractice(this.world) : sendPracticeRock(this.world);
       if (result.error) { this.toast(result.error); return; }
+      activateSystem(this.world);
       this.previewDirty = true; this.processEvents(); this.updateUI();
       if(this.world.lesson) { this.toast('Practice rock launched. Unpause to watch the impact on your undefended colony.'); return; }
       this.toast(this.paused ? 'Practice booster dispatched. Press Space to unpause; it must reach a rock and attach before launch.' : 'Practice booster dispatched. It will attach a booster before launching an incoming rock.');
@@ -199,24 +194,25 @@ class Game {
   load(key, options = { mode: 'scenario', scenario: key }, welcome = false) {
     this.tutorial = this.tutorial && key === 'garden' && options.mode === 'scenario' ? { stage: '' } : null;
     $('new-game-modal').classList.add('hidden');
-    this.world = createGame(options); key = this.world.scenario; this.paused = true; this.speed = 1; this.accumulator = 0; this.gravityAdjusted = false;
+    this.world = createGame(options); this.world.awaitingFirstOrder=true; key = this.world.scenario; this.paused = true; this.speed = 1; this.accumulator = 0; this.gravityAdjusted = false;
     if(this.tutorial)beginTutorial(this.world);
     this.seenEvent = 0; this.outcomeShown = false; this.ui.selectedId = key === 'playground' ? this.world.units.find(u => u.type === 'rock').id : this.world.planets[0].id;
     this.ui.hoverId = null; this.ui.pending = null; this.ui.predictions = new Map(); this.ui.baseline = null; this.previewDirty = true;
     this.toastUntil = 0; $('toast').classList.remove('visible'); this.renderer.fit(); $('scenario').value = key;
+    if(this.planetViews){this.planetViews.lastDraw=-Infinity;this.planetViews.draw(performance.now());}
     const open = this.world.mode !== 'scenario', sandbox = this.world.mode === 'sandbox';
     const briefing = open ? `<p>${sandbox ? 'An open playground. Explore trajectories, deploy fleets, and take your time. There are no victory or defeat screens.' : 'Protect Verdant and destroy Cinder. Both sides pay the same prices and earn metal from their colony. Occasional natural asteroids cross the system; watch for warnings. There is no time limit.'}</p><p>${this.world.planets.length} planets. ${this.world.setup.enemies ? 'An AI rival occupies Cinder.' : 'No enemy fleet; the other worlds are uninhabited targets.'} ${this.world.unlimitedMetal ? 'Your deployments and launches are free.' : `Starting budget: ${this.world.setup.budget} metal.`}</p><p>Rocks still need booster ships. Prepare, preview, and launch. New game lets you choose another mode at any time.</p>` : SCENARIOS[key].body;
     if(welcome)this.showWelcome();
     else this.showModal(open ? 'OPEN SYSTEM' : SCENARIOS[key].kicker, open ? titleCase(this.world.mode) : SCENARIOS[key].name, briefing, 'Enter the system', () => {
-      this.closeModal(); this.toast('The system is paused. Plan an order, or press Space to let time flow.');
+      this.enterSystem(); this.toast('Orbits are running. Enemy activity waits for your first confirmed order.');
     });
     this.updateUI();
   }
   showWelcome() {
     this.showModal('ORBITAL WARFARE', 'Welcome to Stones from Heaven',
-      '<p>Prepare asteroids, bend trajectories around moving worlds, and protect your colony. Make a small decision, preview its path, and watch the consequences unfold.</p><ul class="welcome-directions"><li><b>Scenario</b><br>Use the dropdown at the upper left to choose a ready-made challenge or playground.</li><li><b>New game</b><br>Explore Scenarios, Skirmish, and Sandbox with different starting options.</li></ul><p class="note">Rock Garden is ready behind this welcome. Take your time: the system starts paused.</p>',
-      'Start tutorial',()=>{ this.tutorial = { stage: '' }; beginTutorial(this.world); this.ui.selectedId = null; this.closeModal(); },
-      'Explore freely',()=>{this.closeModal();$('scenario').focus();});
+      '<p>Prepare asteroids, bend trajectories around moving worlds, and protect your colony. Make a small decision, preview its path, and watch the consequences unfold.</p><ul class="welcome-directions"><li><b>Scenario</b><br>Use the dropdown at the upper left to choose a ready-made challenge or playground.</li><li><b>New game</b><br>Explore Scenarios, Skirmish, and Sandbox with different starting options.</li></ul><p class="note">Rock Garden is ready behind this welcome. Take your time: orbits are running, but enemy activity waits for your first confirmed order.</p>',
+      'Start tutorial',()=>{ this.tutorial = { stage: '' }; beginTutorial(this.world); this.ui.selectedId = null; this.enterSystem(); },
+      'Explore freely',()=>{this.enterSystem();$('scenario').focus();});
   }
   updateTutorial() {
     const w = this.world, active = !!this.tutorial && w.scenario === 'garden' && w.mode === 'scenario';
@@ -236,8 +232,8 @@ class Game {
     let stage, title, copy, highlight, target, action='WATCH';
     const lesson=w.lesson;
     if (!lesson?.controlsComplete) {
-      stage=-1; title='Select, then act'; highlight='selection';
-      copy='Left-click an object to select it; click it again or click empty space to clear selection. Right-click a target or empty space to preview the selected object\'s default action, then Confirm to give the order. The magenta-outlined panel at the bottom right shows details and extra actions for the selected unit. Try selecting a few objects while paused, then click Start flying.';
+      stage=-1; title='Select, then act'; highlight='command-panel';
+      copy='Click an object in the map or a planet close-up. Right-click the main map to plan its action, then Confirm. Actions are bottom left, unit details in the middle, and time controls on the right. Click empty space to clear selection.';
       $('tutorial-start').classList.remove('hidden');
     } else if (lesson?.phase==='complete') {
       stage=15; title='You know the essentials'; copy='You launched and reloaded, built defenses, intercepted an attack, destroyed a launcher, and overcame a defended colony. Keep exploring, or choose another scenario.'; highlight='scenario';
@@ -389,7 +385,7 @@ class Game {
         target=rock?.id; action='RIGHT-CLICK';
       }
     } else {
-      stage=0; title=booster ? 'Select your booster' : 'Prepare a booster'; copy=booster ? 'Welcome to the Rock Garden tutorial. Left-click the booster ship inside the magenta circle near Verdant. Left-click selects; right-click gives an order. Time starts paused.' : 'Select Verdant and deploy a booster, or select your spent booster and right-click Verdant to reload. You can also restart for a fresh tutorial.'; target=booster?.id; action='LEFT-CLICK';
+      stage=0; title=booster ? 'Select your booster' : 'Prepare a booster'; copy=booster ? 'Welcome to the Rock Garden tutorial. Left-click the booster ship inside the magenta circle near Verdant. Left-click selects; right-click gives an order. Orbits are running. Enemy activity waits until you confirm your first order.' : 'Select Verdant and deploy a booster, or select your spent booster and right-click Verdant to reload. You can also restart for a fresh tutorial.'; target=booster?.id; action='LEFT-CLICK';
     }
     setText('tutorial-step', stage===-1 ? 'TUTORIAL / STEP 0' : stage===15 ? 'TUTORIAL COMPLETE' : `TUTORIAL / ${stage+1} OF 15`);
     setText('tutorial-title',title); setText('tutorial-copy',copy);
@@ -405,6 +401,7 @@ class Game {
     $('modal-secondary').classList.toggle('hidden', !secondary); $('modal-secondary').textContent = secondary || ''; $('modal-secondary').onclick = onSecondary || null;
     $('modal').classList.remove('hidden'); $('modal-action').focus();
   }
+  enterSystem() { this.closeModal(); this.paused=false; this.accumulator=0; this.updateUI(); }
   closeModal() { $('modal').classList.add('hidden'); this.canvas.focus(); this.updateUI(); }
   help() {
     this.showModal('FIELD GUIDE', 'Small orders. Wide orbits.',
@@ -435,6 +432,7 @@ class Game {
       if (!setOrder(this.world, pending.id, pending.order)) return;
       this.toast(pending.order.kind === 'fit' ? 'Booster dispatched. Press Space to fly; attachment is automatic on arrival.' : 'Order committed. Press Space to let time flow.');
     }
+    if(activateSystem(this.world)){this.paused=false;this.accumulator=0;this.toast('Order committed. The system is now active.');}
     this.ui.pending = null; this.ui.baseline = null; this.previewDirty = true; this.updateUI();
   }
   cancel() { this.ui.pending = null; this.ui.baseline = null; this.previewDirty = true; this.updateUI(); }
@@ -510,13 +508,21 @@ class Game {
     const count = fleet(w, 'player').length;
     $('fleet-count').textContent = playground ? `${w.units.filter(r => r.type === 'rock' && r.hp > 0 && r.boosterTeam === 'player').length} / 12 ready` : `${count} / ${CAP}`;
     const canDeploy = u?.type === 'planet' && u.team === 'player' && u.hp > 0;
+    document.querySelector('.dock').classList.toggle('hidden',(!canDeploy&&!playground)||!!this.ui.pending);
+    const homePlanet=w.planets.find(p=>p.team==='player');
+    document.documentElement.style.setProperty('--player-color',homePlanet?.color||'#80d6cf');
+    setText('player-world-name',homePlanet?.name||'');
+    setText('selected-owner',u?`${u.team==='player'?'FRIENDLY':u.team==='enemy'?'ENEMY':'NEUTRAL'} / ${titleCase(u.type)}`:'');
+    $('selected-owner').style.color=u?.baseColor||u?.color||'#a3acb1';
+    $('unit-health-bar').value=u?Math.max(0,u.hp/u.maxHp):0;
+    $('unit-health-bar').classList.toggle('hidden',!u);
+    $('unit-health-bar').style.accentColor=u?.color||'#a3acb1';
+    $('unit-health-bar').style.setProperty('--health-color',u?.color||'#a3acb1');
+    setText('action-heading',canDeploy?'BUILD':'ACTIONS');
     $('deploy-location').textContent = playground ? 'SLINGSHOT PLAYGROUND' : canDeploy ? `DEPLOY AT ${u.name}` : 'SELECT YOUR COLONY TO DEPLOY';
     document.querySelectorAll('[data-build]').forEach(b => { b.classList.toggle('hidden', playground); b.disabled = !canDeploy || (!w.unlimitedMetal && w.metal.player < COST[b.dataset.build]) || count >= CAP || (!!w.outcome && !w.continueSandbox); b.querySelector('span').textContent = w.unlimitedMetal ? 'Free' : `${COST[b.dataset.build]} \u25c7`; b.title = !canDeploy ? 'Select your colony first' : `${w.unlimitedMetal ? 'Free' : COST[b.dataset.build] + ' metal'} · deploy defending ${u.name}`; });
     $('range-reset').classList.toggle('hidden', !playground);
-    document.querySelector('#rock-tool b').textContent = playground ? 'NEXT ROCK' : 'ROCK';
     document.querySelector('.dock').classList.toggle('range-dock', playground);
-    document.querySelector('#rock-tool span').textContent = w.unlimitedMetal ? 'Free launch' : '35 \u25c7 / launch';
-    $('rock-tool').disabled = !!w.outcome && !w.continueSandbox;
     $('paused-label').classList.toggle('hidden', !this.paused || !!this.ui.pending || this.modalOpen());
     // Interactive elements live in index.html; refresh only text/state around them.
     $('garden-lesson').classList.toggle('hidden', w.scenario !== 'garden' || w.mode !== 'scenario');
@@ -570,9 +576,9 @@ class Game {
     if(repair)status+=`<br>${repair.kind==='repairing'?`Repairing at home / +${REPAIR_RATE} health per second`:repair.kind==='waiting'?`Home repairs in ${Math.ceil(repair.remaining)}s without damage`:repair.kind==='away'?'Return home for free repairs':'Home repairs unavailable'}`;
     const upgrade=UPGRADES[u?.type];
     if(upgrade && u)status+=`<br>${u.tier===2?'SUPER':'BASIC'} / ${u.damage} damage / ${u.type==='drone'?`${u.speed} speed`:`${u.range} range / shot every ${u.cooldown}s`}`;
-    setText('selected-name', u?.name || 'THE SYSTEM IS YOURS');
+    setText('selected-name', u?.name || 'Select an object');
     const canUpgrade=u?.team==='player' && upgrade && u.tier!==2 && !(w.outcome && !w.continueSandbox);
-    $('unit-upgrade').classList.toggle('hidden',!canUpgrade);
+    $('unit-upgrade').classList.toggle('hidden',!canUpgrade||!!this.ui.pending);
     if(canUpgrade){
       const price=w.unlimitedMetal?0:upgrade.cost;
       setText('order-upgrade',`Upgrade to Super / ${price} metal`);
@@ -582,6 +588,16 @@ class Game {
     }
     setText('selected-health', u ? `${Math.ceil(u.hp)} / ${u.maxHp}` : '');
     // Cache source text rather than comparing browser-normalized HTML (& -> &amp;).
+    const fullStatus=status;
+    status=u?status.split('<br>')[0]:'Click a unit in the map or a planet close-up.';
+    if(u?.damage)status+=`<br>${u.damage} damage${u.range?` · ${u.range} range`:''}${u.speed?` · ${u.speed} speed`:''}${u.tier===2?' · SUPER':''}`;
+    if(u?.type==='rock')status+=`<br>${Math.max(0,u.metalRemaining||0).toFixed(0)} / ${u.metalCapacity||0} metal`;
+    if(u?.type==='miner'){
+      const minedRock=entity(w,u.miningRockId||u.order?.targetId);
+      if(minedRock?.type==='rock')status+=`<br>Metal remaining: ${Math.max(0,minedRock.metalRemaining||0).toFixed(0)} / ${minedRock.metalCapacity||0}`;
+    }
+    if(repair?.kind==='repairing')status+='<br>Repairing at home';
+    $('selected-meta').title=fullStatus.replaceAll('<br>','\n');
     if (this.selectedStatus !== status) { $('selected-meta').innerHTML = status; this.selectedStatus = status; }
     const attachedBooster = u?.type === 'booster' && u.attachedRockId ? u : u?.type === 'rock' ? entity(w, u.boosterId) : null;
     const mobileFriendly = u?.team === 'player' && ['ship', 'drone', 'booster', 'miner'].includes(u.type) && !u.attachedRockId;
@@ -596,7 +612,10 @@ class Game {
     $('order-stop').classList.toggle('hidden', !mobileFriendly);
     if (!hasHome) $('order-defend').classList.add('hidden');
     $('order-home').classList.toggle('hidden', !hasHome);
-    $('selected-actions').classList.toggle('hidden', u?.team === 'player' && u.type === 'planet');
+    const inspectOnly=u?.team==='enemy'||(u?.type==='planet'&&u.team!=='player');
+    $('selected-actions').classList.toggle('hidden', inspectOnly||canDeploy||!!this.ui.pending);
+    $('action-empty').classList.toggle('hidden',!!this.ui.pending||canDeploy||playground||!!u&&!inspectOnly);
+    setText('action-empty',inspectOnly?'Inspection only. Select a friendly unit to give orders.':'Select your planet to build, or a unit to command.');
     setText('order-home', mobileFriendly ? 'Colony' : 'Select home colony');
     $('plan').classList.toggle('hidden', !this.ui.pending);
     $('rock-contact-controls').classList.toggle('hidden',this.ui.pending?.aim?.targetType!=='rock');
@@ -678,6 +697,7 @@ class Game {
     if (now - this.lastUI > 150) { this.updateUI(); this.lastUI = now; }
     if (this.toastUntil && now > this.toastUntil) { $('toast').classList.remove('visible'); this.toastUntil = 0; }
     this.renderer.draw(this.world, this.ui);
+    this.planetViews.draw(now);
     requestAnimationFrame(t => this.frame(t));
   }
 }

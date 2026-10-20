@@ -1,8 +1,9 @@
-import { entity, TYPES, ATTACH_TIME, REARM_TIME, BELT_INNER, BELT_WIDTH, SYSTEM_DIAMETER } from './simulation.js';
+import { entity, TYPES, ATTACH_TIME, REARM_TIME, BELT_INNER, BELT_WIDTH, SYSTEM_DIAMETER, MINING_RATE, MAX_IMPULSE } from './simulation.js';
 const COLORS = { player: '#80d6cf', enemy: '#ee9184', neutral: '#a3acb1', star: '#f2ce87' };
 const objectColor = u => u.color || COLORS[u.team] || COLORS.neutral;
 export class Renderer {
-  constructor(canvas) {
+  constructor(canvas, compact = false) {
+    this.compact=compact;
     this.canvas = canvas; this.ctx = canvas.getContext('2d');
     this.camera = { x: 0, y: 0, zoom: 1 }; this.width = 0; this.height = 0;
     let seed = 13579;
@@ -12,16 +13,17 @@ export class Renderer {
     this.resize(); this.fit();
   }
   resize() {
-    this.width = innerWidth; this.height = innerHeight; this.dpr = Math.min(devicePixelRatio || 1, 2);
+    this.width = this.compact?this.canvas.clientWidth:innerWidth; this.height = this.compact?this.canvas.clientHeight:innerHeight; this.dpr = Math.min(devicePixelRatio || 1, 2);
     this.canvas.width = this.width * this.dpr; this.canvas.height = this.height * this.dpr;
-    this.canvas.style.width = `${this.width}px`; this.canvas.style.height = `${this.height}px`;
+    if(!this.compact){this.canvas.style.width = `${this.width}px`; this.canvas.style.height = `${this.height}px`;}
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
   }
-  fit() { this.camera = { x: 0, y: 0, zoom: Math.min((this.width - 65) / SYSTEM_DIAMETER, (this.height - 145) / SYSTEM_DIAMETER) }; }
-  screen(p) { return { x: (p.x - this.camera.x) * this.camera.zoom + this.width * .53, y: (p.y - this.camera.y) * this.camera.zoom + this.height * .47 }; }
-  world(p) { return { x: (p.x - this.width * .53) / this.camera.zoom + this.camera.x, y: (p.y - this.height * .47) / this.camera.zoom + this.camera.y }; }
+  mapCenter(){return this.compact?{x:this.width/2,y:this.height/2}:{x:(this.width-(this.width>720?270:0))/2,y:70+(this.height-70-(this.footerHeight||164))/2};}
+  fit() { if(!this.compact)this.footerHeight=document.getElementById('command-panel')?.offsetHeight||164; this.camera = { x: 0, y: 0, zoom: Math.max(.08,Math.min((this.width - (this.compact?0:this.width>720?300:30)) / SYSTEM_DIAMETER, (this.height - (this.compact?0:this.footerHeight+90)) / SYSTEM_DIAMETER)) }; }
+  screen(p) { const center=this.mapCenter();return { x: (p.x - this.camera.x) * this.camera.zoom + center.x, y: (p.y - this.camera.y) * this.camera.zoom + center.y }; }
+  world(p) { const center=this.mapCenter();return { x: (p.x - center.x) / this.camera.zoom + this.camera.x, y: (p.y - center.y) / this.camera.zoom + this.camera.y }; }
   zoomAt(point, factor) {
-    const before = this.world(point); this.camera.zoom = Math.max(.18, Math.min(2.8, this.camera.zoom * factor));
+    const before = this.world(point); this.camera.zoom = Math.max(.08, Math.min(2.8, this.camera.zoom * factor));
     const after = this.world(point); this.camera.x += before.x - after.x; this.camera.y += before.y - after.y;
   }
   circle(x, y, r, stroke, fill, dash = []) {
@@ -71,6 +73,7 @@ export class Renderer {
     c.restore();
   }
   draw(w, ui) {
+    if(!this.compact)this.footerHeight=document.querySelector('footer')?.offsetHeight||240;
     this.contactMarkers=new Set();
     const c = this.ctx, z = this.camera.zoom; c.clearRect(0, 0, this.width, this.height); c.fillStyle = '#091622'; c.fillRect(0, 0, this.width, this.height);
     for (const s of this.stars) { c.globalAlpha = s.alpha; c.fillStyle = '#b9ccd8'; c.fillRect(s.x * this.width, s.y * this.height, s.r, s.r); } c.globalAlpha = 1;
@@ -116,13 +119,13 @@ export class Renderer {
         this.circle(s.x, s.y, r + 7, p.color + '66', null, p.team === 'enemy' ? [2, 4] : []);
         c.fillStyle = '#2a3a43'; c.fillRect(s.x - 20, s.y + r + 24, 40, 2); c.fillStyle = p.color; c.fillRect(s.x - 20, s.y + r + 24, 40 * p.hp / p.maxHp, 2);
       }
-      this.text(p.name + (p.team === 'enemy' ? ' / ENEMY' : p.team === 'player' ? ' / HOME' : ''), s.x, s.y + r + 16, p.color, 9, 'center');
+      if(!this.compact)this.text(p.name + (p.team === 'enemy' ? ' / ENEMY' : p.team === 'player' ? ' / HOME' : ''), s.x, s.y + r + 16, p.color, 9, 'center');
     }
     for (const u of w.units) {
       if (u.hp <= 0) continue;
       const s = this.screen(u);
       if (s.x < -30 || s.x > this.width + 30 || s.y < -30 || s.y > this.height + 30) {
-        if(u.visitor){
+        if(u.visitor&&!this.compact){
           const x=Math.max(18,Math.min(this.width-18,s.x)),y=Math.max(65,Math.min(this.height-175,s.y));
           this.circle(x,y,5,'#a3acb1');
           this.text(u.name,x+(x>this.width/2?-12:12),y+4,'#a3acb1',8,x>this.width/2?'right':'left');
@@ -131,7 +134,7 @@ export class Renderer {
       }
       if(u.visitor)this.text(u.name,s.x+13,s.y-10,'#a3acb1',8);
       const color = objectColor(u); c.save(); c.translate(s.x, s.y); c.strokeStyle = color; c.fillStyle = color; c.lineWidth = 1.3;
-      const size = Math.max(u.type === 'rock' ? u.size==='small'?4:u.size==='large'?8:5.5 : u.type === 'drone' ? 3.2 : 5.5, u.radius * z);
+      const size = Math.max((u.type === 'rock' ? u.size==='small'?4:u.size==='large'?8:5.5 : u.type === 'drone' ? 3.2 : 5.5)*(this.compact?1.5:1), u.radius * z);
       if (u.type === 'ship') {
         c.rotate(Math.atan2(u.vy, u.vx) + Math.PI / 2); c.beginPath(); c.moveTo(0, -size * 1.35); c.lineTo(size * .75, size); c.lineTo(0, size * .5); c.lineTo(-size * .75, size); c.closePath(); c.fill();
       } else if (u.type === 'miner') {
@@ -164,7 +167,7 @@ export class Renderer {
         c.stroke();c.restore();
       }
       if(u.type==='miner' && (u.miningRockId || u.miningProgress>0)){
-        this.text(u.miningRockId?(entity(w,u.miningRockId)?.metalRemaining>0?'+0.2 / s':'DEPLETED'):`DOCK ${Math.ceil(4-u.miningProgress)}s`,s.x-12,s.y-14,color,9,'right');
+        this.text(u.miningRockId?(entity(w,u.miningRockId)?.metalRemaining>0?`+${MINING_RATE} / s`:'DEPLETED'):`DOCK ${Math.ceil(4-u.miningProgress)}s`,s.x-12,s.y-14,color,9,'right');
         const rock=entity(w,u.miningRockId);if(rock){const p=this.screen(rock);c.save();c.strokeStyle=color+'88';c.setLineDash([2,3]);c.beginPath();c.moveTo(s.x,s.y);c.lineTo(p.x,p.y);c.stroke();c.restore();}
       }
       if (u.type === 'booster' && u.attachedRockId && entity(w, u.attachedRockId)?.burn?.remaining > 0) {
@@ -208,7 +211,7 @@ export class Renderer {
       const a = this.screen(selected), b = this.screen({ x: selected.x + ui.pending.impulse.x * 10, y: selected.y + ui.pending.impulse.y * 10 });
       c.strokeStyle = '#f2ce87'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
       const angle = Math.atan2(b.y - a.y, b.x - a.x); c.beginPath(); c.moveTo(b.x - Math.cos(angle - .5) * 9, b.y - Math.sin(angle - .5) * 9); c.lineTo(b.x, b.y); c.lineTo(b.x - Math.cos(angle + .5) * 9, b.y - Math.sin(angle + .5) * 9); c.stroke();
-      this.text(`Δv ${Math.hypot(ui.pending.impulse.x, ui.pending.impulse.y).toFixed(1)} / 22`, b.x + 10, b.y - 8, '#f2ce87', 9);
+      this.text(`Δv ${Math.hypot(ui.pending.impulse.x, ui.pending.impulse.y).toFixed(1)} / ${MAX_IMPULSE}`, b.x + 10, b.y - 8, '#f2ce87', 9);
     }
     if (ui.pending?.order && !ui.pending.order.targetId) {
       const p = this.screen(ui.pending.order); this.circle(p.x, p.y, 6, COLORS.player); this.circle(p.x, p.y, 11, COLORS.player + '66');

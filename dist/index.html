@@ -82,6 +82,47 @@ header{grid-template-columns:var(--control-width) minmax(160px,1fr) var(--contro
 .unit-upgrade{margin-top:10px;padding-top:8px;border-top:1px solid #ffffff18}.unit-upgrade small{display:block;color:#a9babf;font-size:10px;line-height:1.5;margin-bottom:7px}.unit-upgrade button{width:100%}
 
 @media(max-width:720px){.build-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.range-dock .build-buttons{grid-template-columns:repeat(2,minmax(0,1fr))}.unit-upgrade small{font-size:8px}.unit-upgrade button{font-size:9px;padding:7px 3px}}
+/* Unified command deck and selectable planet close-ups. */
+:root{--deck-height:164px;--player-color:#80d6cf}
+header{left:16px;right:16px;top:12px;display:flex;align-items:flex-start;gap:15px;z-index:3}
+.game-navigation{width:auto;display:flex;flex-direction:row;align-items:center;gap:14px}.tagline{display:none}.game-controls.cartouche{width:auto;flex-direction:row;align-items:center;padding:6px 8px}.navigation-row{flex-shrink:0}#scenario-picker label{display:none}.game-controls #scenario{max-width:210px}.game-controls #scenario-picker:after{right:9px}.mission-summary{display:none}.header-status{width:0}.game-navigation>#tutorial{position:fixed;left:16px;top:78px;width:260px;max-height:calc(100dvh - var(--deck-height) - 100px);overflow:auto;background:#102330f5;padding:12px;border:1px solid var(--tutorial);border-radius:7px}.tutorial p{font-size:11px;line-height:1.5}.tutorial h2{margin-top:8px}
+#system-details{position:relative;font-size:11px;pointer-events:auto}#system-details>summary{cursor:pointer;padding:9px;border:1px solid var(--line);border-radius:6px;white-space:nowrap}#system-details .mission.cartouche{position:absolute;top:42px;left:0;bottom:auto;width:270px;max-height:calc(100dvh - var(--deck-height) - 95px);overflow:auto;background:#102330fa}#system-details #colonies{display:none}#system-details #lesson{font-size:10px}
+#command-panel{position:fixed;left:0;right:0;bottom:0;height:var(--deck-height);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;align-items:stretch;border:1px solid var(--player-color);border-top:3px solid var(--player-color);border-radius:0;background:#102330fa;z-index:5;pointer-events:auto;padding:0}
+#command-panel>.command-section{position:relative;min-width:0;width:auto;margin:0;border:0;border-right:1px solid #39515b;border-radius:0;padding:14px 14px 8px;background:transparent;overflow:auto;scrollbar-width:thin}#command-panel>.command-section:last-child{border-right:0}.panel-heading{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:10px;letter-spacing:1px;color:var(--player-color);height:24px;line-height:14px;margin-bottom:8px}.panel-heading #action-heading{margin:0}.panel-heading #player-world-name{letter-spacing:0;color:#a7bbb8}.panel-heading #selected-owner{margin-left:auto;letter-spacing:0;font-size:10px}#action-empty{font-size:12px;color:var(--muted);line-height:1.6;max-width:270px}
+#command-panel .dock{position:static;width:100%;padding:0;background:none;border:0;box-shadow:none}#command-panel .dock-heading{padding:0 0 8px;font-size:10px}.build-buttons{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}.build-buttons button{min-width:0;min-height:72px;padding:5px 2px;border:1px solid #36515b;display:flex;flex-direction:column;justify-content:center;gap:4px;align-items:center;text-align:center}.build-buttons svg{width:25px;height:25px;grid-row:1/3}.build-buttons b{font-size:10px;letter-spacing:0}.build-buttons span{font-size:10px}#command-panel .range-dock .build-buttons{grid-template-columns:minmax(0,180px)}#command-panel .selected-title{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px}#selected-name{font-size:15px}#selected-health{margin-left:auto;font-size:12px}#unit-health-bar{width:100%;height:9px;border:0}#selected-meta{font-size:11px;line-height:1.5;min-height:0}#selected-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}#selected-actions button,#order-upgrade{border:1px solid #46616c;font-size:11px;padding:6px}#unit-upgrade{margin:0;padding:0;border:0}#upgrade-details{font-size:10px;line-height:1.5}
+#command-panel .plan{position:static;transform:none;inset:auto;width:100%;min-width:0;max-height:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px;background:none;border:0;box-shadow:none}#plan>div:first-child{width:100%}#plan-summary{font-size:12px;margin:4px 0}#plan-note{font-size:10px;line-height:1.5}#plan-kind{font-size:9px}.plan-actions{margin-left:0;display:flex;gap:8px}.plan-actions button{padding:7px 12px}.rock-contact-controls{width:100%;max-width:none;min-width:0}.rock-contact-controls input{margin:3px 0}.contact-labels{display:none}
+#game-control-panel .top-right{min-height:0;height:24px;justify-content:flex-end;gap:5px;margin:0 0 0 auto;font-size:10px;letter-spacing:0}#game-control-panel .top-right #metal{font-size:14px}#game-control-panel .top-right #help{margin:0 0 0 5px;padding:2px 6px;font-size:11px}#game-control-panel .time-controls{position:static;transform:none;inset:auto;width:100%;display:flex;gap:5px;padding:0;border:0;background:none;justify-content:flex-start}#game-control-panel .time-controls button{font-size:12px;min-width:38px;height:29px;padding:4px 8px}#game-control-panel #clock{margin-left:auto;font-size:12px}
+#game-control-panel .map-tools{position:static;inset:auto;display:flex;justify-content:flex-start;align-items:center;gap:12px;flex-wrap:wrap;margin:6px 0;max-width:none;font-size:10px}#game-control-panel .map-tools button{padding:3px}.map-tools button span{display:none}
+#game-control-panel #playtest-toolbar{position:static;inset:auto;transform:none;width:100%;display:flex;flex-wrap:wrap;gap:6px;border:0;border-top:1px solid #39515b;border-radius:0;background:none;padding:6px 0 0;font-size:9px}#playtest-status{flex:1;font-size:9px}#playtest-toolbar button{border:1px solid #39515b;font-size:10px;padding:4px 8px}
+#planet-views{position:fixed;right:16px;top:78px;width:244px;max-height:calc(100dvh - var(--deck-height) - 92px);overflow:auto;z-index:2;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin}.planet-view{background:#091622;border:1px solid #56636d;border-radius:7px;overflow:hidden}#player-view{border-color:var(--player-color)}#enemy-view{border-color:#ee9184}.planet-view summary{cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:6px;padding:8px;font-size:9px;letter-spacing:.5px}.planet-view summary strong{font-size:10px;font-weight:400;letter-spacing:0}.planet-view canvas{position:static;inset:auto;width:100%;height:164px;cursor:pointer;outline-offset:-3px}.planet-view canvas:focus-visible{outline:2px solid var(--player-color)}.view-empty{display:block;padding:18px;color:var(--muted);font-size:11px}
+#paused-label{position:fixed;top:66px;left:50%;bottom:auto;transform:translateX(-50%);font-size:10px;padding:6px;pointer-events:none}#paused-label span{display:none}#toast{top:72px;z-index:8}.header-status #alerts{position:fixed;top:80px;right:280px;left:auto;width:240px;max-height:140px;pointer-events:none}.alert{font-size:10px}#hint{display:none!important}
+@media(max-width:1000px){.wordmark span:last-child{display:none}.game-navigation{gap:8px}#command-panel>.command-section{padding:14px 10px 8px}.build-buttons b,.build-buttons span{font-size:9px}.build-buttons button{grid-template-columns:18px 1fr}.build-buttons svg{width:18px}.panel-heading{font-size:9px;letter-spacing:0}.panel-heading #selected-owner{font-size:9px}#selected-meta{font-size:11px}}
+@media(max-width:720px){:root{--deck-height:187px}.game-navigation{flex-wrap:wrap}.game-controls.cartouche{padding:4px}.game-controls #scenario{max-width:145px}#system-details>summary{font-size:9px;padding:7px}#planet-views{top:95px;right:8px;width:155px;max-height:calc(100dvh - var(--deck-height) - 105px)}.planet-view canvas{height:118px}.planet-view summary{font-size:7px;flex-wrap:wrap;padding:5px}#command-panel>.command-section{padding:12px 7px 6px}.build-buttons{grid-template-columns:repeat(5,minmax(60px,1fr));overflow-x:auto}.build-buttons button{display:flex;flex-direction:column;min-height:55px}.build-buttons svg{display:none}.panel-heading #player-world-name{display:none}#selected-name{font-size:12px}#selected-health{font-size:10px}#selected-meta{font-size:10px}#game-control-panel .time-controls{flex-wrap:wrap;gap:1px}#game-control-panel .time-controls button{min-width:26px;font-size:11px;padding:5px}#game-control-panel #clock{font-size:10px}#game-control-panel .map-tools{font-size:9px;gap:4px}#game-control-panel .map-tools label{gap:3px}.game-navigation>#tutorial{top:95px;left:8px;width:calc(100vw - 180px);max-height:calc(100dvh - var(--deck-height) - 110px)}.tutorial h2{font-size:11px}.tutorial p{font-size:10px}.header-status #alerts{display:none}#paused-label{top:75px}#selected-actions button,#order-upgrade{font-size:10px;padding:5px}#command-panel .plan .plan-actions{flex-wrap:wrap}#system-details .mission.cartouche{position:fixed;left:8px;top:85px;width:250px}}
+#unit-health-bar{-webkit-appearance:none;appearance:none;background:#304550;border-radius:3px;overflow:hidden}#unit-health-bar::-webkit-progress-bar{background:#304550}#unit-health-bar::-webkit-progress-value{background:var(--health-color,var(--player-color))}#unit-health-bar::-moz-progress-bar{background:var(--health-color,var(--player-color))}
+
+#faction-label{position:absolute;top:-10px;left:50%;transform:translateX(-50%);padding:0 12px;background:#102330;color:var(--player-color);font-size:11px;line-height:16px;letter-spacing:1px;white-space:nowrap;text-transform:uppercase;pointer-events:none}
+#game-control-panel .map-tools #fit{margin-left:auto}
+@media(max-width:720px){#faction-label{font-size:9px;letter-spacing:.5px;padding:0 8px}.panel-heading{height:auto;min-height:24px;align-content:flex-start}.panel-heading #selected-owner{font-size:8px}#game-control-panel .panel-heading{gap:3px}#game-control-panel .top-right{margin-left:0}#game-control-panel .map-tools{gap:5px;margin:5px 0}#game-control-panel #playtest-toolbar{gap:4px}#playtest-status{flex-basis:100%}#game-control-panel #playtest-toolbar button{font-size:8px;padding:3px}}
+
+.planet-view canvas{display:block}.view-integrity{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #39515b;padding:9px 8px;font-size:9px;letter-spacing:.4px}.view-integrity strong{font-size:12px;font-weight:400}@media(max-width:720px){.view-integrity{padding:7px 5px;font-size:8px;gap:4px}.view-integrity strong{font-size:10px}}
+
+/* Keep order confirmation visible even when a detailed preview needs scrolling. */
+#action-panel:has(#plan:not(.hidden)){display:flex;flex-direction:column;overflow:hidden}
+#action-panel>.panel-heading{flex-shrink:0}
+#command-panel #plan{flex:1;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);align-items:stretch;gap:6px;padding:7px;border:1px solid var(--player-color);border-radius:5px;background:#162e39}
+#plan .plan-actions{grid-row:1;flex-wrap:nowrap;align-items:center;margin:0;gap:8px}
+#plan .plan-actions button{padding:5px 10px;white-space:nowrap}
+#plan-details{grid-row:2;min-height:0;overflow:auto;scrollbar-width:thin}
+#plan-details #plan-summary{margin:3px 0;font-size:11px;line-height:1.4}
+#plan-details #plan-note{display:block;font-size:9px;line-height:1.4}
+#plan-details .rock-contact-controls{margin-top:5px}
+@media(max-width:720px){#command-panel #plan{padding:5px}#plan .plan-actions{gap:4px;flex-wrap:wrap}#plan .plan-actions button{padding:4px 6px;font-size:10px}#plan .plan-actions kbd{display:none}}
+
+/* Floating order review sits above the deck on the left. */
+#plan.plan{position:fixed;left:16px;right:auto;bottom:calc(var(--deck-height) + 12px);top:auto;transform:none;width:360px;min-width:0;max-width:calc(100vw - 32px);max-height:min(320px,calc(100dvh - var(--deck-height) - 90px));margin:0;padding:12px;display:grid;grid-template-rows:auto minmax(0,1fr);align-items:stretch;gap:9px;border:1px solid var(--player-color);border-radius:7px;background:#102330fa;box-shadow:0 6px 24px #0006;z-index:7;overflow:hidden}
+#plan #plan-details{max-height:240px}
+#plan .plan-actions{flex-wrap:nowrap}
+@media(max-width:720px){#plan.plan{left:8px;right:auto;bottom:calc(var(--deck-height) + 8px);max-width:calc(100vw - 16px);width:320px;padding:10px}#plan #plan-details{max-height:190px}}
 
 </style>
 </head>
@@ -154,7 +195,6 @@ header{grid-template-columns:var(--control-width) minmax(160px,1fr) var(--contro
         <button data-build="drone" title="Ramming interceptor: sacrifices itself for 45 contact damage. Intercepts incoming rocks and hostile ships."><svg viewBox="0 0 40 40"><path d="m20 9 11 20H9Z"/><circle cx="20" cy="9" r="3"/><circle cx="9" cy="29" r="3"/><circle cx="31" cy="29" r="3"/></svg><b>DRONE</b><span>25 ◇ / RAM</span></button>
         <button data-build="booster"><svg viewBox="0 0 40 40"><path d="m16 8 4-4 4 4v24h-8ZM10 15h6v13h-6ZM24 15h6v13h-6ZM18 32v5M22 32v5"/></svg><b>BOOSTER</b><span>50 ◇</span></button>
         <button data-build="miner" title="Unarmed asteroid miner. Dock to earn 0.2 metal per second."><svg viewBox="0 0 40 40"><path d="M10 10h20v20H10ZM4 14h6M4 26h6M30 14h6M30 26h6M16 10V5M24 10V5"/></svg><b>MINER</b><span>25 &#9671;</span></button>
-        <button id="rock-tool"><svg class="rock-icon" viewBox="0 0 40 40"><path d="m13 5 15 3 8 14-7 12-16 1-9-11Z"/></svg><b>ROCK</b><span>35 ◇ / launch</span></button>
         <button id="range-reset" class="hidden"><span aria-hidden="true">&#8635;</span><b>RESET RANGE</b><span>Fresh rocks &amp; defenses</span></button>
       </div>
     </section>
@@ -1211,8 +1251,20 @@ function updateVisitors(w) {
   // Extreme gravity may leave no suitable crossing. Try again later, never force a sun shot.
   event.nextAt=w.time+30;
 }
+// Preserve the opening grace periods regardless of how long the player looks around.
+function activateSystem(w) {
+  if(!w.awaitingFirstOrder)return false;
+  const waited=w.time;
+  for(const [key,fallback] of Object.entries({buildAt:48,attackAt:65,rockAt:95,launchAt:0,thinkAt:0,upgradeAt:90}))
+    w.ai[key]=(w.ai[key]??fallback)+waited;
+  if(w.visitors)w.visitors.nextAt+=waited;
+  if(w.scenario==='hold')w.duration+=waited;
+  w.awaitingFirstOrder=false;
+  return true;
+}
 function step(w, dt = DT) {
   if (w.outcome && !w.continueSandbox) return;
+  if(w.awaitingFirstOrder){advanceMotion(w,dt);return;}
   updateVisitors(w);
   scanRockThreats(w);
   advanceMotion(w, dt);
@@ -1311,7 +1363,7 @@ const SCENARIOS = {
   playground: { name: 'Slingshot Playground', kicker: '04 / A LIVE-FIRE PLAYGROUND', objective: 'Test trajectories and planetary defenses. Every rock is ready to launch.',
     body: '<p>Twelve belt rocks already have <b>friendly boosters attached</b>. Launches are free. <b>Verdant is your home</b>; Cinder and Ochre are enemy targets.</p><ul><li><b>Aim:</b> select a rock and right-click a planet, or empty space for manual aim. Review and confirm.</li><li><b>Observe:</b> every planet has a ship, a platform, and two drones. Verdant\'s defenders are yours; enemy defenders match their planet\'s color.</li><li><b>Experiment:</b> try different approaches, coordinate several launches, or adjust the gravity sliders.</li><li><b>Reset range:</b> instantly restore rocks and defenses while keeping your gravity settings.</li></ul><p>The defenders intercept nearby threats but never build units or launch attacks. No victory screen or time limit. Spent boosters detach after firing; reset when you want fresh ammunition.</p>' },
   garden: { name: 'Rock Garden', kicker: '01 / AN ORBITAL PLAYGROUND', objective: 'Learn to launch and defend. Finish by reducing Ochre to zero integrity.',
-    body: '<p>Your colony, <b>Verdant</b>, has a booster ship ready to go. Earn your shot by reaching an asteroid.</p><ul><li><b>1.</b> Select a belt rock and choose <b>Send booster</b>. Confirm and unpause.</li><li><b>2.</b> The ship matches velocity and attaches a booster over <b>6 seconds</b>.</li><li><b>3.</b> Select the equipped rock, right-click a planet to target it or empty space to aim, then review and confirm your launch.</li><li><b>4.</b> Send a practice rock to watch an enemy booster prepare an attack.</li></ul><p>Booster ships wait attached. Launch starts a 4-second burn, followed by automatic detachment. Then choose Return home to reload. Ochre is an uninhabited target. Launched rocks can damage Verdant too; check the preview before firing.</p>' },
+    body: '<p>Your colony, <b>Verdant</b>, has a booster ship ready to go. Earn your shot by reaching an asteroid.</p><ul><li><b>1.</b> Select a belt rock and choose <b>Send booster</b>. Confirm and unpause.</li><li><b>2.</b> The ship matches velocity and attaches a booster over <b>6 seconds</b>.</li><li><b>3.</b> Select the equipped rock, right-click a planet to target it or empty space to aim, then review and confirm your launch.</li><li><b>4.</b> Send a practice rock to watch an enemy booster prepare an attack.</li></ul><p>Booster ships wait attached. Launch starts a 4-second burn, followed by automatic detachment. Then choose Return home to reload. Ochre is your enemy target. Launched rocks can damage Verdant too; check the preview before firing.</p>' },
   hold: { name: 'Hold the Orbit', kicker: '02 / A SMALL SIEGE', objective: 'Keep Verdant alive for 4 minutes. Incoming launches are announced.',
     body: '<p>Hold your colony for <b>four simulation minutes</b>. A platform, a ship, two drones, and a booster ship are ready.</p><ul><li><b>Watch.</b> Enemy booster expeditions prepare incoming rocks.</li><li><b>Disrupt.</b> Hunt the booster before it attaches, or destroy its equipped rock.</li><li><b>Defend.</b> Keep enough forces home to intercept launched rocks and enemy ships.</li></ul><p>New threats pause fast-forward. Both sides must fly a booster to an asteroid before launching it.</p>' },
   neighbors: { name: 'Neighbors', kicker: '03 / ACROSS THE GRAVITY WELL', objective: 'Protect Verdant. Reduce the colony on Cinder to zero integrity.',
@@ -1347,7 +1399,7 @@ function createScenario(key = 'garden', gravitySettings, collisionSettings) {
     }
     return w;
   }
-  w.planets = key === 'garden' ? [planet('verdant', 'VERDANT', 390, -.25, 18, 'player', '#65b6b3'), planet('ochre', 'OCHRE', 170, .65, 13, 'neutral', '#bd7968', 500)] :
+  w.planets = key === 'garden' ? [planet('verdant', 'VERDANT', 390, -.25, 18, 'player', '#65b6b3'), planet('ochre', 'OCHRE', 170, .65, 13, 'enemy', '#bd7968', 500)] :
     [planet('verdant', 'VERDANT', 390, -.2, 18, 'player', '#65b6b3'), planet('cinder', 'CINDER', 690, -1.05, 21, 'enemy', '#c6bfa4'),
       ...(key === 'neighbors' ? [planet('ochre', 'OCHRE', 170, .75, 13, 'neutral', '#bd7968', 500)] : [])];
   setGravity(w, settings);
@@ -1426,7 +1478,8 @@ function createGame(options = {}) {
 const COLORS = { player: '#80d6cf', enemy: '#ee9184', neutral: '#a3acb1', star: '#f2ce87' };
 const objectColor = u => u.color || COLORS[u.team] || COLORS.neutral;
 class Renderer {
-  constructor(canvas) {
+  constructor(canvas, compact = false) {
+    this.compact=compact;
     this.canvas = canvas; this.ctx = canvas.getContext('2d');
     this.camera = { x: 0, y: 0, zoom: 1 }; this.width = 0; this.height = 0;
     let seed = 13579;
@@ -1436,16 +1489,17 @@ class Renderer {
     this.resize(); this.fit();
   }
   resize() {
-    this.width = innerWidth; this.height = innerHeight; this.dpr = Math.min(devicePixelRatio || 1, 2);
+    this.width = this.compact?this.canvas.clientWidth:innerWidth; this.height = this.compact?this.canvas.clientHeight:innerHeight; this.dpr = Math.min(devicePixelRatio || 1, 2);
     this.canvas.width = this.width * this.dpr; this.canvas.height = this.height * this.dpr;
-    this.canvas.style.width = `${this.width}px`; this.canvas.style.height = `${this.height}px`;
+    if(!this.compact){this.canvas.style.width = `${this.width}px`; this.canvas.style.height = `${this.height}px`;}
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
   }
-  fit() { this.camera = { x: 0, y: 0, zoom: Math.min((this.width - 65) / SYSTEM_DIAMETER, (this.height - 145) / SYSTEM_DIAMETER) }; }
-  screen(p) { return { x: (p.x - this.camera.x) * this.camera.zoom + this.width * .53, y: (p.y - this.camera.y) * this.camera.zoom + this.height * .47 }; }
-  world(p) { return { x: (p.x - this.width * .53) / this.camera.zoom + this.camera.x, y: (p.y - this.height * .47) / this.camera.zoom + this.camera.y }; }
+  mapCenter(){return this.compact?{x:this.width/2,y:this.height/2}:{x:(this.width-(this.width>720?270:0))/2,y:70+(this.height-70-(this.footerHeight||164))/2};}
+  fit() { if(!this.compact)this.footerHeight=document.getElementById('command-panel')?.offsetHeight||164; this.camera = { x: 0, y: 0, zoom: Math.max(.08,Math.min((this.width - (this.compact?0:this.width>720?300:30)) / SYSTEM_DIAMETER, (this.height - (this.compact?0:this.footerHeight+90)) / SYSTEM_DIAMETER)) }; }
+  screen(p) { const center=this.mapCenter();return { x: (p.x - this.camera.x) * this.camera.zoom + center.x, y: (p.y - this.camera.y) * this.camera.zoom + center.y }; }
+  world(p) { const center=this.mapCenter();return { x: (p.x - center.x) / this.camera.zoom + this.camera.x, y: (p.y - center.y) / this.camera.zoom + this.camera.y }; }
   zoomAt(point, factor) {
-    const before = this.world(point); this.camera.zoom = Math.max(.18, Math.min(2.8, this.camera.zoom * factor));
+    const before = this.world(point); this.camera.zoom = Math.max(.08, Math.min(2.8, this.camera.zoom * factor));
     const after = this.world(point); this.camera.x += before.x - after.x; this.camera.y += before.y - after.y;
   }
   circle(x, y, r, stroke, fill, dash = []) {
@@ -1495,6 +1549,7 @@ class Renderer {
     c.restore();
   }
   draw(w, ui) {
+    if(!this.compact)this.footerHeight=document.querySelector('footer')?.offsetHeight||240;
     this.contactMarkers=new Set();
     const c = this.ctx, z = this.camera.zoom; c.clearRect(0, 0, this.width, this.height); c.fillStyle = '#091622'; c.fillRect(0, 0, this.width, this.height);
     for (const s of this.stars) { c.globalAlpha = s.alpha; c.fillStyle = '#b9ccd8'; c.fillRect(s.x * this.width, s.y * this.height, s.r, s.r); } c.globalAlpha = 1;
@@ -1540,13 +1595,13 @@ class Renderer {
         this.circle(s.x, s.y, r + 7, p.color + '66', null, p.team === 'enemy' ? [2, 4] : []);
         c.fillStyle = '#2a3a43'; c.fillRect(s.x - 20, s.y + r + 24, 40, 2); c.fillStyle = p.color; c.fillRect(s.x - 20, s.y + r + 24, 40 * p.hp / p.maxHp, 2);
       }
-      this.text(p.name + (p.team === 'enemy' ? ' / ENEMY' : p.team === 'player' ? ' / HOME' : ''), s.x, s.y + r + 16, p.color, 9, 'center');
+      if(!this.compact)this.text(p.name + (p.team === 'enemy' ? ' / ENEMY' : p.team === 'player' ? ' / HOME' : ''), s.x, s.y + r + 16, p.color, 9, 'center');
     }
     for (const u of w.units) {
       if (u.hp <= 0) continue;
       const s = this.screen(u);
       if (s.x < -30 || s.x > this.width + 30 || s.y < -30 || s.y > this.height + 30) {
-        if(u.visitor){
+        if(u.visitor&&!this.compact){
           const x=Math.max(18,Math.min(this.width-18,s.x)),y=Math.max(65,Math.min(this.height-175,s.y));
           this.circle(x,y,5,'#a3acb1');
           this.text(u.name,x+(x>this.width/2?-12:12),y+4,'#a3acb1',8,x>this.width/2?'right':'left');
@@ -1555,7 +1610,7 @@ class Renderer {
       }
       if(u.visitor)this.text(u.name,s.x+13,s.y-10,'#a3acb1',8);
       const color = objectColor(u); c.save(); c.translate(s.x, s.y); c.strokeStyle = color; c.fillStyle = color; c.lineWidth = 1.3;
-      const size = Math.max(u.type === 'rock' ? u.size==='small'?4:u.size==='large'?8:5.5 : u.type === 'drone' ? 3.2 : 5.5, u.radius * z);
+      const size = Math.max((u.type === 'rock' ? u.size==='small'?4:u.size==='large'?8:5.5 : u.type === 'drone' ? 3.2 : 5.5)*(this.compact?1.5:1), u.radius * z);
       if (u.type === 'ship') {
         c.rotate(Math.atan2(u.vy, u.vx) + Math.PI / 2); c.beginPath(); c.moveTo(0, -size * 1.35); c.lineTo(size * .75, size); c.lineTo(0, size * .5); c.lineTo(-size * .75, size); c.closePath(); c.fill();
       } else if (u.type === 'miner') {
@@ -1588,7 +1643,7 @@ class Renderer {
         c.stroke();c.restore();
       }
       if(u.type==='miner' && (u.miningRockId || u.miningProgress>0)){
-        this.text(u.miningRockId?(entity(w,u.miningRockId)?.metalRemaining>0?'+0.2 / s':'DEPLETED'):`DOCK ${Math.ceil(4-u.miningProgress)}s`,s.x-12,s.y-14,color,9,'right');
+        this.text(u.miningRockId?(entity(w,u.miningRockId)?.metalRemaining>0?`+${MINING_RATE} / s`:'DEPLETED'):`DOCK ${Math.ceil(4-u.miningProgress)}s`,s.x-12,s.y-14,color,9,'right');
         const rock=entity(w,u.miningRockId);if(rock){const p=this.screen(rock);c.save();c.strokeStyle=color+'88';c.setLineDash([2,3]);c.beginPath();c.moveTo(s.x,s.y);c.lineTo(p.x,p.y);c.stroke();c.restore();}
       }
       if (u.type === 'booster' && u.attachedRockId && entity(w, u.attachedRockId)?.burn?.remaining > 0) {
@@ -1632,7 +1687,7 @@ class Renderer {
       const a = this.screen(selected), b = this.screen({ x: selected.x + ui.pending.impulse.x * 10, y: selected.y + ui.pending.impulse.y * 10 });
       c.strokeStyle = '#f2ce87'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
       const angle = Math.atan2(b.y - a.y, b.x - a.x); c.beginPath(); c.moveTo(b.x - Math.cos(angle - .5) * 9, b.y - Math.sin(angle - .5) * 9); c.lineTo(b.x, b.y); c.lineTo(b.x - Math.cos(angle + .5) * 9, b.y - Math.sin(angle + .5) * 9); c.stroke();
-      this.text(`Δv ${Math.hypot(ui.pending.impulse.x, ui.pending.impulse.y).toFixed(1)} / 22`, b.x + 10, b.y - 8, '#f2ce87', 9);
+      this.text(`Δv ${Math.hypot(ui.pending.impulse.x, ui.pending.impulse.y).toFixed(1)} / ${MAX_IMPULSE}`, b.x + 10, b.y - 8, '#f2ce87', 9);
     }
     if (ui.pending?.order && !ui.pending.order.targetId) {
       const p = this.screen(ui.pending.order); this.circle(p.x, p.y, 6, COLORS.player); this.circle(p.x, p.y, 11, COLORS.player + '66');
@@ -1841,9 +1896,9 @@ function attachPlaytestRecorder(game) {
     cursorNode.classList.toggle('pressed', !!e.buttons);
   };
   const toolbar = document.createElement('div'); toolbar.id = 'playtest-toolbar'; toolbar.className = 'cartouche'; toolbar.setAttribute('aria-label', 'Shared playtest recording');
-  toolbar.innerHTML = '<span id="playtest-status">SHARED PLAYTEST · RECORDING</span><button id="playtest-mark" title="Preserve this moment and its recent history (M)">Mark moment</button><button id="playtest-toggle">Pause recording</button>';
+  toolbar.innerHTML = '<span id="playtest-status">RECORDING</span><button id="playtest-mark" title="Preserve this moment and its recent history (M)">Mark moment</button><button id="playtest-toggle">Pause recording</button>';
   const cursorNode = document.createElement('div'); cursorNode.id = 'playtest-cursor'; cursorNode.hidden = true;
-  document.querySelector('.header-status').insertBefore(toolbar, document.getElementById('alerts'));
+  document.getElementById('game-control-panel').append(toolbar);
   document.body.append(cursorNode);
   const mark = (label = 'Player marked this moment') => {
     if (!recording) return false;
@@ -1857,7 +1912,7 @@ function attachPlaytestRecorder(game) {
     recording = enabled;
     toolbar.classList.toggle('recording-paused', !enabled);
     if (enabled) append('recording-resumed');
-    document.getElementById('playtest-status').textContent = enabled ? 'SHARED PLAYTEST · RECORDING' : 'SHARED PLAYTEST · RECORDING PAUSED';
+    document.getElementById('playtest-status').textContent = enabled ? 'RECORDING' : 'RECORDING PAUSED';
     document.getElementById('playtest-toggle').textContent = enabled ? 'Pause recording' : 'Resume recording';
     document.getElementById('playtest-mark').disabled = !enabled;
     cursorNode.hidden = !enabled || !cursor.inside;
@@ -2062,6 +2117,85 @@ function advanceTutorial(w) {
   }
 }
 
+// hud.js
+
+function arrangeHUD(){
+  const byId=id=>document.getElementById(id),footer=document.querySelector('footer');
+  footer.id='command-panel';footer.setAttribute('aria-label','Your fleet controls');
+  const actions=document.createElement('section');actions.id='action-panel';actions.className='command-section';
+  actions.setAttribute('aria-label','Context actions');actions.innerHTML='<div class="panel-heading"><span id="action-heading">ACTIONS</span></div><p id="action-empty">Select your planet to build, or a unit to command.</p>';
+  footer.prepend(actions);
+  footer.insertAdjacentHTML('afterbegin','<div id="faction-label"><span id="player-world-name"></span> — PLAYER FACTION</div>');
+  actions.append(document.querySelector('.dock'),byId('unit-upgrade'),byId('selected-actions'));
+  document.body.append(byId('plan'));
+  const plan=byId('plan'),planDetails=document.createElement('div');planDetails.id='plan-details';
+  planDetails.append(plan.firstElementChild,byId('rock-contact-controls'));plan.prepend(planDetails);
+  const inspector=byId('selection');inspector.classList.add('command-section');
+  inspector.insertAdjacentHTML('afterbegin','<div class="panel-heading">UNIT INSPECTOR <span id="selected-owner"></span></div>');
+  byId('selected-health').insertAdjacentHTML('afterend','<progress id="unit-health-bar" aria-label="Unit health" max="1" value="1"></progress>');
+  const controls=document.createElement('section');controls.id='game-control-panel';controls.className='command-section';controls.setAttribute('aria-label','Time and recording controls');
+  controls.innerHTML='<div class="panel-heading">GAME CONTROLS</div>';
+  controls.querySelector('.panel-heading').append(document.querySelector('.top-right'));
+  controls.append(document.querySelector('.time-controls'),document.querySelector('.map-tools'));
+  footer.append(controls);
+  const mission=document.querySelector('.mission'),tutorial=byId('tutorial');
+  const details=document.createElement('details');details.id='system-details';details.innerHTML='<summary>Scenario &amp; tuning</summary>';
+  mission.before(tutorial,details);details.append(mission);
+  byId('hint').classList.add('hidden');
+  const closeups=document.createElement('aside');closeups.id='planet-views';closeups.setAttribute('aria-label','Planet close-ups');
+  closeups.innerHTML=['player','enemy'].map(team=>`<details class="planet-view" id="${team}-view" open><summary><span>${team==='player'?'YOUR PLANET':'ENEMY PLANET'}</span><strong id="${team}-view-name"></strong></summary><canvas id="${team}-view-canvas" tabindex="0" aria-label="${team==='player'?'Friendly':'Enemy'} planet close-up. Click a unit to select it."></canvas><span class="view-empty hidden">No enemy planet</span><div class="view-integrity hidden" id="${team}-view-integrity"><span class="integrity-label"></span><strong class="integrity-value"></strong></div></details>`).join('');
+  document.body.append(closeups);
+}
+
+class PlanetViews{
+  constructor(game){
+    this.game=game;this.lastDraw=-Infinity;
+    this.views=['player','enemy'].map(team=>{
+      const canvas=document.getElementById(`${team}-view-canvas`),panel=document.getElementById(`${team}-view`);
+      const renderer=new Renderer(canvas,true),view={team,canvas,panel,renderer,planet:null};
+      canvas.addEventListener('click',e=>{
+        if(game.modalOpen()||!view.planet)return;
+        const rect=canvas.getBoundingClientRect(),point={x:e.clientX-rect.left,y:e.clientY-rect.top};
+        const target=[...game.world.units.filter(u=>u.hp>0),...game.world.planets]
+          .map(u=>({u,d:distance(renderer.screen(u),point),r:Math.max(12,u.radius*renderer.camera.zoom+4)}))
+          .filter(o=>o.d<=o.r).sort((a,b)=>a.d-b.d)[0]?.u;
+        const selected=entity(game.world,target?.attachedRockId)||target;
+        game.select(selected?.id===game.ui.selectedId?null:selected?.id||null);
+      });
+      canvas.addEventListener('contextmenu',e=>e.preventDefault());
+      canvas.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&view.planet&&!game.modalOpen()){e.preventDefault();e.stopPropagation();game.select(view.planet.id);}});
+      panel.addEventListener('toggle',()=>{this.lastDraw=-Infinity;});
+      return view;
+    });
+  }
+  draw(now){
+    if(now-this.lastDraw<66)return;this.lastDraw=now;
+    const {world:w,ui}=this.game;
+    for(const view of this.views){
+      // Follow the selected enemy's colony in systems with multiple rivals.
+      const selected=entity(w,ui.selectedId),host=entity(w,selected?.hostId);
+      const preferred=selected?.type==='planet'?selected:host;
+      const planet=preferred?.team===view.team?preferred:w.planets.find(p=>p.team===view.team&&p.hp>0)||w.planets.find(p=>p.team===view.team);
+      view.planet=planet;
+      view.panel.style.borderColor=planet?.color||'#56636d';
+      document.getElementById(`${view.team}-view-name`).textContent=planet?`${planet.name}${planet.hp<=0?' / LOST':''}`:'None';
+      view.canvas.classList.toggle('hidden',!planet);view.panel.querySelector('.view-empty').classList.toggle('hidden',!!planet);
+      const integrity=document.getElementById(`${view.team}-view-integrity`);
+      integrity.classList.toggle('hidden',!planet);
+      if(planet){
+        integrity.querySelector('.integrity-label').textContent=`${planet.name} INTEGRITY`;
+        integrity.querySelector('.integrity-value').textContent=`${Math.round(Math.max(0,Math.min(1,planet.hp/planet.maxHp))*100)}%`;
+        integrity.style.color=planet.color;
+      }
+      if(!planet||!view.panel.open)continue;
+      const r=view.renderer;
+      if(r.width!==view.canvas.clientWidth||r.height!==view.canvas.clientHeight)r.resize();
+      r.camera={x:planet.x,y:planet.y,zoom:Math.min(r.width,r.height)/260};
+      r.draw(w,{...ui,predictions:new Map(),baseline:null,pending:null,allPaths:false,ranges:false,hoverId:null});
+    }
+  }
+}
+
 // main.js
 const $ = id => document.getElementById(id);
 const setText = (id, value) => { const node = $(id); if (node.textContent !== value) node.textContent = value; };
@@ -2069,11 +2203,13 @@ const time = seconds => `${String(Math.floor(Math.max(0, seconds) / 60)).padStar
 const titleCase = text => text[0].toUpperCase() + text.slice(1);
 class Game {
   constructor() {
+    arrangeHUD();
     this.canvas = $('space'); this.renderer = new Renderer(this.canvas);
     this.ui = { selectedId: null, hoverId: null, pending: null, predictions: new Map(), baseline: null, ranges: false, allPaths: false };
     this.paused = true; this.speed = 1; this.accumulator = 0; this.lastFrame = performance.now();
     this.lastPreview = 0; this.previewDirty = true; this.lastUI = 0; this.seenEvent = 0; this.toastUntil = 0;
     this.bindUI(); this.load('garden', undefined, true); attachInput(this);
+    this.planetViews=new PlanetViews(this);
     this.headerObserver = new ResizeObserver(() => {
       document.documentElement.style.setProperty('--header-bottom', `${document.querySelector('header').getBoundingClientRect().bottom + 12}px`);
     });
@@ -2150,16 +2286,7 @@ class Game {
     $('confirm').onclick = () => this.confirm(); $('cancel').onclick = () => this.cancel();
     $('help').onclick = () => this.help();
     document.querySelectorAll('[data-build]').forEach(b => b.onclick = () => this.build(b.dataset.build));
-    $('rock-tool').onclick = () => {
-      const rocks = this.world.units.filter(u => u.type === 'rock' && !u.launched && u.hp > 0 && (!u.boosterTeam || u.boosterTeam === 'player')).sort((a, b) => Number(!!b.boosterTeam) - Number(!!a.boosterTeam));
-      if (!rocks.length) { this.toast('No unlaunched rocks remain. Restart to reset the belt.'); return; }
-      const current = rocks.findIndex(r => r.id === this.ui.selectedId);
-      const rock = rocks[(current + 1) % rocks.length]; this.select(rock.id);
-      const screen = this.renderer.screen(rock);
-      if (screen.x < 30 || screen.y < 65 || screen.x > innerWidth - 30 || screen.y > innerHeight - 160) this.renderer.fit();
-      this.toast(rock.boosterTeam === 'player' ? 'Booster attached. Right-click a planet or rock to target it, or empty space to aim manually. Then confirm.' : 'This rock needs a booster. Choose Send booster in its panel, then confirm the order.');
-    };
-    $('selection').onclick = e => {
+    $('action-panel').onclick = e => {
       const action = e.target.closest('[data-order]')?.dataset.order;
       if (action === 'home') { const home = this.world.planets.find(p => p.team === 'player'); if (home) this.select(home.id); return; }
       const selected = entity(this.world, this.ui.selectedId); if (!selected) return;
@@ -2195,6 +2322,7 @@ class Game {
       if (!e.target.closest('#practice')) return;
       const result = this.world.lesson ? sendTutorialPractice(this.world) : sendPracticeRock(this.world);
       if (result.error) { this.toast(result.error); return; }
+      activateSystem(this.world);
       this.previewDirty = true; this.processEvents(); this.updateUI();
       if(this.world.lesson) { this.toast('Practice rock launched. Unpause to watch the impact on your undefended colony.'); return; }
       this.toast(this.paused ? 'Practice booster dispatched. Press Space to unpause; it must reach a rock and attach before launch.' : 'Practice booster dispatched. It will attach a booster before launching an incoming rock.');
@@ -2258,24 +2386,25 @@ class Game {
   load(key, options = { mode: 'scenario', scenario: key }, welcome = false) {
     this.tutorial = this.tutorial && key === 'garden' && options.mode === 'scenario' ? { stage: '' } : null;
     $('new-game-modal').classList.add('hidden');
-    this.world = createGame(options); key = this.world.scenario; this.paused = true; this.speed = 1; this.accumulator = 0; this.gravityAdjusted = false;
+    this.world = createGame(options); this.world.awaitingFirstOrder=true; key = this.world.scenario; this.paused = true; this.speed = 1; this.accumulator = 0; this.gravityAdjusted = false;
     if(this.tutorial)beginTutorial(this.world);
     this.seenEvent = 0; this.outcomeShown = false; this.ui.selectedId = key === 'playground' ? this.world.units.find(u => u.type === 'rock').id : this.world.planets[0].id;
     this.ui.hoverId = null; this.ui.pending = null; this.ui.predictions = new Map(); this.ui.baseline = null; this.previewDirty = true;
     this.toastUntil = 0; $('toast').classList.remove('visible'); this.renderer.fit(); $('scenario').value = key;
+    if(this.planetViews){this.planetViews.lastDraw=-Infinity;this.planetViews.draw(performance.now());}
     const open = this.world.mode !== 'scenario', sandbox = this.world.mode === 'sandbox';
     const briefing = open ? `<p>${sandbox ? 'An open playground. Explore trajectories, deploy fleets, and take your time. There are no victory or defeat screens.' : 'Protect Verdant and destroy Cinder. Both sides pay the same prices and earn metal from their colony. Occasional natural asteroids cross the system; watch for warnings. There is no time limit.'}</p><p>${this.world.planets.length} planets. ${this.world.setup.enemies ? 'An AI rival occupies Cinder.' : 'No enemy fleet; the other worlds are uninhabited targets.'} ${this.world.unlimitedMetal ? 'Your deployments and launches are free.' : `Starting budget: ${this.world.setup.budget} metal.`}</p><p>Rocks still need booster ships. Prepare, preview, and launch. New game lets you choose another mode at any time.</p>` : SCENARIOS[key].body;
     if(welcome)this.showWelcome();
     else this.showModal(open ? 'OPEN SYSTEM' : SCENARIOS[key].kicker, open ? titleCase(this.world.mode) : SCENARIOS[key].name, briefing, 'Enter the system', () => {
-      this.closeModal(); this.toast('The system is paused. Plan an order, or press Space to let time flow.');
+      this.enterSystem(); this.toast('Orbits are running. Enemy activity waits for your first confirmed order.');
     });
     this.updateUI();
   }
   showWelcome() {
     this.showModal('ORBITAL WARFARE', 'Welcome to Stones from Heaven',
-      '<p>Prepare asteroids, bend trajectories around moving worlds, and protect your colony. Make a small decision, preview its path, and watch the consequences unfold.</p><ul class="welcome-directions"><li><b>Scenario</b><br>Use the dropdown at the upper left to choose a ready-made challenge or playground.</li><li><b>New game</b><br>Explore Scenarios, Skirmish, and Sandbox with different starting options.</li></ul><p class="note">Rock Garden is ready behind this welcome. Take your time: the system starts paused.</p>',
-      'Start tutorial',()=>{ this.tutorial = { stage: '' }; beginTutorial(this.world); this.ui.selectedId = null; this.closeModal(); },
-      'Explore freely',()=>{this.closeModal();$('scenario').focus();});
+      '<p>Prepare asteroids, bend trajectories around moving worlds, and protect your colony. Make a small decision, preview its path, and watch the consequences unfold.</p><ul class="welcome-directions"><li><b>Scenario</b><br>Use the dropdown at the upper left to choose a ready-made challenge or playground.</li><li><b>New game</b><br>Explore Scenarios, Skirmish, and Sandbox with different starting options.</li></ul><p class="note">Rock Garden is ready behind this welcome. Take your time: orbits are running, but enemy activity waits for your first confirmed order.</p>',
+      'Start tutorial',()=>{ this.tutorial = { stage: '' }; beginTutorial(this.world); this.ui.selectedId = null; this.enterSystem(); },
+      'Explore freely',()=>{this.enterSystem();$('scenario').focus();});
   }
   updateTutorial() {
     const w = this.world, active = !!this.tutorial && w.scenario === 'garden' && w.mode === 'scenario';
@@ -2295,8 +2424,8 @@ class Game {
     let stage, title, copy, highlight, target, action='WATCH';
     const lesson=w.lesson;
     if (!lesson?.controlsComplete) {
-      stage=-1; title='Select, then act'; highlight='selection';
-      copy='Left-click an object to select it; click it again or click empty space to clear selection. Right-click a target or empty space to preview the selected object\'s default action, then Confirm to give the order. The magenta-outlined panel at the bottom right shows details and extra actions for the selected unit. Try selecting a few objects while paused, then click Start flying.';
+      stage=-1; title='Select, then act'; highlight='command-panel';
+      copy='Click an object in the map or a planet close-up. Right-click the main map to plan its action, then Confirm. Actions are bottom left, unit details in the middle, and time controls on the right. Click empty space to clear selection.';
       $('tutorial-start').classList.remove('hidden');
     } else if (lesson?.phase==='complete') {
       stage=15; title='You know the essentials'; copy='You launched and reloaded, built defenses, intercepted an attack, destroyed a launcher, and overcame a defended colony. Keep exploring, or choose another scenario.'; highlight='scenario';
@@ -2448,7 +2577,7 @@ class Game {
         target=rock?.id; action='RIGHT-CLICK';
       }
     } else {
-      stage=0; title=booster ? 'Select your booster' : 'Prepare a booster'; copy=booster ? 'Welcome to the Rock Garden tutorial. Left-click the booster ship inside the magenta circle near Verdant. Left-click selects; right-click gives an order. Time starts paused.' : 'Select Verdant and deploy a booster, or select your spent booster and right-click Verdant to reload. You can also restart for a fresh tutorial.'; target=booster?.id; action='LEFT-CLICK';
+      stage=0; title=booster ? 'Select your booster' : 'Prepare a booster'; copy=booster ? 'Welcome to the Rock Garden tutorial. Left-click the booster ship inside the magenta circle near Verdant. Left-click selects; right-click gives an order. Orbits are running. Enemy activity waits until you confirm your first order.' : 'Select Verdant and deploy a booster, or select your spent booster and right-click Verdant to reload. You can also restart for a fresh tutorial.'; target=booster?.id; action='LEFT-CLICK';
     }
     setText('tutorial-step', stage===-1 ? 'TUTORIAL / STEP 0' : stage===15 ? 'TUTORIAL COMPLETE' : `TUTORIAL / ${stage+1} OF 15`);
     setText('tutorial-title',title); setText('tutorial-copy',copy);
@@ -2464,6 +2593,7 @@ class Game {
     $('modal-secondary').classList.toggle('hidden', !secondary); $('modal-secondary').textContent = secondary || ''; $('modal-secondary').onclick = onSecondary || null;
     $('modal').classList.remove('hidden'); $('modal-action').focus();
   }
+  enterSystem() { this.closeModal(); this.paused=false; this.accumulator=0; this.updateUI(); }
   closeModal() { $('modal').classList.add('hidden'); this.canvas.focus(); this.updateUI(); }
   help() {
     this.showModal('FIELD GUIDE', 'Small orders. Wide orbits.',
@@ -2494,6 +2624,7 @@ class Game {
       if (!setOrder(this.world, pending.id, pending.order)) return;
       this.toast(pending.order.kind === 'fit' ? 'Booster dispatched. Press Space to fly; attachment is automatic on arrival.' : 'Order committed. Press Space to let time flow.');
     }
+    if(activateSystem(this.world)){this.paused=false;this.accumulator=0;this.toast('Order committed. The system is now active.');}
     this.ui.pending = null; this.ui.baseline = null; this.previewDirty = true; this.updateUI();
   }
   cancel() { this.ui.pending = null; this.ui.baseline = null; this.previewDirty = true; this.updateUI(); }
@@ -2569,13 +2700,21 @@ class Game {
     const count = fleet(w, 'player').length;
     $('fleet-count').textContent = playground ? `${w.units.filter(r => r.type === 'rock' && r.hp > 0 && r.boosterTeam === 'player').length} / 12 ready` : `${count} / ${CAP}`;
     const canDeploy = u?.type === 'planet' && u.team === 'player' && u.hp > 0;
+    document.querySelector('.dock').classList.toggle('hidden',(!canDeploy&&!playground)||!!this.ui.pending);
+    const homePlanet=w.planets.find(p=>p.team==='player');
+    document.documentElement.style.setProperty('--player-color',homePlanet?.color||'#80d6cf');
+    setText('player-world-name',homePlanet?.name||'');
+    setText('selected-owner',u?`${u.team==='player'?'FRIENDLY':u.team==='enemy'?'ENEMY':'NEUTRAL'} / ${titleCase(u.type)}`:'');
+    $('selected-owner').style.color=u?.baseColor||u?.color||'#a3acb1';
+    $('unit-health-bar').value=u?Math.max(0,u.hp/u.maxHp):0;
+    $('unit-health-bar').classList.toggle('hidden',!u);
+    $('unit-health-bar').style.accentColor=u?.color||'#a3acb1';
+    $('unit-health-bar').style.setProperty('--health-color',u?.color||'#a3acb1');
+    setText('action-heading',canDeploy?'BUILD':'ACTIONS');
     $('deploy-location').textContent = playground ? 'SLINGSHOT PLAYGROUND' : canDeploy ? `DEPLOY AT ${u.name}` : 'SELECT YOUR COLONY TO DEPLOY';
     document.querySelectorAll('[data-build]').forEach(b => { b.classList.toggle('hidden', playground); b.disabled = !canDeploy || (!w.unlimitedMetal && w.metal.player < COST[b.dataset.build]) || count >= CAP || (!!w.outcome && !w.continueSandbox); b.querySelector('span').textContent = w.unlimitedMetal ? 'Free' : `${COST[b.dataset.build]} \u25c7`; b.title = !canDeploy ? 'Select your colony first' : `${w.unlimitedMetal ? 'Free' : COST[b.dataset.build] + ' metal'} · deploy defending ${u.name}`; });
     $('range-reset').classList.toggle('hidden', !playground);
-    document.querySelector('#rock-tool b').textContent = playground ? 'NEXT ROCK' : 'ROCK';
     document.querySelector('.dock').classList.toggle('range-dock', playground);
-    document.querySelector('#rock-tool span').textContent = w.unlimitedMetal ? 'Free launch' : '35 \u25c7 / launch';
-    $('rock-tool').disabled = !!w.outcome && !w.continueSandbox;
     $('paused-label').classList.toggle('hidden', !this.paused || !!this.ui.pending || this.modalOpen());
     // Interactive elements live in index.html; refresh only text/state around them.
     $('garden-lesson').classList.toggle('hidden', w.scenario !== 'garden' || w.mode !== 'scenario');
@@ -2629,9 +2768,9 @@ class Game {
     if(repair)status+=`<br>${repair.kind==='repairing'?`Repairing at home / +${REPAIR_RATE} health per second`:repair.kind==='waiting'?`Home repairs in ${Math.ceil(repair.remaining)}s without damage`:repair.kind==='away'?'Return home for free repairs':'Home repairs unavailable'}`;
     const upgrade=UPGRADES[u?.type];
     if(upgrade && u)status+=`<br>${u.tier===2?'SUPER':'BASIC'} / ${u.damage} damage / ${u.type==='drone'?`${u.speed} speed`:`${u.range} range / shot every ${u.cooldown}s`}`;
-    setText('selected-name', u?.name || 'THE SYSTEM IS YOURS');
+    setText('selected-name', u?.name || 'Select an object');
     const canUpgrade=u?.team==='player' && upgrade && u.tier!==2 && !(w.outcome && !w.continueSandbox);
-    $('unit-upgrade').classList.toggle('hidden',!canUpgrade);
+    $('unit-upgrade').classList.toggle('hidden',!canUpgrade||!!this.ui.pending);
     if(canUpgrade){
       const price=w.unlimitedMetal?0:upgrade.cost;
       setText('order-upgrade',`Upgrade to Super / ${price} metal`);
@@ -2641,6 +2780,16 @@ class Game {
     }
     setText('selected-health', u ? `${Math.ceil(u.hp)} / ${u.maxHp}` : '');
     // Cache source text rather than comparing browser-normalized HTML (& -> &amp;).
+    const fullStatus=status;
+    status=u?status.split('<br>')[0]:'Click a unit in the map or a planet close-up.';
+    if(u?.damage)status+=`<br>${u.damage} damage${u.range?` · ${u.range} range`:''}${u.speed?` · ${u.speed} speed`:''}${u.tier===2?' · SUPER':''}`;
+    if(u?.type==='rock')status+=`<br>${Math.max(0,u.metalRemaining||0).toFixed(0)} / ${u.metalCapacity||0} metal`;
+    if(u?.type==='miner'){
+      const minedRock=entity(w,u.miningRockId||u.order?.targetId);
+      if(minedRock?.type==='rock')status+=`<br>Metal remaining: ${Math.max(0,minedRock.metalRemaining||0).toFixed(0)} / ${minedRock.metalCapacity||0}`;
+    }
+    if(repair?.kind==='repairing')status+='<br>Repairing at home';
+    $('selected-meta').title=fullStatus.replaceAll('<br>','\n');
     if (this.selectedStatus !== status) { $('selected-meta').innerHTML = status; this.selectedStatus = status; }
     const attachedBooster = u?.type === 'booster' && u.attachedRockId ? u : u?.type === 'rock' ? entity(w, u.boosterId) : null;
     const mobileFriendly = u?.team === 'player' && ['ship', 'drone', 'booster', 'miner'].includes(u.type) && !u.attachedRockId;
@@ -2655,7 +2804,10 @@ class Game {
     $('order-stop').classList.toggle('hidden', !mobileFriendly);
     if (!hasHome) $('order-defend').classList.add('hidden');
     $('order-home').classList.toggle('hidden', !hasHome);
-    $('selected-actions').classList.toggle('hidden', u?.team === 'player' && u.type === 'planet');
+    const inspectOnly=u?.team==='enemy'||(u?.type==='planet'&&u.team!=='player');
+    $('selected-actions').classList.toggle('hidden', inspectOnly||canDeploy||!!this.ui.pending);
+    $('action-empty').classList.toggle('hidden',!!this.ui.pending||canDeploy||playground||!!u&&!inspectOnly);
+    setText('action-empty',inspectOnly?'Inspection only. Select a friendly unit to give orders.':'Select your planet to build, or a unit to command.');
     setText('order-home', mobileFriendly ? 'Colony' : 'Select home colony');
     $('plan').classList.toggle('hidden', !this.ui.pending);
     $('rock-contact-controls').classList.toggle('hidden',this.ui.pending?.aim?.targetType!=='rock');
@@ -2737,6 +2889,7 @@ class Game {
     if (now - this.lastUI > 150) { this.updateUI(); this.lastUI = now; }
     if (this.toastUntil && now > this.toastUntil) { $('toast').classList.remove('visible'); this.toastUntil = 0; }
     this.renderer.draw(this.world, this.ui);
+    this.planetViews.draw(now);
     requestAnimationFrame(t => this.frame(t));
   }
 }

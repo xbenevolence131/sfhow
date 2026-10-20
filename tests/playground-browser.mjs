@@ -10,11 +10,14 @@ try {
  assert.ok((await page.locator('#setup-description').innerText()).includes('Every rock is ready'));
  await page.locator('#start-game').click();assert.equal(await page.locator('#modal-title').innerText(),'Slingshot Playground');
  await page.locator('#modal-action').click();
- assert.equal(await page.evaluate(()=>orbital.paused),true);
+ assert.equal(await page.evaluate(()=>orbital.paused),false);
+ assert.equal(await page.evaluate(()=>orbital.world.awaitingFirstOrder),true);
+ await page.locator('#pause').click();
  assert.equal(await page.locator('#fleet-count').innerText(),'12 / 12 ready');
  assert.equal(await page.locator('#order-home').isVisible(),true);
  assert.equal(await page.locator('[data-build="ship"]').isVisible(),false);
- const first=await page.evaluate(()=>orbital.ui.selectedId);await page.locator('#rock-tool').click();
+ const first=await page.evaluate(()=>orbital.ui.selectedId);
+ const next=await page.evaluate(()=>orbital.renderer.screen(orbital.world.units.find(u=>u.type==='rock'&&u.id!==orbital.ui.selectedId)));await page.mouse.click(next.x,next.y);
  assert.notEqual(await page.evaluate(()=>orbital.ui.selectedId),first);
  await page.evaluate(id=>orbital.select(id),first);
  const home=await page.evaluate(()=>orbital.renderer.screen(orbital.world.planets[0]));
@@ -22,14 +25,18 @@ try {
  assert.equal(await page.evaluate(()=>orbital.ui.pending.aim.verified),true);
  await page.locator('#confirm').click();
  assert.equal(await page.locator('#fleet-count').innerText(),'11 / 12 ready');
- assert.equal(await page.evaluate(()=>orbital.world.metal.player),160);
+ assert.ok(await page.evaluate(()=>orbital.world.metal.player>=160),'free launch does not charge metal; active colony may already earn income');
  await page.locator('#autopause').uncheck();
  await page.locator('[data-speed="20"]').click();
  await page.waitForFunction(id=>orbital.world.units.find(u=>u.id===id).hp<=0,first,{timeout:12000});
  await page.locator('#pause').click();
- assert.equal(await page.evaluate(id=>orbital.world.units.find(u=>u.id===id).impact,first),undefined);
+ assert.ok(await page.evaluate(id=>{
+   const impact=orbital.world.units.find(u=>u.id===id).impact;
+   return !impact || impact.kind==='intercept';
+ },first),'defenses destroy the rock before it impacts a planet');
  assert.ok(await page.evaluate(()=>orbital.world.events.some(e=>e.text==='Asteroid intercepted')));
  assert.equal(await page.evaluate(()=>orbital.world.outcome),null);
+ await page.locator('#system-details > summary').click();
  await page.locator('#gravity-g').fill('1.5');
  await page.locator('#range-reset').click({delay:350});
  assert.equal(await page.evaluate(()=>orbital.world.time),0);assert.equal(await page.evaluate(()=>orbital.paused),true);

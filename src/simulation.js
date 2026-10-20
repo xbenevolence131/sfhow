@@ -1020,8 +1020,20 @@ export function updateVisitors(w) {
   // Extreme gravity may leave no suitable crossing. Try again later, never force a sun shot.
   event.nextAt=w.time+30;
 }
+// Preserve the opening grace periods regardless of how long the player looks around.
+export function activateSystem(w) {
+  if(!w.awaitingFirstOrder)return false;
+  const waited=w.time;
+  for(const [key,fallback] of Object.entries({buildAt:48,attackAt:65,rockAt:95,launchAt:0,thinkAt:0,upgradeAt:90}))
+    w.ai[key]=(w.ai[key]??fallback)+waited;
+  if(w.visitors)w.visitors.nextAt+=waited;
+  if(w.scenario==='hold')w.duration+=waited;
+  w.awaitingFirstOrder=false;
+  return true;
+}
 export function step(w, dt = DT) {
   if (w.outcome && !w.continueSandbox) return;
+  if(w.awaitingFirstOrder){advanceMotion(w,dt);return;}
   updateVisitors(w);
   scanRockThreats(w);
   advanceMotion(w, dt);
